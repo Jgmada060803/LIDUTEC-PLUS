@@ -1,0 +1,146 @@
+:root {
+  --color-primary: #0f4c5c;
+  --color-primary-dark: #0a3540;
+  --color-primary-light: #e8f1f3;
+
+  --color-background: #f4f6f8;
+  --color-surface: #ffffff;
+
+  --color-text: #1f2933;
+  --color-text-muted: #66737f;
+
+  --color-border: #d9e0e5;
+
+  --color-success: #147d4f;
+  --color-warning: #b7791f;
+  --color-danger: #b42318;
+
+  --shadow-card:
+    0 18px 45px rgba(15, 76, 92, 0.12);
+
+  --radius-small: 8px;
+  --radius-medium: 14px;
+  --radius-large: 22px;
+
+  --transition-default: 180ms ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family:
+    Inter,
+    Arial,
+    Helvetica,
+    sans-serif;
+}
+
+body {
+  margin: 0;
+  color: var(--color-text);
+  background: var(--color-background);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.form-group input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+
+  color: var(--color-text);
+  background: var(--color-surface);
+
+  outline: none;
+  transition:
+    border-color var(--transition-default),
+    box-shadow var(--transition-default);
+}
+
+.form-group input:focus {
+  border-color: var(--color-primary);
+  box-shadow:
+    0 0 0 3px rgba(15, 76, 92, 0.14);
+}
+
+.button {
+  min-height: 46px;
+  padding: 0 20px;
+
+  border: 0;
+  border-radius: var(--radius-small);
+
+  font-weight: 800;
+
+  transition:
+    transform var(--transition-default),
+    background-color var(--transition-default),
+    opacity var(--transition-default);
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+}
+
+.button-primary {
+  color: #ffffff;
+  background: var(--color-primary);
+}
+
+.button-primary:hover {
+  background: var(--color-primary-dark);
+}
+
+.button-full {
+  width: 100%;
+}
+
+.form-message {
+  padding: 12px 14px;
+  border-radius: var(--radius-small);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.form-message.error {
+  color: var(--color-danger);
+  background: #fff1f0;
+  border: 1px solid #f7c9c5;
+}
+
+.form-message.success {
+  color: var(--color-success);
+  background: #edf9f3;
+  border: 1px solid #bfe7d1;
+}

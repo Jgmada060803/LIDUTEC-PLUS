@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Login | LIDUTEC+</title>
+
+  <link rel="stylesheet" href="../assets/css/app.css">
+  <link rel="stylesheet" href="../assets/css/login.css">
+</head>
+
+<body class="login-page">
+
+  <main class="login-container">
+
+    <section class="login-brand">
+      <div class="brand-badge">L+</div>
+
+      <h1>LIDUTEC+</h1>
+
+      <p>
+        Plataforma de Engenharia,
+        Produção e Qualidade
+      </p>
+    </section>
+
+    <section class="login-card">
+
+      <div class="login-header">
+        <h2>Acessar o sistema</h2>
+        <p>Informe seu e-mail corporativo e sua senha.</p>
+      </div>
+
+      <form id="login-form" novalidate>
+
+        <div class="form-group">
+          <label for="email">E-mail</label>
+
+          <input
+            type="email"
+            id="email"
+            name="email"
+            placeholder="nome@empresa.com.br"
+            autocomplete="email"
+            required
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="senha">Senha</label>
+
+          <div class="password-wrapper">
+            <input
+              type="password"
+              id="senha"
+              name="senha"
+              placeholder="Digite sua senha"
+              autocomplete="current-password"
+              required
+            >
+
+            <button
+              type="button"
+              id="toggle-password"
+              class="password-toggle"
+              aria-label="Exibir senha"
+            >
+              Mostrar
+            </button>
+          </div>
+        </div>
+
+        <div id="login-message" class="form-message" hidden></div>
+
+        <button
+          type="submit"
+          id="login-button"
+          class="button button-primary button-full"
+        >
+          Entrar
+        </button>
+
+      </form>
+
+      <div class="login-footer">
+        <span>LIDUTEC+ v0.2</span>
+      </div>
+
+    </section>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/supabase.js"></script>
+  <script src="../assets/js/auth.js"></script>
+
+</body>
+</html>

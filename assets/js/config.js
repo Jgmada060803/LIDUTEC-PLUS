@@ -1,5 +1,5 @@
-const SUPABASE_URL = "COLE_AQUI_A_URL_DO_PROJETO";
-const SUPABASE_ANON_KEY = "COLE_AQUI_A_CHAVE_ANON";
+const SUPABASE_URL = "https://ovtvxzedblhfqzukidya.supabase.co/rest/v1/";
+const SUPABASE_ANON_KEY = "sb_publishable_FoDYa60vTbNRwrhuRQOe1Q_Y71Zb7l9";
 
 window.LIDUTEC_CONFIG = {
   supabaseUrl: SUPABASE_URL,
