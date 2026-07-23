@@ -36,6 +36,12 @@ const editProductButton =
 const revisionHistoryButton =
   document.querySelector("#revision-history-button");
 
+const moldingStatus =
+  document.querySelector("#molding-status");
+
+const moldingRevision =
+  document.querySelector("#molding-revision");
+
 function getInitials(name = "Usuário") {
   return name
     .trim()
@@ -227,6 +233,78 @@ async function loadProduct(productId) {
   showProduct(data);
 }
 
+async function loadMoldingSummary(productId) {
+  const { data, error } = await window.supabaseClient
+    .from("fichas_tecnicas")
+    .select("id, status, numero_revisao, vigente, criado_em")
+    .eq("produto_id", productId)
+    .eq("tipo", "MOLDAGEM")
+    .order("numero_revisao", { ascending: false })
+    .order("criado_em", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const sheets = [...(data ?? [])].sort(
+    compareMoldingSummarySheets
+  );
+  const sheet = sheets[0] ?? null;
+
+  const statusLabels = {
+    RASCUNHO: "Rascunho",
+    EM_APROVACAO: "Aguardando aprovação",
+    APROVADA: "Aprovada",
+    VIGENTE: "Vigente",
+    REPROVADA: "Reprovada",
+    OBSOLETA: "Obsoleta"
+  };
+
+  moldingStatus.textContent = sheet
+    ? sheet.vigente
+      ? "Vigente"
+      : statusLabels[sheet.status] ?? sheet.status
+    : "Não cadastrada";
+
+  moldingRevision.textContent =
+    sheet ? `Revisão ${sheet.numero_revisao}` : "—";
+}
+
+function getMoldingSummaryPriority(sheet) {
+  if (sheet.status === "RASCUNHO") {
+    return 1;
+  }
+
+  if (sheet.status === "EM_APROVACAO") {
+    return 2;
+  }
+
+  if (sheet.vigente) {
+    return 3;
+  }
+
+  return 4;
+}
+
+function compareMoldingSummaryDescending(left, right) {
+  return String(right ?? "").localeCompare(String(left ?? ""));
+}
+
+function compareMoldingSummarySheets(left, right) {
+  return (
+    getMoldingSummaryPriority(left) -
+      getMoldingSummaryPriority(right) ||
+    Number(right.numero_revisao ?? 0) -
+      Number(left.numero_revisao ?? 0) ||
+    compareMoldingSummaryDescending(
+      left.criado_em,
+      right.criado_em
+    ) ||
+    compareMoldingSummaryDescending(left.id, right.id)
+  );
+}
+
 function initializeTabs() {
   const tabs =
     document.querySelectorAll(".product-tab");
@@ -301,6 +379,15 @@ async function initializeProductDetails() {
     permissions
   );
 
+  const openMoldingButton =
+    document.querySelector("#open-molding-button");
+  const canViewMolding =
+    permissions.has("ficha.visualizar");
+
+  if (openMoldingButton) {
+    openMoldingButton.hidden = !canViewMolding;
+  }
+
   userName.textContent = profile.nome;
   userProfile.textContent =
     profile.perfil ?? "Usuário";
@@ -309,7 +396,16 @@ async function initializeProductDetails() {
 
   initializeTabs();
 
-  await loadProduct(productId);
+  const loadingTasks = [loadProduct(productId)];
+
+  if (canViewMolding) {
+    loadingTasks.push(loadMoldingSummary(productId));
+  } else {
+    moldingStatus.textContent = "Sem permissão";
+    moldingRevision.textContent = "—";
+  }
+
+  await Promise.all(loadingTasks);
 
   productLoading.hidden = true;
   productContent.hidden = false;
