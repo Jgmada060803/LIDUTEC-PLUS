@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Dashboard | LIDUTEC+</title>
+
+  <link rel="stylesheet" href="../assets/css/app.css">
+  <link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+
+<body class="app-page">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">L+</div>
+
+      <div>
+        <strong>LIDUTEC+</strong>
+        <span>Gestão Industrial</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="./dashboard.html" class="nav-link active">
+        Dashboard
+      </a>
+
+      <div class="nav-section" data-permission="produto.visualizar">
+        <span class="nav-title">Engenharia</span>
+
+        <a href="./produtos/lista.html" class="nav-link">
+          Produtos
+        </a>
+
+        <a href="./produtos/revisoes.html" class="nav-link"
+           data-permission="revisao.visualizar_historico">
+          Revisões
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-title">Produção</span>
+
+        <a
+            href="./controle-processo/lista.html"
+            class="nav-link"
+            data-permission="controle_processo.visualizar"
+            >
+            Controle de Processo
+            </a>
+
+        <a href="#" class="nav-link"
+           data-permission="producao_moldes.visualizar">
+          Produção de moldes
+        </a>
+      </div>
+
+      <div class="nav-section"
+           data-permission="usuarios.visualizar">
+        <span class="nav-title">Administração</span>
+
+        <a href="#" class="nav-link">
+          Usuários
+        </a>
+      </div>
+    </nav>
+
+    <button id="logout-button" class="logout-button">
+      Sair
+    </button>
+  </aside>
+
+  <div class="app-shell">
+
+    <header class="topbar">
+      <button
+        type="button"
+        class="menu-button"
+        id="menu-button"
+        aria-label="Abrir ou fechar menu"
+      >
+        ☰
+      </button>
+
+      <div class="topbar-title">
+        <h1>Dashboard</h1>
+        <p id="current-date"></p>
+      </div>
+
+      <div class="user-box">
+        <div>
+          <strong id="user-name">Carregando...</strong>
+          <span id="user-profile">Usuário</span>
+        </div>
+
+        <div class="user-avatar" id="user-avatar">
+          U
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+
+      <section class="welcome-panel">
+        <div>
+          <span class="eyebrow">Visão geral</span>
+          <h2 id="welcome-message">Bem-vindo ao LIDUTEC+</h2>
+          <p>
+            Acompanhe os principais dados de engenharia,
+            produção e qualidade.
+          </p>
+        </div>
+
+        <div class="system-status">
+          <span class="status-dot"></span>
+          Sistema conectado
+        </div>
+      </section>
+
+      <section class="metrics-grid">
+
+        <article class="metric-card">
+          <span class="metric-label">Produtos ativos</span>
+          <strong class="metric-value" id="metric-products">0</strong>
+          <span class="metric-detail">Cadastro mestre</span>
+        </article>
+
+        <article class="metric-card"
+                 data-permission="ce.visualizar">
+          <span class="metric-label">Controles registrados hoje</span>
+          <strong class="metric-value" id="metric-ce">0</strong>
+          <span class="metric-detail">Apontamentos realizados</span>
+        </article>
+
+        <article class="metric-card"
+                 data-permission="revisao.aprovar_producao_area,revisao.aprovar_producao_geral,revisao.aprovar_engenharia">
+          <span class="metric-label">Aprovações pendentes</span>
+          <strong class="metric-value" id="metric-approvals">0</strong>
+          <span class="metric-detail">Aguardando análise</span>
+        </article>
+
+        <article class="metric-card">
+          <span class="metric-label">Notificações</span>
+          <strong class="metric-value" id="metric-notifications">0</strong>
+          <span class="metric-detail">Não lidas</span>
+        </article>
+
+      </section>
+
+      <section class="dashboard-grid">
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow">Acesso rápido</span>
+              <h3>Módulos</h3>
+            </div>
+          </div>
+
+          <div class="module-grid">
+
+            <a
+              class="module-card"
+              href="./produtos/lista.html"
+              data-permission="produto.visualizar"
+            >
+              <strong>Engenharia do Produto</strong>
+              <span>Produtos, fichas e documentos</span>
+            </a>
+
+            <a
+                class="module-card"
+                href="./controle-processo/lista.html"
+                data-permission="controle_processo.visualizar"
+                >
+                <strong>Controle de Processo</strong>
+                <span>CE, temperatura, química, tinta e outros controles</span>
+                </a>
+
+            <a
+              class="module-card"
+              href="#"
+              data-permission="producao_moldes.visualizar"
+            >
+              <strong>Produção de Moldes</strong>
+              <span>Lançamentos e acompanhamento</span>
+            </a>
+
+            <a
+              class="module-card"
+              href="#"
+              data-permission="usuarios.visualizar"
+            >
+              <strong>Administração</strong>
+              <span>Usuários e permissões</span>
+            </a>
+
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow">Atividade</span>
+              <h3>Últimos registros de CE</h3>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Horário</th>
+                    <th>Produto</th>
+                    <th>Plano</th>
+                    <th>Status</th>
+                </tr>
+              </thead>
+
+              <tbody id="latest-ce-body">
+                <tr>
+                  <td colspan="4" class="empty-state">
+                    Nenhum registro encontrado.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+      </section>
+
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/supabase.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/dashboard.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Controle de Processo | LIDUTEC+</title>
+
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/controle-processo.css">
+</head>
+
+<body class="app-page">
+
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">L+</div>
+
+      <div>
+        <strong>LIDUTEC+</strong>
+        <span>Gestão Industrial</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+
+      <a href="../dashboard.html" class="nav-link">
+        Dashboard
+      </a>
+
+      <div
+        class="nav-section"
+        data-permission="produto.visualizar"
+      >
+        <span class="nav-title">Engenharia</span>
+
+        <a href="../produtos/lista.html" class="nav-link">
+          Produtos
+        </a>
+
+        <a
+          href="../produtos/revisoes.html"
+          class="nav-link"
+          data-permission="revisao.visualizar_historico"
+        >
+          Revisões
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-title">Produção</span>
+
+        <a
+          href="./lista.html"
+          class="nav-link active"
+          data-permission="controle_processo.visualizar"
+        >
+          Controle de Processo
+        </a>
+
+        <a
+          href="#"
+          class="nav-link"
+          data-permission="producao_moldes.visualizar"
+        >
+          Produção de Moldes
+        </a>
+      </div>
+
+      <div
+        class="nav-section"
+        data-permission="usuarios.visualizar"
+      >
+        <span class="nav-title">Administração</span>
+
+        <a href="#" class="nav-link">
+          Usuários
+        </a>
+      </div>
+
+    </nav>
+
+    <button id="logout-button" class="logout-button">
+      Sair
+    </button>
+
+  </aside>
+
+  <div class="app-shell">
+
+    <header class="topbar">
+
+      <button
+        type="button"
+        class="menu-button"
+        id="menu-button"
+        aria-label="Abrir ou fechar menu"
+      >
+        ☰
+      </button>
+
+      <div class="topbar-title">
+        <h1>Controle de Processo</h1>
+        <p>Planos de medição e acompanhamento</p>
+      </div>
+
+      <div class="user-box">
+        <div>
+          <strong id="user-name">Carregando...</strong>
+          <span id="user-profile">Usuário</span>
+        </div>
+
+        <div class="user-avatar" id="user-avatar">
+          U
+        </div>
+      </div>
+
+    </header>
+
+    <main class="main-content">
+
+      <section class="page-heading">
+
+        <div>
+          <span class="eyebrow">Produção e qualidade</span>
+
+          <h2>Planos de Controle</h2>
+
+          <p>
+            Selecione o controle que deseja lançar,
+            consultar ou analisar.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          id="new-plan-button"
+          class="button button-primary"
+          data-permission="controle_processo.configurar"
+        >
+          Novo plano
+        </button>
+
+      </section>
+
+      <section class="control-summary">
+
+        <article class="summary-card">
+          <span>Planos ativos</span>
+          <strong id="active-plans-count">0</strong>
+        </article>
+
+        <article class="summary-card">
+          <span>Registros hoje</span>
+          <strong id="today-records-count">0</strong>
+        </article>
+
+        <article class="summary-card">
+          <span>Fora de especificação</span>
+          <strong id="nonconforming-count">0</strong>
+        </article>
+
+      </section>
+
+      <section class="panel control-panel">
+
+        <div class="panel-header control-panel-header">
+
+          <div>
+            <span class="eyebrow">Controles disponíveis</span>
+            <h3>Selecione um plano</h3>
+          </div>
+
+          <div class="search-box">
+            <label class="sr-only" for="plan-search">
+              Pesquisar plano
+            </label>
+
+            <input
+              type="search"
+              id="plan-search"
+              placeholder="Pesquisar controle..."
+            >
+          </div>
+
+        </div>
+
+        <div id="plans-loading" class="loading-state">
+          Carregando planos de controle...
+        </div>
+
+        <div id="plans-empty" class="empty-panel" hidden>
+          <strong>Nenhum plano encontrado</strong>
+          <span>
+            Cadastre um plano de controle para começar.
+          </span>
+        </div>
+
+        <div id="plans-grid" class="plans-grid"></div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/controle-processo.js"></script>
+
+</body>
+</html>
