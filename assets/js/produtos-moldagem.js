@@ -23,8 +23,24 @@ const moldingState = {
   product: null,
   sheet: null,
   parameters: [],
+  history: [],
+  approvals: [],
   editable: false
 };
+
+const fichaConfig = window.location.pathname.includes(
+  "fusao-vazamento"
+)
+  ? {
+      tipo: "FUSAO_VAZAMENTO",
+      nome: "Fusão / Vazamento",
+      classeLayout: "sheet-layout-fusion"
+    }
+  : {
+      tipo: "MOLDAGEM",
+      nome: "Moldagem",
+      classeLayout: "sheet-layout-molding"
+    };
 
 function getMoldingProductId() {
   return new URLSearchParams(window.location.search).get("produto");
@@ -81,9 +97,15 @@ function normalizeListOptions(options) {
 
 function createInput(type, name, value) {
   const input = document.createElement("input");
-  input.type = type;
+  input.type = type === "number" ? "text" : type;
   input.name = name;
   input.value = value ?? "";
+
+  if (type === "number") {
+    input.inputMode = "decimal";
+    input.dataset.numeric = "true";
+  }
+
   return input;
 }
 
@@ -129,6 +151,17 @@ function renderParameter(parameter) {
   card.dataset.parameterId = parameter.id;
   card.dataset.dataType = parameter.tipo_dado;
   card.dataset.allowsRange = String(Boolean(parameter.permite_faixa));
+  card.dataset.critical = String(Boolean(parameter.critico));
+  card.dataset.notApplicable = String(
+    Boolean(getStoredValue(parameter, "nao_aplicavel"))
+  );
+
+  if (parameter.critico) {
+    card.setAttribute(
+      "aria-label",
+      `Parâmetro crítico: ${parameter.nome}`
+    );
+  }
 
   const heading = document.createElement("div");
   heading.className = "molding-parameter-heading";
@@ -141,6 +174,13 @@ function renderParameter(parameter) {
   name.textContent = parameter.nome ?? "Parâmetro";
   title.append(code, name);
 
+  if (parameter.critico) {
+    const critical = document.createElement("span");
+    critical.className = "molding-critical-label";
+    critical.textContent = "⚠ Crítico";
+    title.append(critical);
+  }
+
   const unit = document.createElement("span");
   unit.className = "molding-parameter-unit";
   unit.textContent = parameter.unidade ?? "Sem unidade";
@@ -150,7 +190,18 @@ function renderParameter(parameter) {
   fields.className = "molding-value-grid";
 
   if (parameter.tipo_dado === "NUMERO") {
-    if (parameter.permite_faixa) {
+    if (parameter.configuracao_visual?.intervalo_inicio_fim) {
+      appendField(fields, "Início", createInput(
+        "number",
+        "valor_inicial",
+        getStoredValue(parameter, "valor_inicial")
+      ));
+      appendField(fields, "Fim", createInput(
+        "number",
+        "valor_final",
+        getStoredValue(parameter, "valor_final")
+      ));
+    } else if (parameter.permite_faixa) {
       appendField(fields, "Valor", createInput(
         "number",
         "valor_numerico",
@@ -237,16 +288,84 @@ function renderGroups(groups, parameters) {
   for (const group of groups) {
     const section = document.createElement("section");
     section.className = "panel molding-group";
+    section.classList.toggle(
+      "layout-matriz",
+      group.tipo_layout === "MATRIZ"
+    );
 
     const header = document.createElement("div");
     header.className = "panel-header";
     const eyebrow = document.createElement("span");
     eyebrow.className = "eyebrow";
-    eyebrow.textContent = group.codigo ?? "Moldagem";
+    eyebrow.textContent = group.codigo ?? fichaConfig.nome;
     const title = document.createElement("h3");
     title.textContent = group.nome;
     header.append(eyebrow, title);
     section.append(header);
+
+    if (group.descricao) {
+      const description = document.createElement("p");
+      description.className = "molding-group-description";
+      description.textContent = group.descricao;
+      section.append(description);
+    }
+
+    if (group.tipo_layout === "HISTORICO") {
+      renderInformationalRows(
+        section,
+        moldingState.history,
+        (item) => `Revisão ${item.numero_revisao}`,
+        (item) => [
+          item.data_revisao,
+          item.descricao,
+          item.responsavel
+        ].filter(Boolean).join(" — ")
+      );
+      moldingElements.parameters.append(section);
+      continue;
+    }
+
+    if (group.tipo_layout === "APROVACAO") {
+      const historicalMetadata = [
+        moldingState.sheet?.elaborado_por_texto
+          ? {
+              tipo_aprovacao: "Elaboração no documento original",
+              nome_responsavel:
+                moldingState.sheet.elaborado_por_texto,
+              status: "Metadado histórico — sem assinatura eletrônica"
+            }
+          : null,
+        moldingState.sheet?.aprovado_engenharia_por_texto
+          ? {
+              tipo_aprovacao: "Aprovação de Engenharia no documento original",
+              nome_responsavel:
+                moldingState.sheet.aprovado_engenharia_por_texto,
+              status: "Metadado histórico — sem assinatura eletrônica"
+            }
+          : null,
+        moldingState.sheet?.aprovado_processo_por_texto
+          ? {
+              tipo_aprovacao: "Aprovação do processo no documento original",
+              nome_responsavel:
+                moldingState.sheet.aprovado_processo_por_texto,
+              status: "Metadado histórico — sem assinatura eletrônica"
+            }
+          : null
+      ].filter(Boolean);
+
+      renderInformationalRows(
+        section,
+        [...historicalMetadata, ...moldingState.approvals],
+        (item) => item.tipo_aprovacao,
+        (item) => [
+          item.nome_responsavel,
+          item.status,
+          item.observacao
+        ].filter(Boolean).join(" — ")
+      );
+      moldingElements.parameters.append(section);
+      continue;
+    }
 
     const groupParameters = parameters.filter(
       (parameter) => parameter.grupo_id === group.id
@@ -262,10 +381,57 @@ function renderGroups(groups, parameters) {
   moldingElements.empty.hidden = parameters.length > 0;
 }
 
+function renderInformationalRows(
+  container,
+  items,
+  getTitle,
+  getDescription
+) {
+  if (items.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "molding-parameter-note";
+    empty.textContent = "Nenhum registro disponível.";
+    container.append(empty);
+    return;
+  }
+
+  for (const item of items) {
+    const row = document.createElement("article");
+    row.className = "molding-information-row";
+    const title = document.createElement("strong");
+    const description = document.createElement("span");
+    title.textContent = getTitle(item) ?? "Registro";
+    description.textContent = getDescription(item) || "—";
+    row.append(title, description);
+    container.append(row);
+  }
+}
+
+function renderizarFichaMoldagem(groups, parameters) {
+  moldingElements.parameters.className =
+    "molding-groups sheet-layout-molding";
+  renderGroups(groups, parameters);
+}
+
+function renderizarFichaFusaoVazamento(groups, parameters) {
+  moldingElements.parameters.className =
+    "molding-groups sheet-layout-fusion";
+  renderGroups(groups, parameters);
+}
+
+function renderizarFichaPorTipo(groups, parameters) {
+  if (fichaConfig.tipo === "FUSAO_VAZAMENTO") {
+    renderizarFichaFusaoVazamento(groups, parameters);
+    return;
+  }
+
+  renderizarFichaMoldagem(groups, parameters);
+}
+
 async function loadMoldingProduct(productId) {
   const { data, error } = await window.supabaseClient
     .from("produtos")
-    .select("id, codigo, nome")
+    .select("*, clientes(nome)")
     .eq("id", productId)
     .maybeSingle();
 
@@ -285,7 +451,7 @@ async function loadMoldingSheet(productId) {
     .from("fichas_tecnicas")
     .select("*")
     .eq("produto_id", productId)
-    .eq("tipo", "MOLDAGEM")
+    .eq("tipo", fichaConfig.tipo)
     .order("numero_revisao", { ascending: false })
     .order("criado_em", { ascending: false })
     .order("id", { ascending: false });
@@ -323,6 +489,17 @@ function compareDescending(left, right) {
   return String(right ?? "").localeCompare(String(left ?? ""));
 }
 
+function compareSheetIdsDescending(left, right) {
+  try {
+    const leftId = BigInt(left ?? 0);
+    const rightId = BigInt(right ?? 0);
+
+    return rightId > leftId ? 1 : rightId < leftId ? -1 : 0;
+  } catch {
+    return compareDescending(left, right);
+  }
+}
+
 function compareMoldingSheets(left, right) {
   return (
     getMoldingSheetPriority(left) -
@@ -330,7 +507,7 @@ function compareMoldingSheets(left, right) {
     Number(right.numero_revisao ?? 0) -
       Number(left.numero_revisao ?? 0) ||
     compareDescending(left.criado_em, right.criado_em) ||
-    compareDescending(left.id, right.id)
+    compareSheetIdsDescending(left.id, right.id)
   );
 }
 
@@ -339,7 +516,7 @@ async function loadMoldingParameters(sheetId) {
     await window.supabaseClient
       .from("grupos_parametros")
       .select("*")
-      .eq("tipo_ficha", "MOLDAGEM")
+      .eq("tipo_ficha", fichaConfig.tipo)
       .order("ordem_exibicao", { ascending: true });
 
   if (groupsError) {
@@ -375,7 +552,10 @@ async function loadMoldingParameters(sheetId) {
         valor_maximo,
         valor_booleano,
         valor_data,
-        observacao
+        observacao,
+        valor_inicial,
+        valor_final,
+        nao_aplicavel
       `)
       .eq("ficha_tecnica_id", sheetId);
 
@@ -403,6 +583,38 @@ async function loadMoldingParameters(sheetId) {
   };
 }
 
+async function loadSheetSupportData(sheetId) {
+  if (!sheetId) {
+    return { history: [], approvals: [] };
+  }
+
+  const [historyResult, approvalsResult] = await Promise.all([
+    window.supabaseClient
+      .from("historico_fichas")
+      .select("*")
+      .eq("ficha_tecnica_id", sheetId)
+      .order("numero_revisao", { ascending: false }),
+    window.supabaseClient
+      .from("aprovacoes_ficha")
+      .select("*")
+      .eq("ficha_tecnica_id", sheetId)
+      .order("ordem", { ascending: true })
+  ]);
+
+  if (historyResult.error) {
+    throw historyResult.error;
+  }
+
+  if (approvalsResult.error) {
+    throw approvalsResult.error;
+  }
+
+  return {
+    history: historyResult.data ?? [],
+    approvals: approvalsResult.data ?? []
+  };
+}
+
 function updateMoldingHeader() {
   const { product, sheet } = moldingState;
   document.querySelector("#molding-subtitle").textContent =
@@ -417,10 +629,34 @@ function updateMoldingHeader() {
     sheet?.status?.replaceAll("_", " ") ?? "Nova ficha";
   document.querySelector("#molding-sheet-revision").textContent =
     `Revisão ${sheet?.numero_revisao ?? 0}`;
+  document.querySelector("#molding-document-code").textContent =
+    sheet?.codigo_documento ?? "Documento ainda não emitido";
 
   moldingElements.issueDate.value =
     sheet?.data_emissao?.slice(0, 10) ?? getToday();
   moldingElements.reason.value = sheet?.motivo_revisao ?? "";
+
+  const meta = document.querySelector("#sheet-product-meta");
+  const items = [
+    ["Cliente", product.clientes?.nome],
+    ["Código do cliente", product.codigo_cliente],
+    ["Ferramenta", product.codigo_ferramental],
+    ["Peso da peça", product.peso_peca_kg != null ? `${product.peso_peca_kg} kg` : null],
+    ["Peças por molde", product.cavidades_molde],
+    ["Peso do cacho", product.peso_cacho_kg != null ? `${product.peso_cacho_kg} kg` : null],
+    ["Rendimento", product.rendimento_metalico_pct != null ? `${product.rendimento_metalico_pct}%` : null],
+    ["Segurança", product.peca_seguranca ? "Característica especial" : "Não"]
+  ];
+  meta.replaceChildren();
+  for (const [labelText, value] of items) {
+    const item = document.createElement("div");
+    const label = document.createElement("span");
+    const content = document.createElement("strong");
+    label.textContent = labelText;
+    content.textContent = value ?? "—";
+    item.append(label, content);
+    meta.append(item);
+  }
 }
 
 function applyMoldingReadOnly() {
@@ -458,6 +694,21 @@ function emptyToNull(value) {
   return value === "" ? null : value;
 }
 
+function normalizeNumericValue(value) {
+  if (value === "" || value === null || value === undefined) {
+    return null;
+  }
+
+  const normalized = String(value).trim().replace(",", ".");
+  const number = Number(normalized);
+
+  if (!Number.isFinite(number)) {
+    throw new Error(`Valor numérico inválido: ${value}.`);
+  }
+
+  return number;
+}
+
 function collectParameterValues() {
   return [...document.querySelectorAll(".molding-parameter")].map(
     (card) => {
@@ -470,6 +721,10 @@ function collectParameterValues() {
         valor_maximo: null,
         valor_booleano: null,
         valor_data: null,
+        valor_inicial: null,
+        valor_final: null,
+        nao_aplicavel:
+          card.dataset.notApplicable === "true",
         observacao: emptyToNull(
           card.querySelector('[name="observacao"]')?.value ?? ""
         )
@@ -481,11 +736,17 @@ function collectParameterValues() {
         "valor_minimo",
         "valor_alvo",
         "valor_maximo",
+        "valor_inicial",
+        "valor_final",
         "valor_data"
       ]) {
         const control = card.querySelector(`[name="${field}"]`);
         if (control) {
-          row[field] = emptyToNull(control.value);
+          row[field] = field.startsWith("valor_") &&
+              field !== "valor_texto" &&
+              field !== "valor_data"
+            ? normalizeNumericValue(control.value)
+            : emptyToNull(control.value);
         }
       }
 
@@ -493,6 +754,30 @@ function collectParameterValues() {
         card.querySelector('[name="valor_booleano"]');
       if (booleanControl?.value) {
         row.valor_booleano = booleanControl.value === "true";
+      }
+
+      const minimum = row.valor_minimo;
+      const target = row.valor_alvo;
+      const maximum = row.valor_maximo;
+
+      if (
+        minimum !== null &&
+        maximum !== null &&
+        minimum > maximum
+      ) {
+        throw new Error(
+          `O mínimo não pode superar o máximo em ${card.querySelector("strong")?.textContent}.`
+        );
+      }
+
+      if (
+        target !== null &&
+        ((minimum !== null && target < minimum) ||
+          (maximum !== null && target > maximum))
+      ) {
+        throw new Error(
+          `O alvo deve estar dentro da faixa em ${card.querySelector("strong")?.textContent}.`
+        );
       }
 
       return row;
@@ -514,9 +799,9 @@ async function saveMoldingDraft() {
 
   const values = collectParameterValues();
   const { data: sheetId, error } = await window.supabaseClient
-    .rpc("salvar_rascunho_ficha_tecnica", {
+    .rpc("salvar_rascunho_ficha_tecnica_v2", {
       p_produto_id: moldingState.product.id,
-      p_tipo: "MOLDAGEM",
+      p_tipo: fichaConfig.tipo,
       p_ficha_id: moldingState.sheet?.id ?? null,
       p_motivo_revisao: emptyToNull(
         moldingElements.reason.value
@@ -535,7 +820,7 @@ async function saveMoldingDraft() {
     ...moldingState.sheet,
     id: sheetId,
     produto_id: moldingState.product.id,
-    tipo: "MOLDAGEM",
+    tipo: fichaConfig.tipo,
     numero_revisao:
       moldingState.sheet?.numero_revisao ?? 0,
     status: "RASCUNHO",
@@ -550,6 +835,37 @@ async function saveMoldingDraft() {
 }
 
 async function initializeMolding() {
+  if (window.LIDUTEC_FICHA_PREVIEW?.isEnabled()) {
+    const preview =
+      await window.LIDUTEC_FICHA_PREVIEW.load(
+        fichaConfig.tipo
+      );
+
+    moldingState.product = preview.product;
+    moldingState.sheet = preview.sheet;
+    moldingState.parameters = preview.parameters;
+    moldingState.history = preview.history;
+    moldingState.approvals = preview.approvals;
+    moldingState.permissions = new Set(["ficha.visualizar"]);
+
+    moldingElements.userName.textContent = "Preview local";
+    moldingElements.userProfile.textContent = "Somente leitura";
+    moldingElements.userAvatar.textContent = "PL";
+    document.querySelector("#preview-banner").hidden = false;
+    moldingElements.logoutButton.hidden = true;
+
+    updateMoldingHeader();
+    renderizarFichaPorTipo(
+      preview.groups,
+      preview.parameters
+    );
+    applyMoldingReadOnly();
+
+    moldingElements.loading.hidden = true;
+    moldingElements.content.hidden = false;
+    return;
+  }
+
   const productId = getMoldingProductId();
   if (!productId) {
     window.location.replace("./lista.html");
@@ -595,10 +911,14 @@ async function initializeMolding() {
 
   const { groups, parameters } =
     await loadMoldingParameters(sheet?.id);
+  const { history, approvals } =
+    await loadSheetSupportData(sheet?.id);
   moldingState.parameters = parameters;
+  moldingState.history = history;
+  moldingState.approvals = approvals;
 
   updateMoldingHeader();
-  renderGroups(groups, parameters);
+  renderizarFichaPorTipo(groups, parameters);
   applyMoldingReadOnly();
 
   moldingElements.loading.hidden = true;

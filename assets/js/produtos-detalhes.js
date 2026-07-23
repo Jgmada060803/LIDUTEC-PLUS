@@ -42,6 +42,12 @@ const moldingStatus =
 const moldingRevision =
   document.querySelector("#molding-revision");
 
+const castingStatus =
+  document.querySelector("#casting-status");
+
+const castingRevision =
+  document.querySelector("#casting-revision");
+
 function getInitials(name = "Usuário") {
   return name
     .trim()
@@ -122,6 +128,14 @@ function showProduct(product) {
   if (openMoldingButton) {
     openMoldingButton.href =
       `./moldagem.html?produto=${product.id}`;
+  }
+
+  const openCastingButton =
+    document.querySelector("#open-casting-button");
+
+  if (openCastingButton) {
+    openCastingButton.href =
+      `./fusao-vazamento.html?produto=${product.id}`;
   }
 
   const status = getStatusData(product.status);
@@ -233,12 +247,17 @@ async function loadProduct(productId) {
   showProduct(data);
 }
 
-async function loadMoldingSummary(productId) {
+async function loadSheetSummary(
+  productId,
+  sheetType,
+  statusElement,
+  revisionElement
+) {
   const { data, error } = await window.supabaseClient
     .from("fichas_tecnicas")
     .select("id, status, numero_revisao, vigente, criado_em")
     .eq("produto_id", productId)
-    .eq("tipo", "MOLDAGEM")
+    .eq("tipo", sheetType)
     .order("numero_revisao", { ascending: false })
     .order("criado_em", { ascending: false })
     .order("id", { ascending: false });
@@ -256,18 +275,19 @@ async function loadMoldingSummary(productId) {
     RASCUNHO: "Rascunho",
     EM_APROVACAO: "Aguardando aprovação",
     APROVADA: "Aprovada",
+    IMPORTADA: "Importada",
     VIGENTE: "Vigente",
     REPROVADA: "Reprovada",
     OBSOLETA: "Obsoleta"
   };
 
-  moldingStatus.textContent = sheet
+  statusElement.textContent = sheet
     ? sheet.vigente
       ? "Vigente"
       : statusLabels[sheet.status] ?? sheet.status
     : "Não cadastrada";
 
-  moldingRevision.textContent =
+  revisionElement.textContent =
     sheet ? `Revisão ${sheet.numero_revisao}` : "—";
 }
 
@@ -291,6 +311,17 @@ function compareMoldingSummaryDescending(left, right) {
   return String(right ?? "").localeCompare(String(left ?? ""));
 }
 
+function compareMoldingSummaryIds(left, right) {
+  try {
+    const leftId = BigInt(left ?? 0);
+    const rightId = BigInt(right ?? 0);
+
+    return rightId > leftId ? 1 : rightId < leftId ? -1 : 0;
+  } catch {
+    return compareMoldingSummaryDescending(left, right);
+  }
+}
+
 function compareMoldingSummarySheets(left, right) {
   return (
     getMoldingSummaryPriority(left) -
@@ -301,7 +332,7 @@ function compareMoldingSummarySheets(left, right) {
       left.criado_em,
       right.criado_em
     ) ||
-    compareMoldingSummaryDescending(left.id, right.id)
+    compareMoldingSummaryIds(left.id, right.id)
   );
 }
 
@@ -338,6 +369,42 @@ function initializeTabs() {
 }
 
 async function initializeProductDetails() {
+  if (window.LIDUTEC_FICHA_PREVIEW?.isEnabled()) {
+    const product =
+      window.LIDUTEC_FICHA_PREVIEW.getProduct();
+    const moldingSheet =
+      window.LIDUTEC_FICHA_PREVIEW.getSheet("MOLDAGEM");
+    const castingSheet =
+      window.LIDUTEC_FICHA_PREVIEW.getSheet(
+        "FUSAO_VAZAMENTO"
+      );
+
+    userName.textContent = "Preview local";
+    userProfile.textContent = "Somente leitura";
+    userAvatar.textContent = "PL";
+    document.querySelector("#preview-banner").hidden = false;
+    logoutButton.hidden = true;
+
+    initializeTabs();
+    showProduct(product);
+    editProductButton.hidden = true;
+    moldingStatus.textContent = "Importada";
+    moldingRevision.textContent =
+      `Revisão ${moldingSheet.numero_revisao}`;
+    castingStatus.textContent = "Importada";
+    castingRevision.textContent =
+      `Revisão ${castingSheet.numero_revisao}`;
+
+    document.querySelector("#open-molding-button").href =
+      `./moldagem.html?produto=${product.id}&preview=1`;
+    document.querySelector("#open-casting-button").href =
+      `./fusao-vazamento.html?produto=${product.id}&preview=1`;
+
+    productLoading.hidden = true;
+    productContent.hidden = false;
+    return;
+  }
+
   const productId = getProductId();
 
   if (!productId) {
@@ -381,11 +448,17 @@ async function initializeProductDetails() {
 
   const openMoldingButton =
     document.querySelector("#open-molding-button");
+  const openCastingButton =
+    document.querySelector("#open-casting-button");
   const canViewMolding =
     permissions.has("ficha.visualizar");
 
   if (openMoldingButton) {
     openMoldingButton.hidden = !canViewMolding;
+  }
+
+  if (openCastingButton) {
+    openCastingButton.hidden = !canViewMolding;
   }
 
   userName.textContent = profile.nome;
@@ -399,10 +472,25 @@ async function initializeProductDetails() {
   const loadingTasks = [loadProduct(productId)];
 
   if (canViewMolding) {
-    loadingTasks.push(loadMoldingSummary(productId));
+    loadingTasks.push(
+      loadSheetSummary(
+        productId,
+        "MOLDAGEM",
+        moldingStatus,
+        moldingRevision
+      ),
+      loadSheetSummary(
+        productId,
+        "FUSAO_VAZAMENTO",
+        castingStatus,
+        castingRevision
+      )
+    );
   } else {
     moldingStatus.textContent = "Sem permissão";
     moldingRevision.textContent = "—";
+    castingStatus.textContent = "Sem permissão";
+    castingRevision.textContent = "—";
   }
 
   await Promise.all(loadingTasks);

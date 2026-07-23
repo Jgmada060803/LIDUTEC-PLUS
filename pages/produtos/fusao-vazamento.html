@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ficha Técnica de Moldagem | LIDUTEC+</title>
+  <title>Ficha Técnica de Fusão/Vazamento | LIDUTEC+</title>
   <link rel="stylesheet" href="../../assets/css/app.css">
   <link rel="stylesheet" href="../../assets/css/dashboard.css">
   <link rel="stylesheet" href="../../assets/css/produtos.css">
@@ -12,48 +12,32 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
       <div class="sidebar-logo">L+</div>
-      <div>
-        <strong>LIDUTEC+</strong>
-        <span>Gestão Industrial</span>
-      </div>
+      <div><strong>LIDUTEC+</strong><span>Gestão Industrial</span></div>
     </div>
-
     <nav class="sidebar-nav">
       <a href="../dashboard.html" class="nav-link">Dashboard</a>
       <div class="nav-section">
         <span class="nav-title">Engenharia</span>
-        <a href="./lista.html" class="nav-link active" data-permission="produto.visualizar">
-          Produtos
-        </a>
-        <a href="./revisoes.html" class="nav-link" data-permission="revisao.visualizar_historico">
-          Revisões
-        </a>
+        <a href="./lista.html" class="nav-link active" data-permission="produto.visualizar">Produtos</a>
+        <a href="./revisoes.html" class="nav-link" data-permission="revisao.visualizar_historico">Revisões</a>
       </div>
       <div class="nav-section">
         <span class="nav-title">Produção</span>
-        <a href="../controle-processo/lista.html" class="nav-link" data-permission="controle_processo.visualizar">
-          Controle de Processo
-        </a>
+        <a href="../controle-processo/lista.html" class="nav-link" data-permission="controle_processo.visualizar">Controle de Processo</a>
       </div>
     </nav>
-
     <button id="logout-button" class="logout-button">Sair</button>
   </aside>
 
   <div class="app-shell">
     <header class="topbar">
-      <button type="button" class="menu-button" id="menu-button" aria-label="Abrir ou fechar menu">
-        ☰
-      </button>
+      <button type="button" class="menu-button" id="menu-button" aria-label="Abrir ou fechar menu">☰</button>
       <div class="topbar-title">
-        <h1>Ficha Técnica de Moldagem</h1>
+        <h1>Ficha Técnica de Fusão/Vazamento</h1>
         <p id="molding-subtitle">Carregando produto...</p>
       </div>
       <div class="user-box">
-        <div>
-          <strong id="user-name">Carregando...</strong>
-          <span id="user-profile">Usuário</span>
-        </div>
+        <div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div>
         <div class="user-avatar" id="user-avatar">U</div>
       </div>
     </header>
@@ -62,12 +46,11 @@
       <div id="preview-banner" class="preview-banner" hidden>
         Modo de visualização com dados locais
       </div>
-      <div id="molding-loading" class="loading-state">Carregando ficha de Moldagem...</div>
-
+      <div id="molding-loading" class="loading-state">Carregando ficha de Fusão/Vazamento...</div>
       <div id="molding-content" hidden>
-        <section class="molding-heading panel">
+        <section class="molding-heading panel fusion-heading">
           <div>
-            <span class="eyebrow">Engenharia do Produto</span>
+            <span class="eyebrow">Metalurgia e Processo</span>
             <h2 id="molding-product-name">Produto</h2>
             <p id="molding-product-code">—</p>
           </div>
@@ -82,10 +65,7 @@
 
         <form id="molding-form">
           <section class="panel molding-metadata">
-            <div class="panel-header">
-              <span class="eyebrow">Controle da ficha</span>
-              <h3>Dados da revisão</h3>
-            </div>
+            <div class="panel-header"><span class="eyebrow">Controle da ficha</span><h3>Dados da revisão</h3></div>
             <div class="product-form-grid">
               <div class="form-group">
                 <label for="molding-issue-date">Data de emissão</label>
@@ -97,25 +77,15 @@
               </div>
             </div>
           </section>
-
           <div id="molding-parameters" class="molding-groups"></div>
-          <div id="molding-empty" class="panel empty-state" hidden>
-            Nenhum parâmetro de Moldagem foi configurado.
-          </div>
-
+          <div id="molding-empty" class="panel empty-state" hidden>Nenhum parâmetro de Fusão/Vazamento foi configurado.</div>
           <div id="molding-message" class="form-message" hidden role="status"></div>
-
           <div class="molding-actions">
-            <a id="back-to-product" href="./lista.html" class="button button-secondary">
-              Voltar ao produto
-            </a>
-            <button id="save-molding-button" type="submit" class="button button-primary">
-              Salvar rascunho
-            </button>
+            <a id="back-to-product" href="./lista.html" class="button button-secondary">Voltar ao produto</a>
+            <button id="save-molding-button" type="submit" class="button button-primary">Salvar rascunho</button>
           </div>
         </form>
       </div>
-
       <div id="molding-error" class="form-message error" hidden></div>
     </main>
   </div>

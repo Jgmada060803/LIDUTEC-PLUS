@@ -100,6 +100,9 @@
     </header>
 
     <main class="main-content">
+      <div id="preview-banner" class="preview-banner" hidden>
+        Modo de visualização com dados locais
+      </div>
 
       <div id="product-loading" class="loading-state">
         Carregando produto...
@@ -362,9 +365,24 @@
             <h3>Fusão e Vazamento</h3>
 
             <p>
-              Aqui serão exibidas as especificações metalúrgicas,
-              temperaturas, composição química e tratamentos.
+              Consulte composição química, propriedades mecânicas,
+              inoculação, temperaturas e recomendações do processo.
             </p>
+
+            <div class="module-status-row">
+              <div>
+                <span>Status</span>
+                <strong id="casting-status">Não cadastrada</strong>
+              </div>
+              <div>
+                <span>Revisão</span>
+                <strong id="casting-revision">—</strong>
+              </div>
+            </div>
+
+            <a id="open-casting-button" href="#" class="button button-primary">
+              Abrir ficha de Fusão/Vazamento
+            </a>
           </article>
         </section>
 
@@ -455,6 +473,7 @@
   <script src="../../assets/js/config.js"></script>
   <script src="../../assets/js/supabase.js"></script>
   <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/fichas-preview.js"></script>
   <script src="../../assets/js/produtos-detalhes.js"></script>
 
 </body>
