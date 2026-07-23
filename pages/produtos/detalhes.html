@@ -325,17 +325,30 @@
             <h3>Especificações de Moldagem</h3>
 
             <p>
-              Aqui serão exibidos os parâmetros da ficha de
-              moldagem vigente.
+              Consulte ou edite os parâmetros de moldagem,
+              dados do modelo, compressão, extração,
+              fechamento, transporte e temperaturas.
             </p>
 
-            <button
-              type="button"
+            <div class="module-status-row">
+              <div>
+                <span>Status</span>
+                <strong id="molding-status">Não cadastrada</strong>
+              </div>
+
+              <div>
+                <span>Revisão</span>
+                <strong id="molding-revision">—</strong>
+              </div>
+            </div>
+
+            <a
+              id="open-molding-button"
+              href="#"
               class="button button-primary"
-              disabled
             >
-              Módulo em desenvolvimento
-            </button>
+              Abrir ficha de Moldagem
+            </a>
           </article>
         </section>
 

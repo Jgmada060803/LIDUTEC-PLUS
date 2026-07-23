@@ -110,6 +110,14 @@ function setText(selector, value) {
 }
 
 function showProduct(product) {
+  const openMoldingButton =
+    document.querySelector("#open-molding-button");
+
+  if (openMoldingButton) {
+    openMoldingButton.href =
+      `./moldagem.html?produto=${product.id}`;
+  }
+
   const status = getStatusData(product.status);
 
   productTitle.textContent =
