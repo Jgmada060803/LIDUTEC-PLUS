@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Detalhes do Produto | LIDUTEC+</title>
+
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/produtos.css">
+</head>
+
+<body class="app-page">
+
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">L+</div>
+
+      <div>
+        <strong>LIDUTEC+</strong>
+        <span>Gestão Industrial</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+
+      <a href="../dashboard.html" class="nav-link">
+        Dashboard
+      </a>
+
+      <div class="nav-section">
+        <span class="nav-title">Engenharia</span>
+
+        <a
+          href="./lista.html"
+          class="nav-link active"
+          data-permission="produto.visualizar"
+        >
+          Produtos
+        </a>
+
+        <a
+          href="./revisoes.html"
+          class="nav-link"
+          data-permission="revisao.visualizar_historico"
+        >
+          Revisões
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-title">Produção</span>
+
+        <a
+          href="../controle-processo/lista.html"
+          class="nav-link"
+          data-permission="controle_processo.visualizar"
+        >
+          Controle de Processo
+        </a>
+      </div>
+
+    </nav>
+
+    <button id="logout-button" class="logout-button">
+      Sair
+    </button>
+
+  </aside>
+
+  <div class="app-shell">
+
+    <header class="topbar">
+
+      <button
+        type="button"
+        class="menu-button"
+        id="menu-button"
+        aria-label="Abrir ou fechar menu"
+      >
+        ☰
+      </button>
+
+      <div class="topbar-title">
+        <h1>Detalhes do Produto</h1>
+        <p>Prontuário técnico da peça</p>
+      </div>
+
+      <div class="user-box">
+        <div>
+          <strong id="user-name">Carregando...</strong>
+          <span id="user-profile">Usuário</span>
+        </div>
+
+        <div class="user-avatar" id="user-avatar">U</div>
+      </div>
+
+    </header>
+
+    <main class="main-content">
+
+      <div id="product-loading" class="loading-state">
+        Carregando produto...
+      </div>
+
+      <div id="product-content" hidden>
+
+        <section class="product-hero">
+
+          <div class="product-image-box">
+            <img
+              id="product-image"
+              alt="Imagem do produto"
+              hidden
+            >
+
+            <span id="product-image-placeholder">
+              Sem imagem
+            </span>
+          </div>
+
+          <div class="product-hero-content">
+
+            <div class="product-heading-row">
+              <div>
+                <span class="eyebrow">Engenharia do Produto</span>
+
+                <h2 id="product-title">Produto</h2>
+
+                <p id="product-subtitle"></p>
+              </div>
+
+              <span
+                id="product-status"
+                class="status-badge"
+              ></span>
+            </div>
+
+            <div class="product-meta-grid">
+
+              <div>
+                <span>Cliente</span>
+                <strong id="product-client">—</strong>
+              </div>
+
+              <div>
+                <span>Part number</span>
+                <strong id="product-part-number">—</strong>
+              </div>
+
+              <div>
+                <span>Família</span>
+                <strong id="product-family">—</strong>
+              </div>
+
+              <div>
+                <span>Peça de segurança</span>
+                <strong id="product-safety">—</strong>
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        <section class="product-actions">
+
+          <a
+            href="./lista.html"
+            class="button button-secondary"
+          >
+            Voltar
+          </a>
+
+          <a
+            id="edit-product-button"
+            href="#"
+            class="button button-primary"
+            data-permission="produto.editar"
+          >
+            Editar produto
+          </a>
+
+        </section>
+
+        <nav class="product-tabs" aria-label="Seções do produto">
+
+          <button
+            type="button"
+            class="product-tab active"
+            data-tab="geral"
+          >
+            Geral
+          </button>
+
+          <button
+            type="button"
+            class="product-tab"
+            data-tab="moldagem"
+          >
+            Moldagem
+          </button>
+
+          <button
+            type="button"
+            class="product-tab"
+            data-tab="vazamento"
+          >
+            Fusão / Vazamento
+          </button>
+
+          <button
+            type="button"
+            class="product-tab"
+            data-tab="embalagem"
+          >
+            Embalagem
+          </button>
+
+          <button
+            type="button"
+            class="product-tab"
+            data-tab="processo"
+          >
+            Controle de Processo
+          </button>
+
+          <button
+            type="button"
+            class="product-tab"
+            data-tab="documentos"
+          >
+            Documentos
+          </button>
+
+          <button
+            type="button"
+            class="product-tab"
+            data-tab="revisoes"
+          >
+            Revisões
+          </button>
+
+        </nav>
+
+        <section
+          class="product-tab-panel active"
+          data-panel="geral"
+        >
+
+          <div class="details-grid">
+
+            <article class="panel">
+              <div class="panel-header">
+                <span class="eyebrow">Identificação</span>
+                <h3>Dados gerais</h3>
+              </div>
+
+              <dl class="details-list">
+                <div>
+                  <dt>Código interno</dt>
+                  <dd id="detail-code">—</dd>
+                </div>
+
+                <div>
+                  <dt>Código do cliente</dt>
+                  <dd id="detail-client-code">—</dd>
+                </div>
+
+                <div>
+                  <dt>Código do ferramental</dt>
+                  <dd id="detail-tool-code">—</dd>
+                </div>
+
+                <div>
+                  <dt>Status</dt>
+                  <dd id="detail-status">—</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <span class="eyebrow">Características</span>
+                <h3>Dados físicos</h3>
+              </div>
+
+              <dl class="details-list">
+                <div>
+                  <dt>Peso da peça</dt>
+                  <dd id="detail-piece-weight">—</dd>
+                </div>
+
+                <div>
+                  <dt>Peso do cacho</dt>
+                  <dd id="detail-cluster-weight">—</dd>
+                </div>
+
+                <div>
+                  <dt>Cavidades por molde</dt>
+                  <dd id="detail-cavities">—</dd>
+                </div>
+
+                <div>
+                  <dt>Rendimento metálico</dt>
+                  <dd id="detail-yield">—</dd>
+                </div>
+              </dl>
+            </article>
+
+          </div>
+
+        </section>
+
+        <section
+          class="product-tab-panel"
+          data-panel="moldagem"
+          hidden
+        >
+          <article class="panel module-placeholder">
+            <span class="eyebrow">Ficha técnica</span>
+            <h3>Especificações de Moldagem</h3>
+
+            <p>
+              Aqui serão exibidos os parâmetros da ficha de
+              moldagem vigente.
+            </p>
+
+            <button
+              type="button"
+              class="button button-primary"
+              disabled
+            >
+              Módulo em desenvolvimento
+            </button>
+          </article>
+        </section>
+
+        <section
+          class="product-tab-panel"
+          data-panel="vazamento"
+          hidden
+        >
+          <article class="panel module-placeholder">
+            <span class="eyebrow">Ficha técnica</span>
+            <h3>Fusão e Vazamento</h3>
+
+            <p>
+              Aqui serão exibidas as especificações metalúrgicas,
+              temperaturas, composição química e tratamentos.
+            </p>
+          </article>
+        </section>
+
+        <section
+          class="product-tab-panel"
+          data-panel="embalagem"
+          hidden
+        >
+          <article class="panel module-placeholder">
+            <span class="eyebrow">Expedição</span>
+            <h3>Especificação de Embalagem</h3>
+
+            <p>
+              Quantidade, peso, tipo de embalagem, identificação
+              e imagens.
+            </p>
+          </article>
+        </section>
+
+        <section
+          class="product-tab-panel"
+          data-panel="processo"
+          hidden
+        >
+          <article class="panel module-placeholder">
+            <span class="eyebrow">Medições</span>
+            <h3>Controle de Processo</h3>
+
+            <p>
+              CE, temperatura, composição química, densidade de
+              tinta e demais planos relacionados ao produto.
+            </p>
+          </article>
+        </section>
+
+        <section
+          class="product-tab-panel"
+          data-panel="documentos"
+          hidden
+        >
+          <article class="panel module-placeholder">
+            <span class="eyebrow">Arquivos</span>
+            <h3>Documentos do Produto</h3>
+
+            <p>
+              Desenhos, PDFs, imagens, arquivos STEP, DWG e outros.
+            </p>
+          </article>
+        </section>
+
+        <section
+          class="product-tab-panel"
+          data-panel="revisoes"
+          hidden
+        >
+          <article class="panel module-placeholder">
+            <span class="eyebrow">Histórico</span>
+            <h3>Revisões e Aprovações</h3>
+
+            <p>
+              O histórico completo será exibido em tela separada,
+              sem poluir a ficha vigente.
+            </p>
+
+            <a
+              id="revision-history-button"
+              href="./revisoes.html"
+              class="button button-secondary"
+            >
+              Abrir histórico de revisões
+            </a>
+          </article>
+        </section>
+
+      </div>
+
+      <div
+        id="product-error"
+        class="form-message error"
+        hidden
+      ></div>
+
+    </main>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/produtos-detalhes.js"></script>
+
+</body>
+</html>

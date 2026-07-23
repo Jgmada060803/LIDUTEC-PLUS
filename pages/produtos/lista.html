@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Produtos | LIDUTEC+</title>
+
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/produtos.css">
+</head>
+
+<body class="app-page">
+
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">L+</div>
+
+      <div>
+        <strong>LIDUTEC+</strong>
+        <span>Gestão Industrial</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+
+      <a href="../dashboard.html" class="nav-link">
+        Dashboard
+      </a>
+
+      <div class="nav-section">
+        <span class="nav-title">Engenharia</span>
+
+        <a
+          href="./lista.html"
+          class="nav-link active"
+          data-permission="produto.visualizar"
+        >
+          Produtos
+        </a>
+
+        <a
+          href="./revisoes.html"
+          class="nav-link"
+          data-permission="revisao.visualizar_historico"
+        >
+          Revisões
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-title">Produção</span>
+
+        <a
+          href="../controle-processo/lista.html"
+          class="nav-link"
+          data-permission="controle_processo.visualizar"
+        >
+          Controle de Processo
+        </a>
+      </div>
+
+    </nav>
+
+    <button id="logout-button" class="logout-button">
+      Sair
+    </button>
+
+  </aside>
+
+  <div class="app-shell">
+
+    <header class="topbar">
+
+      <button
+        type="button"
+        class="menu-button"
+        id="menu-button"
+        aria-label="Abrir ou fechar menu"
+      >
+        ☰
+      </button>
+
+      <div class="topbar-title">
+        <h1>Produtos</h1>
+        <p>Cadastro mestre de engenharia</p>
+      </div>
+
+      <div class="user-box">
+        <div>
+          <strong id="user-name">Carregando...</strong>
+          <span id="user-profile">Usuário</span>
+        </div>
+
+        <div class="user-avatar" id="user-avatar">
+          U
+        </div>
+      </div>
+
+    </header>
+
+    <main class="main-content">
+
+      <section class="page-heading">
+
+        <div>
+          <span class="eyebrow">Engenharia do Produto</span>
+          <h2>Lista Mestra</h2>
+
+          <p>
+            Consulte, pesquise e gerencie os produtos cadastrados.
+          </p>
+        </div>
+
+        <a
+          href="./cadastro.html"
+          class="button button-primary"
+          data-permission="produto.criar"
+        >
+          Novo produto
+        </a>
+
+      </section>
+
+      <section class="product-summary">
+
+        <article class="summary-card">
+          <span>Produtos ativos</span>
+          <strong id="active-products-count">0</strong>
+        </article>
+
+        <article class="summary-card">
+          <span>Em desenvolvimento</span>
+          <strong id="development-products-count">0</strong>
+        </article>
+
+        <article class="summary-card">
+          <span>Produtos obsoletos</span>
+          <strong id="obsolete-products-count">0</strong>
+        </article>
+
+      </section>
+
+      <section class="panel">
+
+        <div class="product-toolbar">
+
+          <div class="search-box">
+            <label class="sr-only" for="product-search">
+              Pesquisar produto
+            </label>
+
+            <input
+              type="search"
+              id="product-search"
+              placeholder="Pesquisar por código, nome, cliente ou part number..."
+            >
+          </div>
+
+          <div class="filter-box">
+
+            <label for="status-filter">
+              Status
+            </label>
+
+            <select id="status-filter">
+              <option value="">Todos</option>
+              <option value="ATIVO">Ativo</option>
+              <option value="EM_DESENVOLVIMENTO">
+                Em desenvolvimento
+              </option>
+              <option value="INATIVO">Inativo</option>
+              <option value="OBSOLETO">Obsoleto</option>
+            </select>
+
+          </div>
+
+        </div>
+
+        <div id="products-loading" class="loading-state">
+          Carregando produtos...
+        </div>
+
+        <div id="products-empty" class="empty-panel" hidden>
+          <strong>Nenhum produto encontrado</strong>
+          <span>Cadastre o primeiro produto do LIDUTEC+.</span>
+        </div>
+
+        <div class="table-wrapper" id="products-table-wrapper" hidden>
+          <table class="products-table">
+
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Produto</th>
+                <th>Cliente</th>
+                <th>Part number</th>
+                <th>Peso</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+
+            <tbody id="products-body"></tbody>
+
+          </table>
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/produtos-lista.js"></script>
+
+</body>
+</html>

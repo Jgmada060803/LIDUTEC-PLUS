@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Cadastro de Produto | LIDUTEC+</title>
+
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/produtos.css">
+</head>
+
+<body class="app-page">
+
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">L+</div>
+
+      <div>
+        <strong>LIDUTEC+</strong>
+        <span>Gestão Industrial</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+
+      <a href="../dashboard.html" class="nav-link">
+        Dashboard
+      </a>
+
+      <div class="nav-section">
+        <span class="nav-title">Engenharia</span>
+
+        <a
+          href="./lista.html"
+          class="nav-link active"
+          data-permission="produto.visualizar"
+        >
+          Produtos
+        </a>
+
+        <a
+          href="./revisoes.html"
+          class="nav-link"
+          data-permission="revisao.visualizar_historico"
+        >
+          Revisões
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-title">Produção</span>
+
+        <a
+          href="../controle-processo/lista.html"
+          class="nav-link"
+          data-permission="controle_processo.visualizar"
+        >
+          Controle de Processo
+        </a>
+      </div>
+
+    </nav>
+
+    <button id="logout-button" class="logout-button">
+      Sair
+    </button>
+
+  </aside>
+
+  <div class="app-shell">
+
+    <header class="topbar">
+
+      <button
+        type="button"
+        class="menu-button"
+        id="menu-button"
+        aria-label="Abrir ou fechar menu"
+      >
+        ☰
+      </button>
+
+      <div class="topbar-title">
+        <h1 id="page-title">Novo Produto</h1>
+        <p>Cadastro mestre de engenharia</p>
+      </div>
+
+      <div class="user-box">
+        <div>
+          <strong id="user-name">Carregando...</strong>
+          <span id="user-profile">Usuário</span>
+        </div>
+
+        <div class="user-avatar" id="user-avatar">
+          U
+        </div>
+      </div>
+
+    </header>
+
+    <main class="main-content">
+
+      <section class="page-heading">
+
+        <div>
+          <span class="eyebrow">Engenharia do Produto</span>
+          <h2 id="form-title">Cadastrar produto</h2>
+
+          <p>
+            Preencha os dados principais da peça.
+          </p>
+        </div>
+
+        <a
+          href="./lista.html"
+          class="button button-secondary"
+        >
+          Voltar
+        </a>
+
+      </section>
+
+      <form id="product-form" novalidate>
+        <section
+  class="panel product-form-section"
+  id="creation-mode-section"
+>
+  <div class="panel-header">
+    <span class="eyebrow">Forma de criação</span>
+    <h3>Como deseja criar o produto?</h3>
+  </div>
+
+  <div class="creation-mode-options">
+
+    <label class="creation-mode-card">
+      <input
+        type="radio"
+        name="creation-mode"
+        value="novo"
+        checked
+      >
+
+      <div>
+        <strong>Criar do zero</strong>
+        <span>
+          Cadastrar um produto sem copiar dados anteriores.
+        </span>
+      </div>
+    </label>
+
+    <label class="creation-mode-card">
+      <input
+        type="radio"
+        name="creation-mode"
+        value="copiar"
+      >
+
+      <div>
+        <strong>Copiar produto existente</strong>
+        <span>
+          Aproveitar dados e fichas de um produto semelhante.
+        </span>
+      </div>
+    </label>
+
+  </div>
+
+  <div id="clone-options" class="clone-options" hidden>
+
+    <div class="form-group">
+      <label for="produto-origem">
+        Produto-base *
+      </label>
+
+      <select id="produto-origem">
+        <option value="">Selecione o produto-base</option>
+      </select>
+    </div>
+
+    <div class="clone-checklist">
+
+      <label>
+        <input
+          type="checkbox"
+          id="copiar-dados-gerais"
+          checked
+        >
+        Dados gerais
+      </label>
+
+      <label>
+        <input
+          type="checkbox"
+          id="copiar-moldagem"
+          checked
+        >
+        Moldagem
+      </label>
+
+      <label>
+        <input
+          type="checkbox"
+          id="copiar-vazamento"
+          checked
+        >
+        Fusão / Vazamento
+      </label>
+
+      <label>
+        <input
+          type="checkbox"
+          id="copiar-metalurgia"
+          checked
+        >
+        Metalurgia
+      </label>
+
+      <label>
+        <input
+          type="checkbox"
+          id="copiar-embalagem"
+          checked
+        >
+        Embalagem
+      </label>
+
+      <label>
+        <input
+          type="checkbox"
+          id="copiar-documentos"
+        >
+        Documentos
+      </label>
+
+    </div>
+
+    <div class="clone-warning">
+      O novo produto será criado como
+      <strong>Em desenvolvimento</strong> e as fichas copiadas
+      serão criadas como <strong>Rascunho</strong>.
+    </div>
+
+  </div>
+</section>
+
+        <section class="panel product-form-section">
+
+          <div class="panel-header">
+            <span class="eyebrow">Identificação</span>
+            <h3>Dados gerais</h3>
+          </div>
+
+          <div class="product-form-grid">
+
+            <div class="form-group">
+              <label for="codigo">Código interno *</label>
+
+              <input
+                type="text"
+                id="codigo"
+                name="codigo"
+                placeholder="Ex.: MS0013"
+                maxlength="50"
+                required
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="nome">Nome do produto *</label>
+
+              <input
+                type="text"
+                id="nome"
+                name="nome"
+                placeholder="Ex.: Tambor de Freio"
+                maxlength="200"
+                required
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="status">Status *</label>
+
+              <select id="status" name="status" required>
+                <option value="EM_DESENVOLVIMENTO">
+                  Em desenvolvimento
+                </option>
+                <option value="ATIVO">Ativo</option>
+                <option value="INATIVO">Inativo</option>
+                <option value="OBSOLETO">Obsoleto</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="cliente">Cliente</label>
+
+              <select id="cliente" name="cliente">
+                <option value="">Selecione</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="familia">Família</label>
+
+              <select id="familia" name="familia">
+                <option value="">Selecione</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="codigo-cliente">
+                Código do cliente
+              </label>
+
+              <input
+                type="text"
+                id="codigo-cliente"
+                name="codigo-cliente"
+                maxlength="100"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="part-number">Part number</label>
+
+              <input
+                type="text"
+                id="part-number"
+                name="part-number"
+                maxlength="100"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="codigo-ferramental">
+                Código do ferramental
+              </label>
+
+              <input
+                type="text"
+                id="codigo-ferramental"
+                name="codigo-ferramental"
+                maxlength="100"
+              >
+            </div>
+
+            <div class="form-group">
+              <label>Peça de segurança</label>
+
+              <label class="checkbox-field">
+                <input
+                  type="checkbox"
+                  id="peca-seguranca"
+                  name="peca-seguranca"
+                >
+
+                <span>Sim, produto classificado como segurança</span>
+              </label>
+            </div>
+
+          </div>
+
+        </section>
+
+        <section class="panel product-form-section">
+
+          <div class="panel-header">
+            <span class="eyebrow">Características</span>
+            <h3>Dados físicos e produtivos</h3>
+          </div>
+
+          <div class="product-form-grid">
+
+            <div class="form-group">
+              <label for="peso-peca">
+                Peso da peça (kg)
+              </label>
+
+              <input
+                type="number"
+                id="peso-peca"
+                name="peso-peca"
+                step="0.001"
+                min="0"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="peso-cacho">
+                Peso do cacho (kg)
+              </label>
+
+              <input
+                type="number"
+                id="peso-cacho"
+                name="peso-cacho"
+                step="0.001"
+                min="0"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="cavidades">
+                Cavidades por molde
+              </label>
+
+              <input
+                type="number"
+                id="cavidades"
+                name="cavidades"
+                step="1"
+                min="1"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="rendimento">
+                Rendimento metálico (%)
+              </label>
+
+              <input
+                type="number"
+                id="rendimento"
+                name="rendimento"
+                step="0.001"
+                min="0"
+                max="100"
+              >
+            </div>
+
+            <div class="form-group form-group-full">
+              <label for="imagem-principal-url">
+                URL da imagem principal
+              </label>
+
+              <input
+                type="url"
+                id="imagem-principal-url"
+                name="imagem-principal-url"
+                placeholder="https://..."
+              >
+
+              <span class="form-note">
+                Por enquanto armazenaremos o endereço da imagem.
+                O upload direto será criado posteriormente.
+              </span>
+            </div>
+
+          </div>
+
+        </section>
+
+        <div
+          id="form-message"
+          class="form-message"
+          hidden
+        ></div>
+
+        <div class="form-actions">
+
+          <a
+            href="./lista.html"
+            class="button button-secondary"
+          >
+            Cancelar
+          </a>
+
+          <button
+            type="submit"
+            id="save-button"
+            class="button button-primary"
+          >
+            Salvar produto
+          </button>
+
+        </div>
+
+      </form>
+
+    </main>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/produtos-cadastro.js"></script>
+
+</body>
+</html>
