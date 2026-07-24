@@ -48,6 +48,24 @@ const castingStatus =
 const castingRevision =
   document.querySelector("#casting-revision");
 
+const productModuleCards =
+  document.querySelector("#product-module-cards");
+
+const moduleDetail =
+  document.querySelector("#module-detail");
+
+const moduleDetailTitle =
+  document.querySelector("#module-detail-title");
+
+const moduleDetailContent =
+  document.querySelector("#module-detail-content");
+
+const productDetailsState = {
+  product: null,
+  sheets: [],
+  permissions: new Set()
+};
+
 function getInitials(name = "Usuário") {
   return name
     .trim()
@@ -63,6 +81,14 @@ function getProductId() {
   );
 
   return params.get("id");
+}
+
+function getSheetPageUrl(page, product) {
+  const params = new URLSearchParams({
+    produto: product.id,
+    codigo: product.codigo
+  });
+  return `./${page}?${params}`;
 }
 
 function formatWeight(value) {
@@ -122,12 +148,13 @@ function setText(selector, value) {
 }
 
 function showProduct(product) {
+  productDetailsState.product = product;
   const openMoldingButton =
     document.querySelector("#open-molding-button");
 
   if (openMoldingButton) {
     openMoldingButton.href =
-      `./moldagem.html?produto=${product.id}`;
+      getSheetPageUrl("moldagem.html", product);
   }
 
   const openCastingButton =
@@ -135,7 +162,7 @@ function showProduct(product) {
 
   if (openCastingButton) {
     openCastingButton.href =
-      `./fusao-vazamento.html?produto=${product.id}`;
+      getSheetPageUrl("fusao-vazamento.html", product);
   }
 
   const status = getStatusData(product.status);
@@ -245,95 +272,371 @@ async function loadProduct(productId) {
   }
 
   showProduct(data);
+  return data;
 }
 
-async function loadSheetSummary(
-  productId,
-  sheetType,
-  statusElement,
-  revisionElement
-) {
-  const { data, error } = await window.supabaseClient
+function createProductSheetsQuery(productId, includeImports) {
+  const importSelection = includeImports
+    ? `,
+      importacoes_ficha (
+        id,
+        estado,
+        criado_em,
+        validado_em,
+        pdf_nome_original,
+        validacoes_importacao_ficha (
+          administrador_nome,
+          resultado,
+          criado_em
+        )
+      )`
+    : "";
+
+  return window.supabaseClient
     .from("fichas_tecnicas")
-    .select("id, status, numero_revisao, vigente, criado_em")
+    .select(`
+      id,
+      produto_id,
+      tipo,
+      codigo_documento,
+      numero_revisao,
+      status,
+      vigente,
+      data_emissao,
+      criado_em,
+      etapa_aprovacao
+      ${importSelection},
+      aprovacoes_ficha (
+        id,
+        tipo_aprovacao,
+        status,
+        nome_responsavel
+      )
+    `)
     .eq("produto_id", productId)
-    .eq("tipo", sheetType)
     .order("numero_revisao", { ascending: false })
     .order("criado_em", { ascending: false })
     .order("id", { ascending: false });
+}
 
+async function loadProductSheets(productId) {
+  let { data, error } = await createProductSheetsQuery(productId, true);
+  if (error && /importacoes_ficha|etapa_aprovacao/i.test(error.message)) {
+    console.warn(
+      "Migration 004 ainda não aplicada; carregando módulos sem metadados administrativos."
+    );
+    ({ data, error } = await window.supabaseClient
+      .from("fichas_tecnicas")
+      .select(`
+        id,
+        produto_id,
+        tipo,
+        codigo_documento,
+        numero_revisao,
+        status,
+        vigente,
+        data_emissao,
+        criado_em,
+        aprovacoes_ficha (
+          id,
+          tipo_aprovacao,
+          status,
+          nome_responsavel
+        )
+      `)
+      .eq("produto_id", productId)
+      .order("numero_revisao", { ascending: false })
+      .order("criado_em", { ascending: false })
+      .order("id", { ascending: false }));
+  }
   if (error) {
     throw error;
   }
+  return data ?? [];
+}
 
-  const sheets = [...(data ?? [])].sort(
-    compareMoldingSummarySheets
+function getModuleAction(type, sheet) {
+  const ui = window.LIDUTEC_FICHAS_UI;
+  const importData = ui.getImport(sheet);
+  const canManageImport = [
+    "ficha.importar",
+    "ficha.conferir_importacao",
+    "ficha.validar_importacao"
+  ].some((permission) =>
+    productDetailsState.permissions.has(permission)
   );
-  const sheet = sheets[0] ?? null;
 
-  const statusLabels = {
-    RASCUNHO: "Rascunho",
-    EM_APROVACAO: "Aguardando aprovação",
-    APROVADA: "Aprovada",
-    IMPORTADA: "Importada",
-    VIGENTE: "Vigente",
-    REPROVADA: "Reprovada",
-    OBSOLETA: "Obsoleta"
+  if (importData && importData.estado !== "IMPORTADA" && canManageImport) {
+    return {
+      label: "Conferir importação",
+      href: ui.importUrl(
+        productDetailsState.product.id,
+        type.codigo,
+        importData.id
+      )
+    };
+  }
+
+  if (sheet && type.page) {
+    return {
+      label: "Abrir ficha",
+      href: ui.sheetUrl(sheet)
+    };
+  }
+
+  if (type.page) {
+    return {
+      label: `Abrir ${type.nome}`,
+      href: getSheetPageUrl(
+        type.page,
+        productDetailsState.product
+      )
+    };
+  }
+
+  return null;
+}
+
+function getModuleImportAction(type, sheet) {
+  if (
+    sheet ||
+    !type.template ||
+    !productDetailsState.permissions.has("ficha.importar")
+  ) {
+    return null;
+  }
+
+  return {
+    label: "Importar ficha",
+    href: window.LIDUTEC_FICHAS_UI.importUrl(
+      productDetailsState.product.id,
+      type.codigo
+    )
   };
-
-  statusElement.textContent = sheet
-    ? sheet.vigente
-      ? "Vigente"
-      : statusLabels[sheet.status] ?? sheet.status
-    : "Não cadastrada";
-
-  revisionElement.textContent =
-    sheet ? `Revisão ${sheet.numero_revisao}` : "—";
 }
 
-function getMoldingSummaryPriority(sheet) {
-  if (sheet.status === "RASCUNHO") {
-    return 1;
-  }
-
-  if (sheet.status === "EM_APROVACAO") {
-    return 2;
-  }
-
-  if (sheet.vigente) {
-    return 3;
-  }
-
-  return 4;
-}
-
-function compareMoldingSummaryDescending(left, right) {
-  return String(right ?? "").localeCompare(String(left ?? ""));
-}
-
-function compareMoldingSummaryIds(left, right) {
-  try {
-    const leftId = BigInt(left ?? 0);
-    const rightId = BigInt(right ?? 0);
-
-    return rightId > leftId ? 1 : rightId < leftId ? -1 : 0;
-  } catch {
-    return compareMoldingSummaryDescending(left, right);
-  }
-}
-
-function compareMoldingSummarySheets(left, right) {
-  return (
-    getMoldingSummaryPriority(left) -
-      getMoldingSummaryPriority(right) ||
-    Number(right.numero_revisao ?? 0) -
-      Number(left.numero_revisao ?? 0) ||
-    compareMoldingSummaryDescending(
-      left.criado_em,
-      right.criado_em
-    ) ||
-    compareMoldingSummaryIds(left.id, right.id)
+function renderModuleCards() {
+  const ui = window.LIDUTEC_FICHAS_UI;
+  const visibleSheets = productDetailsState.sheets.filter((sheet) =>
+    ui.canSeeSheet(sheet, productDetailsState.permissions)
   );
+
+  productModuleCards.innerHTML = ui.types.map((type) => {
+    const sheet = ui.selectActiveSheet(visibleSheets, type.codigo);
+    const importData = ui.getImport(sheet);
+    const action = getModuleAction(type, sheet);
+    const importAction = getModuleImportAction(type, sheet);
+    const statusText = sheet
+      ? ui.getStatusData(sheet).label
+      : "Nenhuma ficha cadastrada";
+    const importText = importData
+      ? importData.estado === "IMPORTADA"
+        ? "Importação validada"
+        : "Importação pendente de validação"
+      : null;
+
+    return `
+      <article class="product-module-card">
+        <div>
+          <h4>${ui.escapeHtml(type.nome)}</h4>
+          ${
+            sheet
+              ? `<strong>Revisão ${ui.escapeHtml(
+                  sheet.numero_revisao
+                )}</strong>
+                 ${ui.statusBadge(sheet)}
+                 <span>${ui.escapeHtml(importText ?? statusText)}</span>
+                 <small>Emissão: ${ui.formatDate(
+                   sheet.data_emissao
+                 )}</small>`
+              : `<strong>Nenhuma ficha cadastrada</strong>
+                 <span>Módulo disponível para configuração.</span>`
+          }
+        </div>
+        <div class="product-module-actions">
+          ${
+            action
+              ? `<a href="${action.href}" class="button button-primary">
+                  ${ui.escapeHtml(action.label)}
+                </a>`
+              : ""
+          }
+          ${
+            importAction
+              ? `<a href="${importAction.href}" class="button button-secondary">
+                  ${ui.escapeHtml(importAction.label)}
+                </a>`
+              : ""
+          }
+          <button type="button" class="button button-secondary view-module"
+            data-module-type="${ui.escapeHtml(type.codigo)}">
+            Ver módulo
+          </button>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  const molding = ui.selectActiveSheet(visibleSheets, "MOLDAGEM");
+  const casting = ui.selectActiveSheet(
+    visibleSheets,
+    "FUSAO_VAZAMENTO"
+  );
+  moldingStatus.textContent = molding
+    ? ui.getStatusData(molding).label
+    : "Não cadastrada";
+  moldingRevision.textContent = molding
+    ? `Revisão ${molding.numero_revisao}`
+    : "—";
+  castingStatus.textContent = casting
+    ? ui.getStatusData(casting).label
+    : "Não cadastrada";
+  castingRevision.textContent = casting
+    ? `Revisão ${casting.numero_revisao}`
+    : "—";
+
+  for (const [typeCode, sheet, button] of [
+    [
+      "MOLDAGEM",
+      molding,
+      document.querySelector("#open-molding-button")
+    ],
+    [
+      "FUSAO_VAZAMENTO",
+      casting,
+      document.querySelector("#open-casting-button")
+    ]
+  ]) {
+    const action = getModuleAction(ui.getType(typeCode), sheet);
+    if (button) {
+      button.hidden = !action;
+      if (action) {
+        button.href = action.href;
+        button.textContent = action.label;
+      }
+    }
+
+    const importButton = document.querySelector(
+      typeCode === "MOLDAGEM"
+        ? "#import-molding-button"
+        : "#import-casting-button"
+    );
+    const importAction = getModuleImportAction(
+      ui.getType(typeCode),
+      sheet
+    );
+    if (importButton) {
+      importButton.hidden = !importAction;
+      if (importAction) {
+        importButton.href = importAction.href;
+      }
+    }
+  }
+}
+
+function renderModuleDetail(typeCode) {
+  const ui = window.LIDUTEC_FICHAS_UI;
+  const type = ui.getType(typeCode);
+  const sheets = productDetailsState.sheets
+    .filter((sheet) =>
+      sheet.tipo === typeCode &&
+      ui.canSeeSheet(sheet, productDetailsState.permissions)
+    )
+    .sort(ui.compareSheets);
+
+  moduleDetailTitle.textContent = type.nome;
+  moduleDetail.hidden = false;
+
+  if (!sheets.length) {
+    const action = getModuleAction(type, null);
+    moduleDetailContent.innerHTML = `
+      <div class="empty-panel">
+        <strong>Nenhuma ficha cadastrada</strong>
+        <span>Inicie o módulo por uma criação normal ou importação.</span>
+        ${
+          action
+            ? `<a href="${action.href}" class="button button-primary">
+                ${ui.escapeHtml(action.label)}
+              </a>`
+            : ""
+        }
+      </div>
+    `;
+    moduleDetail.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  moduleDetailContent.innerHTML = `
+    <div class="module-revision-list">
+      ${sheets.map((sheet) => {
+        const importData = ui.getImport(sheet);
+        const action = getModuleAction(type, sheet);
+        const validations =
+          importData?.validacoes_importacao_ficha ?? [];
+        const validation = [...validations].sort((left, right) =>
+          String(right.criado_em).localeCompare(String(left.criado_em))
+        )[0];
+        const approvals = sheet.aprovacoes_ficha ?? [];
+        const canCreateRevision =
+          ["IMPORTADA", "HISTORICA"].includes(sheet.status) &&
+          (!importData || importData.estado === "IMPORTADA") &&
+          productDetailsState.permissions.has("ficha.criar");
+
+        return `
+          <article class="module-revision-row">
+            <div>
+              <strong>Revisão ${ui.escapeHtml(
+                sheet.numero_revisao
+              )}</strong>
+              <span>${ui.escapeHtml(
+                sheet.codigo_documento ?? "Sem código"
+              )}</span>
+            </div>
+            <div>
+              ${ui.statusBadge(sheet)}
+              <span>Emissão: ${ui.formatDate(sheet.data_emissao)}</span>
+              ${
+                importData
+                  ? `<small>${
+                      importData.estado === "IMPORTADA"
+                        ? `Validada por ${
+                            ui.escapeHtml(
+                              validation?.administrador_nome ?? "Administrador"
+                            )
+                          }`
+                        : "Importação aguardando validação administrativa"
+                    }</small>`
+                  : ""
+              }
+            </div>
+            <div>
+              <span>${approvals.length} aprovação(ões) registrada(s)</span>
+              <small>${sheet.vigente ? "Ficha vigente" : "Não vigente"}</small>
+            </div>
+            <div class="master-row-actions">
+              ${
+                action
+                  ? `<a href="${action.href}" class="table-action">${
+                      ui.escapeHtml(action.label)
+                    }</a>`
+                  : ""
+              }
+              ${
+                canCreateRevision
+                  ? `<button type="button"
+                      class="table-action create-module-revision"
+                      data-sheet-id="${sheet.id}">
+                      Criar nova revisão
+                    </button>`
+                  : ""
+              }
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+  moduleDetail.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function initializeTabs() {
@@ -346,6 +649,28 @@ function initializeTabs() {
   for (const tab of tabs) {
     tab.addEventListener("click", () => {
       const selectedTab = tab.dataset.tab;
+      const directPages = {
+        moldagem: "moldagem.html",
+        vazamento: "fusao-vazamento.html"
+      };
+      const directPage = directPages[selectedTab];
+
+      if (
+        directPage &&
+        productDetailsState.permissions.has("ficha.visualizar")
+      ) {
+        const productId =
+          productDetailsState.product?.id ?? getProductId();
+        const params = new URLSearchParams({
+          produto: productId,
+          codigo: productDetailsState.product?.codigo ?? ""
+        });
+        if (window.LIDUTEC_FICHA_PREVIEW?.isEnabled()) {
+          params.set("preview", "1");
+        }
+        window.location.assign(`./${directPage}?${params}`);
+        return;
+      }
 
       for (const currentTab of tabs) {
         currentTab.classList.toggle(
@@ -365,6 +690,29 @@ function initializeTabs() {
         );
       }
     });
+  }
+
+  const initialTab = new URLSearchParams(
+    window.location.search
+  ).get("tab");
+  const initialButton = [...tabs].find(
+    (tab) => tab.dataset.tab === initialTab
+  );
+  if (
+    initialButton &&
+    !["moldagem", "vazamento"].includes(initialTab)
+  ) {
+    for (const currentTab of tabs) {
+      currentTab.classList.toggle(
+        "active",
+        currentTab === initialButton
+      );
+    }
+    for (const panel of panels) {
+      const isSelected = panel.dataset.panel === initialTab;
+      panel.hidden = !isSelected;
+      panel.classList.toggle("active", isSelected);
+    }
   }
 }
 
@@ -387,6 +735,20 @@ async function initializeProductDetails() {
 
     initializeTabs();
     showProduct(product);
+    productDetailsState.permissions = new Set(["ficha.visualizar"]);
+    productDetailsState.sheets = [moldingSheet, castingSheet].map(
+      (sheet) => ({
+        ...sheet,
+        produto_id: product.id,
+        importacoes_ficha: [{
+          id: `preview-${sheet.tipo}`,
+          estado: "IMPORTADA",
+          validacoes_importacao_ficha: []
+        }],
+        aprovacoes_ficha: []
+      })
+    );
+    renderModuleCards();
     editProductButton.hidden = true;
     moldingStatus.textContent = "Importada";
     moldingRevision.textContent =
@@ -445,6 +807,7 @@ async function initializeProductDetails() {
   window.LIDUTEC_APP.applyPermissionVisibility(
     permissions
   );
+  productDetailsState.permissions = permissions;
 
   const openMoldingButton =
     document.querySelector("#open-molding-button");
@@ -469,31 +832,20 @@ async function initializeProductDetails() {
 
   initializeTabs();
 
-  const loadingTasks = [loadProduct(productId)];
-
-  if (canViewMolding) {
-    loadingTasks.push(
-      loadSheetSummary(
-        productId,
-        "MOLDAGEM",
-        moldingStatus,
-        moldingRevision
-      ),
-      loadSheetSummary(
-        productId,
-        "FUSAO_VAZAMENTO",
-        castingStatus,
-        castingRevision
-      )
-    );
-  } else {
+  if (!canViewMolding) {
     moldingStatus.textContent = "Sem permissão";
     moldingRevision.textContent = "—";
     castingStatus.textContent = "Sem permissão";
     castingRevision.textContent = "—";
   }
 
-  await Promise.all(loadingTasks);
+  const [product, sheets] = await Promise.all([
+    loadProduct(productId),
+    canViewMolding ? loadProductSheets(productId) : Promise.resolve([])
+  ]);
+  productDetailsState.product = product;
+  productDetailsState.sheets = sheets;
+  renderModuleCards();
 
   productLoading.hidden = true;
   productContent.hidden = false;
@@ -505,6 +857,46 @@ menuButton?.addEventListener("click", () => {
 
 logoutButton?.addEventListener("click", async () => {
   await window.LIDUTEC_APP.signOut();
+});
+
+productModuleCards?.addEventListener("click", (event) => {
+  const button = event.target.closest(".view-module");
+  if (button) {
+    renderModuleDetail(button.dataset.moduleType);
+  }
+});
+
+moduleDetailContent?.addEventListener("click", async (event) => {
+  const button = event.target.closest(".create-module-revision");
+  if (!button) {
+    return;
+  }
+
+  const sheet = productDetailsState.sheets.find(
+    (item) => String(item.id) === button.dataset.sheetId
+  );
+  if (!sheet) {
+    return;
+  }
+
+  try {
+    button.disabled = true;
+    const newSheetId =
+      await window.LIDUTEC_FICHAS_UI.createNewRevision(sheet);
+    if (!newSheetId) {
+      return;
+    }
+    const url = window.LIDUTEC_FICHAS_UI.sheetUrl(sheet);
+    if (url) {
+      window.location.href = url;
+    } else {
+      window.location.reload();
+    }
+  } catch (error) {
+    alert(`Não foi possível criar a revisão: ${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
 });
 
 initializeProductDetails().catch((error) => {

@@ -610,6 +610,10 @@ async function initializePage() {
       authenticatedUser.id
     );
 
+  window.LIDUTEC_APP.applyPermissionVisibility(
+    permissions
+  );
+
   if (
     !permissions.has(
       "controle_processo.lancar"

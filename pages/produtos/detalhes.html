@@ -9,6 +9,9 @@
   <link rel="stylesheet" href="../../assets/css/app.css">
   <link rel="stylesheet" href="../../assets/css/dashboard.css">
   <link rel="stylesheet" href="../../assets/css/produtos.css">
+  <link rel="prefetch" href="./moldagem.html">
+  <link rel="prefetch" href="./fusao-vazamento.html">
+  <link rel="prefetch" href="../../assets/js/produtos-moldagem.js" as="script">
 </head>
 
 <body class="app-page">
@@ -169,26 +172,6 @@
 
         </section>
 
-        <section class="product-actions">
-
-          <a
-            href="./lista.html"
-            class="button button-secondary"
-          >
-            Voltar
-          </a>
-
-          <a
-            id="edit-product-button"
-            href="#"
-            class="button button-primary"
-            data-permission="produto.editar"
-          >
-            Editar produto
-          </a>
-
-        </section>
-
         <nav class="product-tabs" aria-label="Seções do produto">
 
           <button
@@ -316,6 +299,22 @@
 
           </div>
 
+          <section class="product-modules-section">
+            <div class="panel-header">
+              <span class="eyebrow">Fichas técnicas</span>
+              <h3>Módulos do produto</h3>
+            </div>
+            <div id="product-module-cards" class="product-module-grid"></div>
+          </section>
+
+          <article id="module-detail" class="panel module-detail" hidden>
+            <div class="panel-header">
+              <span class="eyebrow">Histórico do módulo</span>
+              <h3 id="module-detail-title">Módulo</h3>
+            </div>
+            <div id="module-detail-content"></div>
+          </article>
+
         </section>
 
         <section
@@ -352,6 +351,14 @@
             >
               Abrir ficha de Moldagem
             </a>
+            <a
+              id="import-molding-button"
+              href="#"
+              class="button button-secondary"
+              hidden
+            >
+              Importar ficha
+            </a>
           </article>
         </section>
 
@@ -382,6 +389,14 @@
 
             <a id="open-casting-button" href="#" class="button button-primary">
               Abrir ficha de Fusão/Vazamento
+            </a>
+            <a
+              id="import-casting-button"
+              href="#"
+              class="button button-secondary"
+              hidden
+            >
+              Importar ficha
             </a>
           </article>
         </section>
@@ -457,6 +472,26 @@
           </article>
         </section>
 
+        <section class="product-actions">
+
+          <a
+            href="./lista.html"
+            class="button button-secondary"
+          >
+            Voltar
+          </a>
+
+          <a
+            id="edit-product-button"
+            href="#"
+            class="button button-primary"
+            data-permission="produto.editar"
+          >
+            Editar produto
+          </a>
+
+        </section>
+
       </div>
 
       <div
@@ -474,6 +509,7 @@
   <script src="../../assets/js/supabase.js"></script>
   <script src="../../assets/js/app.js"></script>
   <script src="../../assets/js/fichas-preview.js"></script>
+  <script src="../../assets/js/fichas-ui.js"></script>
   <script src="../../assets/js/produtos-detalhes.js"></script>
 
 </body>

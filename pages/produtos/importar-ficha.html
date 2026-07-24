@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Importar ficha técnica | LIDUTEC+</title>
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/produtos.css">
+</head>
+<body class="app-page">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">L+</div>
+      <div>
+        <strong>LIDUTEC+</strong>
+        <span>Gestão Industrial</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="../dashboard.html" class="nav-link">Dashboard</a>
+      <div class="nav-section">
+        <span class="nav-title">Engenharia</span>
+        <a href="./lista.html" class="nav-link"
+          data-permission="ficha.visualizar">Lista Mestra</a>
+        <a href="./importar-ficha.html" class="nav-link active"
+          data-permission="ficha.importar,ficha.conferir_importacao,ficha.validar_importacao">
+          Importar PDF
+        </a>
+      </div>
+    </nav>
+    <button id="logout-button" class="logout-button">Sair</button>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <button type="button" class="menu-button" id="menu-button"
+        aria-label="Abrir ou fechar menu">☰</button>
+      <div class="topbar-title">
+        <h1>Importação de ficha técnica</h1>
+        <p>Conferência administrativa de documentos históricos</p>
+      </div>
+      <div class="user-box">
+        <div>
+          <strong id="user-name">Carregando...</strong>
+          <span id="user-profile">Usuário</span>
+        </div>
+        <div class="user-avatar" id="user-avatar">U</div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="page-heading">
+        <div>
+          <span class="eyebrow">Importação histórica</span>
+          <h2>PDF → conferência → validação</h2>
+          <p>
+            A validação confirma fidelidade ao documento; não é uma
+            aprovação técnica de Engenharia ou Produção.
+          </p>
+        </div>
+        <a href="./cadastro.html" class="button button-secondary"
+          data-permission="produto.criar">Cadastrar produto</a>
+      </section>
+
+      <div id="import-loading" class="loading-state">
+        Carregando estrutura de importação...
+      </div>
+      <div id="import-error" class="empty-panel" hidden>
+        <strong>Não foi possível abrir a importação</strong>
+        <span></span>
+      </div>
+
+      <form id="import-form" hidden>
+        <section class="panel import-header-panel">
+          <div class="panel-header">
+            <span class="eyebrow">Documento</span>
+            <h3>Cabeçalho da importação</h3>
+          </div>
+          <div class="product-form-grid import-header-grid">
+            <label>
+              <span>Produto existente</span>
+              <select id="import-product" required></select>
+            </label>
+            <label>
+              <span>Tipo da ficha</span>
+              <select id="import-type" required>
+                <option value="MOLDAGEM">Moldagem</option>
+                <option value="FUSAO_VAZAMENTO">Fusão/Vazamento</option>
+              </select>
+            </label>
+            <label>
+              <span>Template</span>
+              <select id="import-template" required>
+                <option value="moldagem_v1">moldagem_v1</option>
+                <option value="fusao_vazamento_v1">
+                  fusao_vazamento_v1
+                </option>
+              </select>
+            </label>
+            <label>
+              <span>Código do documento</span>
+              <input id="import-document-code" required>
+            </label>
+            <label>
+              <span>Revisão original</span>
+              <input id="import-revision" type="number" min="0" required>
+            </label>
+            <label>
+              <span>Data original</span>
+              <input id="import-date" type="date" required>
+            </label>
+            <label class="import-file-field">
+              <span>PDF original</span>
+              <input id="import-file" type="file"
+                accept="application/pdf,.pdf">
+            </label>
+          </div>
+          <div class="import-toolbar">
+            <button type="button" class="button button-secondary"
+              id="start-extraction">Iniciar extração assistida</button>
+            <span id="import-state" class="status-badge desenvolvimento">
+              Nova importação
+            </span>
+          </div>
+        </section>
+
+        <div id="import-warnings" class="preview-banner" hidden></div>
+
+        <section class="import-workspace">
+          <article class="panel import-pdf-panel">
+            <div class="panel-header">
+              <span class="eyebrow">Documento original</span>
+              <h3>PDF privado</h3>
+            </div>
+            <div id="pdf-empty" class="empty-panel">
+              <strong>Selecione o PDF</strong>
+              <span>O arquivo será visualizado localmente antes do envio.</span>
+            </div>
+            <iframe id="pdf-preview" title="PDF original" hidden></iframe>
+          </article>
+
+          <article class="panel import-fields-panel">
+            <div class="panel-header">
+              <span class="eyebrow">Conferência</span>
+              <h3>Campos extraídos</h3>
+            </div>
+            <div id="import-fields-empty" class="empty-panel">
+              <strong>Extração ainda não iniciada</strong>
+              <span>Selecione o PDF e inicie a extração assistida.</span>
+            </div>
+            <div id="import-fields"></div>
+          </article>
+        </section>
+
+        <section class="panel import-validation-panel">
+          <div class="panel-header">
+            <span class="eyebrow">Validação administrativa</span>
+            <h3>Fidelidade ao documento original</h3>
+          </div>
+          <p>
+            Declaração: “Os dados cadastrados correspondem ao documento
+            original.”
+          </p>
+          <label>
+            <span>Observação da validação</span>
+            <textarea id="validation-note" rows="3"></textarea>
+          </label>
+          <label class="master-checkbox">
+            <input type="checkbox" id="make-current" checked>
+            <span>Tornar vigente após validar</span>
+          </label>
+        </section>
+
+        <div id="import-message" class="form-message" hidden></div>
+        <div class="molding-actions import-actions">
+          <a href="./lista.html" class="button button-secondary">Voltar</a>
+          <div>
+            <button type="button" class="button button-secondary"
+              id="save-import"
+              data-permission="ficha.importar,ficha.conferir_importacao">
+              Salvar rascunho
+            </button>
+            <button type="button" class="button button-primary"
+              id="submit-import"
+              data-permission="ficha.conferir_importacao">
+              Enviar para validação
+            </button>
+            <button type="button" class="button button-secondary"
+              id="reject-import"
+              data-permission="ficha.validar_importacao">
+              Rejeitar importação
+            </button>
+            <button type="button" class="button button-primary"
+              id="validate-import"
+              data-permission="ficha.validar_importacao">
+              Validar importação
+            </button>
+          </div>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/ficha-importacao-templates.js"></script>
+  <script src="../../assets/js/ficha-pdf-extractor.js"></script>
+  <script src="../../assets/js/produtos-importacao.js"></script>
+</body>
+</html>

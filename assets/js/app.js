@@ -173,7 +173,93 @@ function userHasAnyPermission(
   );
 }
 
+function syncSidebarNavigation() {
+  const navigation = document.querySelector(".sidebar-nav");
+
+  if (!navigation) {
+    return;
+  }
+
+  const pathname = window.location.pathname.replace(/\\/g, "/");
+  const isDashboard = pathname.endsWith("/pages/dashboard.html");
+  const prefix = isDashboard ? "./" : "../";
+  const isActive = (section, page = "") => {
+    if (section === "dashboard") {
+      return isDashboard;
+    }
+
+    return pathname.includes(`/pages/${section}/`) &&
+      (!page || pathname.endsWith(`/${page}`));
+  };
+  const activeClass = (active) =>
+    `nav-link${active ? " active" : ""}`;
+
+  navigation.innerHTML = `
+    <a href="${prefix}dashboard.html"
+       class="${activeClass(isActive("dashboard"))}">
+      Dashboard
+    </a>
+
+    <div class="nav-section">
+      <span class="nav-title">Engenharia</span>
+      <a href="${prefix}produtos/lista.html"
+         class="${activeClass(
+           isActive("produtos") &&
+           !isActive("produtos", "importar-ficha.html")
+         )}"
+         data-permission="produto.visualizar">
+        Produtos
+      </a>
+      <a href="${prefix}produtos/revisoes.html"
+         class="nav-link"
+         data-permission="revisao.visualizar_historico">
+        Revisões
+      </a>
+      <a href="${prefix}produtos/importar-ficha.html"
+         class="${activeClass(
+           isActive("produtos", "importar-ficha.html")
+         )}"
+         data-permission="ficha.importar,ficha.conferir_importacao,ficha.validar_importacao">
+        Importar PDF
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <span class="nav-title">Produção</span>
+      <a href="${prefix}controle-processo/lista.html"
+         class="${activeClass(isActive("controle-processo"))}"
+         data-permission="controle_processo.visualizar">
+        Controle de Processo
+      </a>
+      <a href="#" class="nav-link"
+         data-permission="producao_moldes.visualizar">
+        Produção de Moldes
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <span class="nav-title">Qualidade</span>
+      <a href="${prefix}reclamacoes/index.html"
+         class="${activeClass(isActive("reclamacoes"))}"
+         data-permission="reclamacao.visualizar">
+        Reclamações do Cliente
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <span class="nav-title">Administração</span>
+      <a href="${prefix}administracao/usuarios.html"
+         class="${activeClass(isActive("administracao"))}"
+         data-permission="usuarios.visualizar">
+        Usuários e acessos
+      </a>
+    </div>
+  `;
+}
+
 function applyPermissionVisibility(userPermissions) {
+  syncSidebarNavigation();
+
   const protectedElements =
     document.querySelectorAll("[data-permission]");
 

@@ -62,6 +62,13 @@
         </a>
       </div>
 
+      <div class="nav-section" data-permission="reclamacao.visualizar">
+        <span class="nav-title">Qualidade</span>
+        <a href="../reclamacoes/index.html" class="nav-link">
+          Reclamações do Cliente
+        </a>
+      </div>
+
     </nav>
 
     <button id="logout-button" class="logout-button">
@@ -114,13 +121,22 @@
           </p>
         </div>
 
-        <a
-          href="./cadastro.html"
-          class="button button-primary"
-          data-permission="produto.criar"
-        >
-          Novo produto
-        </a>
+        <div class="import-actions">
+          <a
+            href="./importar-ficha.html"
+            class="button button-secondary"
+            data-permission="ficha.importar,ficha.conferir_importacao,ficha.validar_importacao"
+          >
+            Importar PDF
+          </a>
+          <a
+            href="./cadastro.html"
+            class="button button-primary"
+            data-permission="produto.criar"
+          >
+            Novo produto
+          </a>
+        </div>
 
       </section>
 
@@ -168,9 +184,7 @@
             <select id="status-filter">
               <option value="">Todos</option>
               <option value="ATIVO">Ativo</option>
-              <option value="EM_DESENVOLVIMENTO">
-                Em desenvolvimento
-              </option>
+              <option value="EM_DESENVOLVIMENTO">Em desenvolvimento</option>
               <option value="INATIVO">Inativo</option>
               <option value="OBSOLETO">Obsoleto</option>
             </select>
@@ -193,12 +207,13 @@
 
             <thead>
               <tr>
-                <th>Código</th>
                 <th>Produto</th>
                 <th>Cliente</th>
-                <th>Part number</th>
-                <th>Peso</th>
                 <th>Status</th>
+                <th>Fichas</th>
+                <th>Módulos</th>
+                <th>Pendências</th>
+                <th>Última atualização</th>
                 <th></th>
               </tr>
             </thead>
@@ -218,6 +233,8 @@
   <script src="../../assets/js/config.js"></script>
   <script src="../../assets/js/supabase.js"></script>
   <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/fichas-preview.js"></script>
+  <script src="../../assets/js/fichas-ui.js"></script>
   <script src="../../assets/js/produtos-lista.js"></script>
 
 </body>

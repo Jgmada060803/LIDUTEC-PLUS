@@ -1,0 +1,28 @@
+.complaint-summary,.complaint-grid,.complaint-columns{display:grid;gap:16px}
+.complaint-summary{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:20px}
+.complaint-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.complaint-columns{grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);align-items:start}
+.complaint-card{cursor:pointer;transition:.15s ease}
+.complaint-card:hover{border-color:var(--color-primary);transform:translateY(-1px)}
+.complaint-card-head,.complaint-detail-head,.complaint-inline{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.complaint-detail-buttons{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px}
+.button-danger{border:1px solid #a92d2d;color:#fff;background:#a92d2d}
+.button-danger:hover{background:#852222}
+.complaint-card p,.complaint-muted{color:var(--color-text-muted)}
+.complaint-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.complaint-tag{padding:4px 8px;border-radius:999px;background:var(--color-primary-light);font-size:.7rem;font-weight:800}
+.complaint-tag.critica,.complaint-tag.alta{color:#8b1d1d;background:#feecec}
+.complaint-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.complaint-form-grid .full{grid-column:1/-1}
+.complaint-form-grid input,.complaint-form-grid select,.complaint-form-grid textarea,.quick-form textarea,.quick-form input,.quick-form select{width:100%;padding:11px;border:1px solid var(--color-border);border-radius:8px;background:#fff}
+.complaint-form-grid label,.quick-form label{display:grid;gap:6px;font-size:.78rem;font-weight:800}
+.complaint-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.complaint-media{width:100%;aspect-ratio:4/3;object-fit:contain;border:1px solid var(--color-border);border-radius:8px;background:#f5f7f8}
+.timeline{display:grid;gap:10px}.timeline-item{padding:11px;border-left:3px solid var(--color-primary);background:#f8fafb}
+.timeline-item small{display:block;margin-top:5px;color:var(--color-text-muted)}
+.quick-form{display:grid;gap:10px;margin-top:14px}
+.form-actions{display:flex;justify-content:flex-end;gap:12px;padding:20px 0 0}
+.complaint-actions-list{display:grid;gap:9px}.action-item{padding:12px;border:1px solid var(--color-border);border-radius:8px}
+.is-hidden{display:none!important}
+@media(max-width:900px){.complaint-summary,.complaint-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.complaint-columns{grid-template-columns:1fr}}
+@media(max-width:600px){.complaint-summary,.complaint-grid,.complaint-form-grid{grid-template-columns:1fr}.complaint-form-grid .full{grid-column:auto}.complaint-gallery{grid-template-columns:repeat(2,1fr)}.form-actions{flex-direction:column-reverse}.form-actions .button{width:100%}}

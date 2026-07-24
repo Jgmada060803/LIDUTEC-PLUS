@@ -57,11 +57,18 @@
         </a>
       </div>
 
+      <div class="nav-section" data-permission="reclamacao.visualizar">
+        <span class="nav-title">Qualidade</span>
+        <a href="./reclamacoes/index.html" class="nav-link">
+          Reclamações do Cliente
+        </a>
+      </div>
+
       <div class="nav-section"
            data-permission="usuarios.visualizar">
         <span class="nav-title">Administração</span>
 
-        <a href="#" class="nav-link">
+        <a href="./administracao/usuarios.html" class="nav-link">
           Usuários
         </a>
       </div>
@@ -163,6 +170,15 @@
 
             <a
               class="module-card"
+              href="./reclamacoes/index.html"
+              data-permission="reclamacao.visualizar"
+            >
+              <strong>Reclamações do Cliente</strong>
+              <span>Ocorrências, evidências, comentários e ações</span>
+            </a>
+
+            <a
+              class="module-card"
               href="./produtos/lista.html"
               data-permission="produto.visualizar"
             >
@@ -181,7 +197,7 @@
 
             <a
               class="module-card"
-              href="#"
+              href="./administracao/usuarios.html"
               data-permission="producao_moldes.visualizar"
             >
               <strong>Produção de Moldes</strong>

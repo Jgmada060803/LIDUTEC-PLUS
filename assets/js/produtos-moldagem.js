@@ -13,6 +13,19 @@ const moldingElements = {
   empty: document.querySelector("#molding-empty"),
   message: document.querySelector("#molding-message"),
   saveButton: document.querySelector("#save-molding-button"),
+  createButton: document.querySelector("#create-molding-button"),
+  historyButton: document.querySelector("#molding-history-button"),
+  historyPanel: document.querySelector("#molding-revision-history"),
+  historyList: document.querySelector("#molding-revision-list"),
+  printButton: document.querySelector("#molding-print-button"),
+  pdfButton: document.querySelector("#molding-pdf-button"),
+  importButton: document.querySelector("#molding-import-button"),
+  newRevisionButton: document.querySelector(
+    "#molding-new-revision-button"
+  ),
+  editButton: document.querySelector("#molding-edit-button"),
+  editDialog: document.querySelector("#molding-edit-dialog"),
+  baseSheetSelect: document.querySelector("#molding-base-sheet"),
   issueDate: document.querySelector("#molding-issue-date"),
   reason: document.querySelector("#molding-reason")
 };
@@ -22,10 +35,13 @@ const moldingState = {
   permissions: new Set(),
   product: null,
   sheet: null,
+  sheets: [],
   parameters: [],
   history: [],
   approvals: [],
-  editable: false
+  editable: false,
+  mode: "LEITURA",
+  editRequested: false
 };
 
 const fichaConfig = window.location.pathname.includes(
@@ -44,6 +60,15 @@ const fichaConfig = window.location.pathname.includes(
 
 function getMoldingProductId() {
   return new URLSearchParams(window.location.search).get("produto");
+}
+
+function getExplicitSheetId() {
+  const value = new URLSearchParams(
+    window.location.search
+  ).get("ficha");
+  return value && !["null", "undefined", "0"].includes(value)
+    ? value
+    : null;
 }
 
 function getMoldingInitials(name = "Usuário") {
@@ -145,6 +170,17 @@ function getStoredValue(parameter, field) {
   return parameter.valores_parametros?.[0]?.[field] ?? "";
 }
 
+function canEditCurrentSheet() {
+  if (!moldingState.sheet) {
+    return false;
+  }
+
+  return (
+    moldingState.sheet.status === "RASCUNHO" &&
+    moldingState.permissions.has("ficha.editar_rascunho")
+  );
+}
+
 function renderParameter(parameter) {
   const card = document.createElement("article");
   card.className = "molding-parameter";
@@ -167,12 +203,10 @@ function renderParameter(parameter) {
   heading.className = "molding-parameter-heading";
 
   const title = document.createElement("div");
-  const code = document.createElement("span");
   const name = document.createElement("strong");
-  code.className = "molding-parameter-code";
-  code.textContent = parameter.codigo ?? "—";
   name.textContent = parameter.nome ?? "Parâmetro";
-  title.append(code, name);
+  name.title = parameter.nome ?? "Parâmetro";
+  title.append(name);
 
   if (parameter.critico) {
     const critical = document.createElement("span");
@@ -182,9 +216,9 @@ function renderParameter(parameter) {
   }
 
   const unit = document.createElement("span");
-  unit.className = "molding-parameter-unit";
-  unit.textContent = parameter.unidade ?? "Sem unidade";
-  heading.append(title, unit);
+  unit.className = "molding-field-unit";
+  unit.textContent = parameter.unidade ?? "—";
+  heading.append(title);
 
   const fields = document.createElement("div");
   fields.className = "molding-value-grid";
@@ -262,11 +296,21 @@ function renderParameter(parameter) {
     ));
   }
 
-  appendField(fields, "Observação do valor", createInput(
-    "text",
-    "observacao",
-    getStoredValue(parameter, "observacao")
-  ));
+  if (fichaConfig.tipo === "MOLDAGEM") {
+    fields.querySelector(".molding-value-field")?.append(unit);
+  } else {
+    unit.className = "molding-parameter-unit";
+    heading.append(unit);
+  }
+
+  const storedObservation = getStoredValue(parameter, "observacao");
+  if (storedObservation !== "" || canEditCurrentSheet()) {
+    appendField(fields, "Observação", createInput(
+      "text",
+      "observacao",
+      storedObservation
+    ));
+  }
 
   card.append(heading);
 
@@ -288,6 +332,10 @@ function renderGroups(groups, parameters) {
   for (const group of groups) {
     const section = document.createElement("section");
     section.className = "panel molding-group";
+    const layoutClass = String(group.tipo_layout ?? "BLOCOS")
+      .toLowerCase()
+      .replaceAll("_", "-");
+    section.classList.add(`layout-${layoutClass}`);
     section.classList.toggle(
       "layout-matriz",
       group.tipo_layout === "MATRIZ"
@@ -295,12 +343,9 @@ function renderGroups(groups, parameters) {
 
     const header = document.createElement("div");
     header.className = "panel-header";
-    const eyebrow = document.createElement("span");
-    eyebrow.className = "eyebrow";
-    eyebrow.textContent = group.codigo ?? fichaConfig.nome;
     const title = document.createElement("h3");
     title.textContent = group.nome;
-    header.append(eyebrow, title);
+    header.append(title);
     section.append(header);
 
     if (group.descricao) {
@@ -364,6 +409,9 @@ function renderGroups(groups, parameters) {
         ].filter(Boolean).join(" — ")
       );
       moldingElements.parameters.append(section);
+      if (fichaConfig.tipo === "MOLDAGEM") {
+        break;
+      }
       continue;
     }
 
@@ -429,14 +477,28 @@ function renderizarFichaPorTipo(groups, parameters) {
 }
 
 async function loadMoldingProduct(productId) {
-  const { data, error } = await window.supabaseClient
+  let { data, error } = await window.supabaseClient
     .from("produtos")
-    .select("*, clientes(nome)")
+    .select("*, clientes(nome), familias_produto(nome)")
     .eq("id", productId)
     .maybeSingle();
 
   if (error) {
     throw error;
+  }
+
+  const productCode = new URLSearchParams(
+    window.location.search
+  ).get("codigo");
+  if (!data && productCode) {
+    ({ data, error } = await window.supabaseClient
+      .from("produtos")
+      .select("*, clientes(nome), familias_produto(nome)")
+      .eq("codigo", productCode)
+      .maybeSingle());
+    if (error) {
+      throw error;
+    }
   }
 
   if (!data) {
@@ -446,69 +508,32 @@ async function loadMoldingProduct(productId) {
   return data;
 }
 
-async function loadMoldingSheet(productId) {
-  const { data, error } = await window.supabaseClient
+async function loadMoldingSheets(productId) {
+  let { data, error } = await window.supabaseClient
     .from("fichas_tecnicas")
-    .select("*")
+    .select("*, importacoes_ficha(*)")
     .eq("produto_id", productId)
     .eq("tipo", fichaConfig.tipo)
     .order("numero_revisao", { ascending: false })
     .order("criado_em", { ascending: false })
     .order("id", { ascending: false });
 
+  if (error && /importacoes_ficha/i.test(error.message ?? "")) {
+    ({ data, error } = await window.supabaseClient
+      .from("fichas_tecnicas")
+      .select("*")
+      .eq("produto_id", productId)
+      .eq("tipo", fichaConfig.tipo)
+      .order("numero_revisao", { ascending: false })
+      .order("criado_em", { ascending: false })
+      .order("id", { ascending: false }));
+  }
+
   if (error) {
     throw error;
   }
 
-  const sheets = [...(data ?? [])].sort(compareMoldingSheets);
-  return (
-    sheets.find((sheet) => sheet.status === "RASCUNHO") ??
-    sheets.find((sheet) => sheet.status === "EM_APROVACAO") ??
-    sheets.find((sheet) => sheet.vigente) ??
-    null
-  );
-}
-
-function getMoldingSheetPriority(sheet) {
-  if (sheet.status === "RASCUNHO") {
-    return 1;
-  }
-
-  if (sheet.status === "EM_APROVACAO") {
-    return 2;
-  }
-
-  if (sheet.vigente) {
-    return 3;
-  }
-
-  return 4;
-}
-
-function compareDescending(left, right) {
-  return String(right ?? "").localeCompare(String(left ?? ""));
-}
-
-function compareSheetIdsDescending(left, right) {
-  try {
-    const leftId = BigInt(left ?? 0);
-    const rightId = BigInt(right ?? 0);
-
-    return rightId > leftId ? 1 : rightId < leftId ? -1 : 0;
-  } catch {
-    return compareDescending(left, right);
-  }
-}
-
-function compareMoldingSheets(left, right) {
-  return (
-    getMoldingSheetPriority(left) -
-      getMoldingSheetPriority(right) ||
-    Number(right.numero_revisao ?? 0) -
-      Number(left.numero_revisao ?? 0) ||
-    compareDescending(left.criado_em, right.criado_em) ||
-    compareSheetIdsDescending(left.id, right.id)
-  );
+  return data ?? [];
 }
 
 async function loadMoldingParameters(sheetId) {
@@ -617,35 +642,102 @@ async function loadSheetSupportData(sheetId) {
 
 function updateMoldingHeader() {
   const { product, sheet } = moldingState;
+  const ui = window.LIDUTEC_FICHAS_UI;
   document.querySelector("#molding-subtitle").textContent =
     `${product.codigo} — ${product.nome}`;
   document.querySelector("#molding-product-name").textContent =
-    product.nome;
+    `${product.codigo} — ${product.nome}`;
   document.querySelector("#molding-product-code").textContent =
-    `Código: ${product.codigo}`;
+    product.codigo_cliente
+      ? `Código do cliente: ${product.codigo_cliente}`
+      : "Cadastro mestre de engenharia";
+
+  const productStatus = document.querySelector("#sheet-product-status");
+  const isActive = product.status === "ATIVO";
+  productStatus.textContent = isActive ? "Ativo" : "Inativo";
+  productStatus.className =
+    `status-badge ${isActive ? "ativo" : "inativo"}`;
+
+  const productImage = document.querySelector("#sheet-product-image");
+  const imagePlaceholder = document.querySelector(
+    "#sheet-product-image-placeholder"
+  );
+  if (product.imagem_principal_url) {
+    productImage.src = product.imagem_principal_url;
+    productImage.hidden = false;
+    imagePlaceholder.hidden = true;
+  } else {
+    productImage.removeAttribute("src");
+    productImage.hidden = true;
+    imagePlaceholder.hidden = false;
+  }
   document.querySelector("#back-to-product").href =
     `./detalhes.html?id=${product.id}`;
-  document.querySelector("#molding-sheet-status").textContent =
-    sheet?.status?.replaceAll("_", " ") ?? "Nova ficha";
+  for (const link of document.querySelectorAll(
+    "[data-product-tab-link]"
+  )) {
+    const target = link.dataset.productTabLink;
+    const preview = window.LIDUTEC_FICHA_PREVIEW?.isEnabled()
+      ? "&preview=1"
+      : "";
+    if (target === "moldagem") {
+      link.href = `./moldagem.html?produto=${encodeURIComponent(
+        product.id
+      )}&codigo=${encodeURIComponent(product.codigo)}${preview}`;
+    } else if (target === "vazamento") {
+      link.href = `./fusao-vazamento.html?produto=${encodeURIComponent(
+        product.id
+      )}&codigo=${encodeURIComponent(product.codigo)}${preview}`;
+    } else {
+      link.href = `./detalhes.html?id=${encodeURIComponent(
+        product.id
+      )}&tab=${encodeURIComponent(target)}${preview}`;
+    }
+  }
+  const statusElement = document.querySelector(
+    "#molding-sheet-status"
+  );
+  const statusData = sheet
+    ? ui.getStatusData(sheet)
+    : { label: "Sem ficha cadastrada", className: "inativo" };
+  statusElement.textContent = statusData.label;
+  statusElement.className = `status-badge ${statusData.className}`;
   document.querySelector("#molding-sheet-revision").textContent =
-    `Revisão ${sheet?.numero_revisao ?? 0}`;
+    sheet ? `Revisão ${sheet.numero_revisao}` : "Revisão —";
   document.querySelector("#molding-document-code").textContent =
     sheet?.codigo_documento ?? "Documento ainda não emitido";
 
   moldingElements.issueDate.value =
-    sheet?.data_emissao?.slice(0, 10) ?? getToday();
+    sheet?.data_emissao?.slice(0, 10) ?? "";
   moldingElements.reason.value = sheet?.motivo_revisao ?? "";
+
+  const administrative = document.querySelector(
+    "#molding-administrative-status"
+  );
+  if (administrative) {
+    administrative.textContent = sheet
+      ? `Situação: ${ui.getStatusData(sheet).label}`
+      : "Situação: sem ficha";
+  }
+  const issuance = document.querySelector("#molding-header-issue-date");
+  const validity = document.querySelector("#molding-header-validity");
+  if (issuance) {
+    issuance.textContent = `Emissão: ${
+      ui.formatDate(sheet?.data_emissao)
+    }`;
+  }
+  if (validity) {
+    validity.textContent = sheet?.vigente
+      ? "Vigência: vigente"
+      : "Vigência: não vigente";
+  }
 
   const meta = document.querySelector("#sheet-product-meta");
   const items = [
     ["Cliente", product.clientes?.nome],
-    ["Código do cliente", product.codigo_cliente],
-    ["Ferramenta", product.codigo_ferramental],
-    ["Peso da peça", product.peso_peca_kg != null ? `${product.peso_peca_kg} kg` : null],
-    ["Peças por molde", product.cavidades_molde],
-    ["Peso do cacho", product.peso_cacho_kg != null ? `${product.peso_cacho_kg} kg` : null],
-    ["Rendimento", product.rendimento_metalico_pct != null ? `${product.rendimento_metalico_pct}%` : null],
-    ["Segurança", product.peca_seguranca ? "Característica especial" : "Não"]
+    ["Part number", product.part_number],
+    ["Família", product.familias_produto?.nome],
+    ["Peça de segurança", product.peca_seguranca ? "Sim" : "Não"]
   ];
   meta.replaceChildren();
   for (const [labelText, value] of items) {
@@ -659,18 +751,115 @@ function updateMoldingHeader() {
   }
 }
 
-function applyMoldingReadOnly() {
-  const isNewSheet = !moldingState.sheet;
-  const isDraft =
-    moldingState.sheet?.status === "RASCUNHO";
-  const canCreate =
-    moldingState.permissions.has("ficha.criar");
-  const canEditDraft =
-    moldingState.permissions.has("ficha.editar_rascunho");
+function getMoldingMode() {
+  if (!moldingState.sheet) {
+    return "SEM_FICHA";
+  }
+  const importData = window.LIDUTEC_FICHAS_UI.getImport(
+    moldingState.sheet
+  );
+  if (importData && importData.estado !== "IMPORTADA") {
+    return "CONFERENCIA_IMPORTACAO";
+  }
+  return canEditCurrentSheet() && (
+    fichaConfig.tipo !== "MOLDAGEM" ||
+    moldingState.editRequested
+  )
+    ? "EDICAO"
+    : "LEITURA";
+}
 
-  moldingState.editable =
-    (isNewSheet && canCreate) ||
-    (isDraft && canEditDraft);
+function renderMoldingHistory() {
+  if (!moldingElements.historyList) {
+    return;
+  }
+  const ui = window.LIDUTEC_FICHAS_UI;
+  const rows = moldingState.sheets
+    .filter((sheet) =>
+      ui.canSeeSheet(sheet, moldingState.permissions)
+    )
+    .sort(ui.compareSheets);
+  moldingElements.historyList.replaceChildren();
+  for (const sheet of rows) {
+    const link = document.createElement("a");
+    link.className = "molding-history-item";
+    link.href = `./moldagem.html?produto=${encodeURIComponent(
+      moldingState.product.id
+    )}&ficha=${encodeURIComponent(sheet.id)}`;
+    const title = document.createElement("strong");
+    const description = document.createElement("span");
+    title.textContent = `Revisão ${sheet.numero_revisao}`;
+    description.textContent = `${
+      ui.getStatusData(sheet).label
+    } · ${ui.formatDate(sheet.data_emissao)}`;
+    link.append(title, description);
+    moldingElements.historyList.append(link);
+  }
+}
+
+function updateMoldingActions() {
+  const ui = window.LIDUTEC_FICHAS_UI;
+  const sheet = moldingState.sheet;
+  const importData = ui.getImport(sheet);
+  const canCreate = moldingState.permissions.has("ficha.criar");
+
+  if (moldingElements.createButton) {
+    moldingElements.createButton.hidden =
+      moldingState.mode !== "SEM_FICHA" || !canCreate;
+  }
+  if (moldingElements.historyButton) {
+    moldingElements.historyButton.hidden =
+      !moldingState.sheets.some((candidate) =>
+        ui.canSeeSheet(candidate, moldingState.permissions)
+      );
+  }
+  if (moldingElements.importButton) {
+    moldingElements.importButton.hidden = !(
+      importData &&
+      importData.estado !== "IMPORTADA" &&
+      [
+        "ficha.importar",
+        "ficha.conferir_importacao",
+        "ficha.validar_importacao"
+      ].some((permission) =>
+        moldingState.permissions.has(permission)
+      )
+    );
+    if (!moldingElements.importButton.hidden) {
+      moldingElements.importButton.href = ui.importUrl(
+        moldingState.product.id,
+        fichaConfig.tipo,
+        importData.id
+      );
+    }
+  }
+  if (moldingElements.pdfButton) {
+    moldingElements.pdfButton.hidden =
+      !importData?.pdf_storage_path;
+  }
+  if (moldingElements.newRevisionButton) {
+    moldingElements.newRevisionButton.hidden = !(
+      sheet &&
+      canCreate &&
+      (
+        sheet.status === "APROVADA" ||
+        ui.isImportValidated(sheet)
+      )
+    );
+  }
+  if (moldingElements.editButton) {
+    moldingElements.editButton.hidden = !(
+      sheet?.status === "RASCUNHO" &&
+      moldingState.permissions.has("ficha.editar_rascunho") &&
+      !moldingState.editRequested
+    );
+  }
+}
+
+function applyMoldingReadOnly() {
+  moldingState.mode = getMoldingMode();
+
+  moldingState.editable = moldingState.mode === "EDICAO";
 
   for (const control of moldingElements.form.querySelectorAll(
     "input, select, textarea"
@@ -679,14 +868,27 @@ function applyMoldingReadOnly() {
   }
 
   moldingElements.saveButton.hidden = !moldingState.editable;
+  updateMoldingActions();
 
-  if (!moldingState.editable) {
+  if (moldingState.mode === "SEM_FICHA") {
     showMoldingMessage(
-      isNewSheet || isDraft
-        ? "Você pode consultar esta ficha, mas não possui a permissão necessária para salvá-la."
+      moldingState.permissions.has("ficha.criar")
+        ? "Este produto ainda não possui ficha técnica de Moldagem. Use Criar ficha para iniciar um rascunho."
+        : "Este produto ainda não possui ficha técnica de Moldagem. Você não possui permissão para criar.",
+      "error"
+    );
+  } else if (!moldingState.editable) {
+    showMoldingMessage(
+      moldingState.mode === "CONFERENCIA_IMPORTACAO"
+        ? "Esta importação está pendente de conferência e permanece somente para leitura."
+        : moldingState.sheet?.status === "RASCUNHO" &&
+            moldingState.permissions.has("ficha.editar_rascunho")
+          ? "Modo de visualização. Clique em Editar ajustes para alterar este rascunho."
         : "Esta ficha está disponível somente para leitura.",
       "error"
     );
+  } else {
+    moldingElements.message.hidden = true;
   }
 }
 
@@ -834,6 +1036,204 @@ async function saveMoldingDraft() {
   updateMoldingHeader();
 }
 
+async function createMoldingDraft() {
+  if (
+    moldingState.sheet ||
+    !moldingState.permissions.has("ficha.criar")
+  ) {
+    throw new Error("Você não possui permissão para criar esta ficha.");
+  }
+
+  const { data: sheetId, error } = await window.supabaseClient
+    .rpc("salvar_rascunho_ficha_tecnica_v2", {
+      p_produto_id: moldingState.product.id,
+      p_tipo: fichaConfig.tipo,
+      p_ficha_id: null,
+      p_motivo_revisao: null,
+      p_data_emissao: null,
+      p_valores: []
+    });
+
+  if (error) {
+    if (/já existe um rascunho/i.test(error.message ?? "")) {
+      const { data: existingDraft, error: draftError } =
+        await window.supabaseClient
+          .from("fichas_tecnicas")
+          .select("id")
+          .eq("produto_id", moldingState.product.id)
+          .eq("tipo", fichaConfig.tipo)
+          .eq("status", "RASCUNHO")
+          .order("numero_revisao", { ascending: false })
+          .order("criado_em", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+      if (draftError) {
+        throw new Error(
+          `O rascunho já existe, mas não pôde ser consultado: ${draftError.message}`
+        );
+      }
+      if (!existingDraft) {
+        throw new Error(
+          "O rascunho já existe, mas a política de acesso do banco não permite visualizá-lo. Verifique a RLS de fichas_tecnicas para ficha.visualizar/ficha.editar_rascunho."
+        );
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      params.set("produto", moldingState.product.id);
+      params.set("codigo", moldingState.product.codigo);
+      params.set("ficha", existingDraft.id);
+      window.location.assign(
+        `${window.location.pathname}?${params}`
+      );
+      return;
+    }
+    throw error;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  params.set("produto", moldingState.product.id);
+  params.set("ficha", sheetId);
+  window.location.assign(`${window.location.pathname}?${params}`);
+}
+
+function enterMoldingEditMode() {
+  moldingState.editRequested = true;
+  applyMoldingReadOnly();
+}
+
+function clearMoldingParameterValues() {
+  for (const card of moldingElements.parameters.querySelectorAll(
+    ".molding-parameter"
+  )) {
+    card.dataset.notApplicable = "false";
+    for (const control of card.querySelectorAll(
+      "input, select, textarea"
+    )) {
+      control.value = "";
+    }
+  }
+}
+
+function applyMoldingBaseValues(values) {
+  const valuesByParameter = new Map(
+    values.map((value) => [
+      String(value.parametro_id),
+      value
+    ])
+  );
+  clearMoldingParameterValues();
+
+  for (const card of moldingElements.parameters.querySelectorAll(
+    ".molding-parameter"
+  )) {
+    const value = valuesByParameter.get(card.dataset.parameterId);
+    if (!value) {
+      continue;
+    }
+    card.dataset.notApplicable = String(
+      Boolean(value.nao_aplicavel)
+    );
+    for (const field of [
+      "valor_texto",
+      "valor_numerico",
+      "valor_minimo",
+      "valor_alvo",
+      "valor_maximo",
+      "valor_booleano",
+      "valor_data",
+      "valor_inicial",
+      "valor_final",
+      "observacao"
+    ]) {
+      const control = card.querySelector(`[name="${field}"]`);
+      if (control && value[field] !== null &&
+          value[field] !== undefined) {
+        control.value = String(value[field]);
+      }
+    }
+  }
+}
+
+async function loadSimilarMoldingSheets() {
+  let query = window.supabaseClient
+    .from("fichas_tecnicas")
+    .select(`
+      id,
+      numero_revisao,
+      status,
+      vigente,
+      data_emissao,
+      produto_id,
+      produtos!inner(id,codigo,nome,familia_id)
+    `)
+    .eq("tipo", fichaConfig.tipo)
+    .neq("id", moldingState.sheet.id)
+    .neq("status", "RASCUNHO")
+    .neq("status", "OBSOLETA")
+    .order("numero_revisao", { ascending: false })
+    .limit(100);
+
+  if (moldingState.product.familia_id) {
+    query = query.eq(
+      "produtos.familia_id",
+      moldingState.product.familia_id
+    );
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw error;
+  }
+
+  moldingElements.baseSheetSelect.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Selecione uma ficha";
+  moldingElements.baseSheetSelect.append(placeholder);
+
+  for (const sheet of data ?? []) {
+    const option = document.createElement("option");
+    option.value = sheet.id;
+    option.textContent = `${
+      sheet.produtos?.codigo ?? sheet.produto_id
+    } — ${sheet.produtos?.nome ?? "Produto"} — Revisão ${
+      sheet.numero_revisao
+    } (${window.LIDUTEC_FICHAS_UI.getStatusData(sheet).label})`;
+    moldingElements.baseSheetSelect.append(option);
+  }
+}
+
+async function useSelectedMoldingBase() {
+  const sheetId = moldingElements.baseSheetSelect.value;
+  if (!sheetId) {
+    throw new Error("Selecione uma ficha para usar como base.");
+  }
+  const { data, error } = await window.supabaseClient
+    .from("valores_parametros")
+    .select(`
+      parametro_id,
+      valor_texto,
+      valor_numerico,
+      valor_minimo,
+      valor_alvo,
+      valor_maximo,
+      valor_booleano,
+      valor_data,
+      observacao,
+      valor_inicial,
+      valor_final,
+      nao_aplicavel
+    `)
+    .eq("ficha_tecnica_id", sheetId);
+  if (error) {
+    throw error;
+  }
+  applyMoldingBaseValues(data ?? []);
+  enterMoldingEditMode();
+}
+
 async function initializeMolding() {
   if (window.LIDUTEC_FICHA_PREVIEW?.isEnabled()) {
     const preview =
@@ -878,14 +1278,16 @@ async function initializeMolding() {
     return;
   }
 
-  const profile =
-    await window.LIDUTEC_APP.getCurrentUserProfile(user.id);
+  const [profile, permissions, product, sheets] = await Promise.all([
+    window.LIDUTEC_APP.getCurrentUserProfile(user.id),
+    window.LIDUTEC_APP.getUserPermissions(user.id),
+    loadMoldingProduct(productId),
+    loadMoldingSheets(productId)
+  ]);
   if (!profile || profile.status !== "ATIVO") {
     throw new Error("Seu usuário não está ativo.");
   }
 
-  const permissions =
-    await window.LIDUTEC_APP.getUserPermissions(user.id);
   if (!permissions.has("ficha.visualizar")) {
     alert("Você não possui permissão para visualizar fichas técnicas.");
     window.location.replace(`./detalhes.html?id=${productId}`);
@@ -902,27 +1304,45 @@ async function initializeMolding() {
   moldingElements.userAvatar.textContent =
     getMoldingInitials(profile.nome);
 
-  const [product, sheet] = await Promise.all([
-    loadMoldingProduct(productId),
-    loadMoldingSheet(productId)
-  ]);
+  const explicitSheetId = getExplicitSheetId();
+  let sheet = window.LIDUTEC_FICHAS_UI.selectPrimarySheet(
+    sheets,
+    fichaConfig.tipo,
+    permissions,
+    explicitSheetId
+  );
+  if (explicitSheetId && !sheet) {
+    sheet = window.LIDUTEC_FICHAS_UI.selectPrimarySheet(
+      sheets,
+      fichaConfig.tipo,
+      permissions
+    );
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("ficha");
+    window.history.replaceState({}, "", cleanUrl);
+  }
   moldingState.product = product;
   moldingState.sheet = sheet;
+  moldingState.sheets = sheets;
 
-  const { groups, parameters } =
-    await loadMoldingParameters(sheet?.id);
-  const { history, approvals } =
-    await loadSheetSupportData(sheet?.id);
+  updateMoldingHeader();
+  moldingElements.loading.hidden = true;
+  moldingElements.content.hidden = false;
+
+  const [
+    { groups, parameters },
+    { history, approvals }
+  ] = await Promise.all([
+    loadMoldingParameters(sheet?.id),
+    loadSheetSupportData(sheet?.id)
+  ]);
   moldingState.parameters = parameters;
   moldingState.history = history;
   moldingState.approvals = approvals;
 
-  updateMoldingHeader();
+  renderMoldingHistory();
   renderizarFichaPorTipo(groups, parameters);
   applyMoldingReadOnly();
-
-  moldingElements.loading.hidden = true;
-  moldingElements.content.hidden = false;
 }
 
 moldingElements.menuButton?.addEventListener("click", () => {
@@ -932,6 +1352,131 @@ moldingElements.menuButton?.addEventListener("click", () => {
 moldingElements.logoutButton?.addEventListener("click", async () => {
   await window.LIDUTEC_APP.signOut();
 });
+
+moldingElements.historyButton?.addEventListener("click", () => {
+  moldingElements.historyPanel.hidden =
+    !moldingElements.historyPanel.hidden;
+});
+
+moldingElements.printButton?.addEventListener("click", () => {
+  window.print();
+});
+
+moldingElements.pdfButton?.addEventListener("click", async () => {
+  const importData = window.LIDUTEC_FICHAS_UI.getImport(
+    moldingState.sheet
+  );
+  if (!importData?.pdf_storage_path) {
+    return;
+  }
+  const { data, error } = await window.supabaseClient.storage
+    .from("fichas-tecnicas-pdf")
+    .createSignedUrl(importData.pdf_storage_path, 300);
+  if (error) {
+    showMoldingMessage(
+      `Não foi possível abrir o PDF: ${error.message}`,
+      "error"
+    );
+    return;
+  }
+  window.open(data.signedUrl, "_blank", "noopener");
+});
+
+moldingElements.editButton?.addEventListener("click", async () => {
+  try {
+    await loadSimilarMoldingSheets();
+    if (typeof moldingElements.editDialog.showModal === "function") {
+      moldingElements.editDialog.showModal();
+    } else {
+      moldingElements.editDialog.setAttribute("open", "");
+    }
+  } catch (error) {
+    showMoldingMessage(
+      `Não foi possível preparar a edição: ${error.message}`,
+      "error"
+    );
+  }
+});
+
+document.querySelector("#molding-edit-current")?.addEventListener(
+  "click",
+  () => {
+    moldingElements.editDialog.close();
+    enterMoldingEditMode();
+  }
+);
+
+document.querySelector("#molding-edit-empty")?.addEventListener(
+  "click",
+  () => {
+    if (!confirm(
+      "Começar do zero limpará os valores na tela. O banco só será alterado quando você salvar. Continuar?"
+    )) {
+      return;
+    }
+    clearMoldingParameterValues();
+    moldingElements.editDialog.close();
+    enterMoldingEditMode();
+  }
+);
+
+document.querySelector("#molding-edit-base")?.addEventListener(
+  "click",
+  async () => {
+    try {
+      await useSelectedMoldingBase();
+      moldingElements.editDialog.close();
+    } catch (error) {
+      showMoldingMessage(error.message, "error");
+    }
+  }
+);
+
+document.querySelector("#molding-edit-cancel")?.addEventListener(
+  "click",
+  () => moldingElements.editDialog.close()
+);
+
+moldingElements.createButton?.addEventListener("click", async () => {
+  moldingElements.createButton.disabled = true;
+  try {
+    await createMoldingDraft();
+  } catch (error) {
+    showMoldingMessage(
+      `Não foi possível criar a ficha: ${error.message}`,
+      "error"
+    );
+    moldingElements.createButton.disabled = false;
+  }
+});
+
+moldingElements.newRevisionButton?.addEventListener(
+  "click",
+  async () => {
+    moldingElements.newRevisionButton.disabled = true;
+    try {
+      const sheetId =
+        await window.LIDUTEC_FICHAS_UI.createNewRevision(
+          moldingState.sheet
+        );
+      if (sheetId) {
+        const params = new URLSearchParams(window.location.search);
+        params.set("produto", moldingState.product.id);
+        params.set("ficha", sheetId);
+        window.location.assign(
+          `${window.location.pathname}?${params}`
+        );
+      }
+    } catch (error) {
+      showMoldingMessage(
+        `Não foi possível criar a revisão: ${error.message}`,
+        "error"
+      );
+    } finally {
+      moldingElements.newRevisionButton.disabled = false;
+    }
+  }
+);
 
 moldingElements.form?.addEventListener("submit", async (event) => {
   event.preventDefault();

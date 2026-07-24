@@ -330,6 +330,10 @@ async function initializeProductForm() {
       authenticatedUser.id
     );
 
+  window.LIDUTEC_APP.applyPermissionVisibility(
+    permissions
+  );
+
   productId = getProductId();
   isEditing = Boolean(productId);
 

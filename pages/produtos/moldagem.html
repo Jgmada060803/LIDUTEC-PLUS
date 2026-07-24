@@ -65,22 +65,54 @@
       <div id="molding-loading" class="loading-state">Carregando ficha de Moldagem...</div>
 
       <div id="molding-content" hidden>
-        <section class="molding-heading panel">
+        <div class="sheet-sticky-header">
+        <section class="product-hero">
+          <div class="product-image-box">
+            <img id="sheet-product-image" alt="Imagem do produto" hidden>
+            <span id="sheet-product-image-placeholder">Sem imagem</span>
+          </div>
+          <div class="product-hero-content">
+            <div class="product-heading-row">
+              <div>
+                <span class="eyebrow">Engenharia do Produto</span>
+                <h2 id="molding-product-name">Produto</h2>
+                <p id="molding-product-code">—</p>
+              </div>
+              <span id="sheet-product-status" class="status-badge"></span>
+            </div>
+            <section id="sheet-product-meta" class="product-meta-grid" aria-label="Dados compartilhados do produto"></section>
+          </div>
+        </section>
+        <nav class="product-tabs sheet-product-tabs" aria-label="Módulos do produto">
+          <a class="product-tab" data-product-tab-link="geral" href="./detalhes.html">Geral</a>
+          <a class="product-tab active" data-product-tab-link="moldagem" href="./moldagem.html">Moldagem</a>
+          <a class="product-tab" data-product-tab-link="vazamento" href="./fusao-vazamento.html">Fusão / Vazamento</a>
+          <a class="product-tab" data-product-tab-link="embalagem" href="./detalhes.html">Embalagem</a>
+          <a class="product-tab" data-product-tab-link="processo" href="./detalhes.html">Controle de Processo</a>
+          <a class="product-tab" data-product-tab-link="documentos" href="./detalhes.html">Documentos</a>
+          <a class="product-tab" data-product-tab-link="revisoes" href="./detalhes.html">Revisões</a>
+        </nav>
+        <section class="molding-heading panel sheet-status-summary">
           <div>
-            <span class="eyebrow">Engenharia do Produto</span>
-            <h2 id="molding-product-name">Produto</h2>
-            <p id="molding-product-code">—</p>
+            <span class="eyebrow">Ficha técnica de Moldagem</span>
+            <strong id="molding-document-code">Documento ainda não emitido</strong>
           </div>
           <div class="molding-heading-status">
             <span>Status da ficha</span>
             <strong id="molding-sheet-status">Nova ficha</strong>
             <small id="molding-sheet-revision">Revisão 0</small>
-            <small id="molding-document-code">Documento ainda não emitido</small>
+            <small id="molding-header-issue-date">Emissão: —</small>
+            <small id="molding-header-validity">Vigência: —</small>
+            <small id="molding-administrative-status">Situação: —</small>
           </div>
         </section>
-        <section id="sheet-product-meta" class="sheet-product-meta" aria-label="Dados compartilhados do produto"></section>
-
+        </div>
         <form id="molding-form">
+          <div id="molding-parameters" class="molding-groups"></div>
+          <div id="molding-empty" class="panel empty-state" hidden>
+            Nenhum parâmetro de Moldagem foi configurado.
+          </div>
+
           <section class="panel molding-metadata">
             <div class="panel-header">
               <span class="eyebrow">Controle da ficha</span>
@@ -98,11 +130,6 @@
             </div>
           </section>
 
-          <div id="molding-parameters" class="molding-groups"></div>
-          <div id="molding-empty" class="panel empty-state" hidden>
-            Nenhum parâmetro de Moldagem foi configurado.
-          </div>
-
           <div id="molding-message" class="form-message" hidden role="status"></div>
 
           <div class="molding-actions">
@@ -112,8 +139,66 @@
             <button id="save-molding-button" type="submit" class="button button-primary">
               Salvar rascunho
             </button>
+            <button id="create-molding-button" type="button" class="button button-primary" hidden>
+              Criar ficha
+            </button>
           </div>
         </form>
+        <section id="molding-revision-history" class="panel molding-revision-history" hidden>
+          <div class="panel-header">
+            <h3>Histórico de Moldagem</h3>
+          </div>
+          <div id="molding-revision-list" class="molding-revision-list"></div>
+        </section>
+        <nav class="molding-toolbar molding-footer-toolbar" aria-label="Ações da ficha">
+          <button id="molding-history-button" type="button" class="button button-secondary" hidden>
+            Histórico
+          </button>
+          <a id="molding-import-button" class="button button-secondary" href="./importar-ficha.html" hidden>
+            Conferir importação
+          </a>
+          <button id="molding-pdf-button" type="button" class="button button-secondary" hidden>
+            Ver PDF original
+          </button>
+          <button id="molding-new-revision-button" type="button" class="button button-secondary" hidden>
+            Criar nova revisão
+          </button>
+          <button id="molding-edit-button" type="button" class="button button-primary" hidden>
+            Editar ajustes
+          </button>
+          <button id="molding-print-button" type="button" class="button button-secondary">
+            Imprimir
+          </button>
+        </nav>
+
+        <dialog id="molding-edit-dialog" class="molding-edit-dialog">
+          <div class="panel-header">
+            <span class="eyebrow">Preparar edição</span>
+            <h3>Como deseja iniciar os ajustes?</h3>
+          </div>
+          <p>
+            A ficha permanecerá sem alterações no banco até você clicar em
+            Salvar rascunho.
+          </p>
+          <div class="molding-edit-options">
+            <button id="molding-edit-current" type="button" class="button button-secondary">
+              Continuar valores atuais
+            </button>
+            <button id="molding-edit-empty" type="button" class="button button-secondary">
+              Começar do zero
+            </button>
+            <label for="molding-base-sheet">Usar outra ficha semelhante</label>
+            <select id="molding-base-sheet">
+              <option value="">Selecione uma ficha</option>
+            </select>
+            <button id="molding-edit-base" type="button" class="button button-primary">
+              Usar ficha selecionada
+            </button>
+          </div>
+          <button id="molding-edit-cancel" type="button" class="button button-secondary">
+            Cancelar
+          </button>
+        </dialog>
       </div>
 
       <div id="molding-error" class="form-message error" hidden></div>
@@ -124,6 +209,7 @@
   <script src="../../assets/js/config.js"></script>
   <script src="../../assets/js/supabase.js"></script>
   <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/fichas-ui.js"></script>
   <script src="../../assets/js/fichas-preview.js"></script>
   <script src="../../assets/js/produtos-moldagem.js"></script>
 </body>
