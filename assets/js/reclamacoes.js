@@ -137,8 +137,8 @@ $("#complaint-form").addEventListener("submit", async (event) => {
     submitButton.textContent = "Registrar reclamação";
   }
 });
-$("#comment-form").addEventListener("submit", async (event) => { event.preventDefault(); const text=new FormData(event.currentTarget).get("comentario"); const {error}=await window.supabaseClient.from("reclamacoes_comentarios").insert({reclamacao_id:state.current.id,comentario:text}); if(error)return alert(error.message); event.currentTarget.reset(); openDetail(state.current.id); });
-$("#action-form").addEventListener("submit", async (event) => { event.preventDefault(); const payload=Object.fromEntries(new FormData(event.currentTarget)); payload.reclamacao_id=state.current.id; const {error}=await window.supabaseClient.from("reclamacoes_acoes").insert(payload); if(error)return alert(error.message); event.currentTarget.reset(); openDetail(state.current.id); });
+$("#comment-form").addEventListener("submit", async (event) => { event.preventDefault(); const form=event.currentTarget; const text=new FormData(form).get("comentario"); const {error}=await window.supabaseClient.from("reclamacoes_comentarios").insert({reclamacao_id:state.current.id,comentario:text}); if(error)return alert(error.message); form.reset(); openDetail(state.current.id); });
+$("#action-form").addEventListener("submit", async (event) => { event.preventDefault(); const form=event.currentTarget; const payload=Object.fromEntries(new FormData(form)); payload.reclamacao_id=state.current.id; const {error}=await window.supabaseClient.from("reclamacoes_acoes").insert(payload); if(error)return alert(error.message); form.reset(); openDetail(state.current.id); });
 $("#status-form").addEventListener("submit", async (event) => { event.preventDefault(); const status=new FormData(event.currentTarget).get("status"); const {error}=await window.supabaseClient.from("reclamacoes_cliente").update({status,atualizado_em:new Date().toISOString()}).eq("id",state.current.id); if(error)return alert(error.message); await loadComplaints(); openDetail(state.current.id); });
 $("#new-complaint").addEventListener("click",() => show("create"));
 $("#delete-complaint").addEventListener("click", deleteCurrentComplaint);
@@ -149,7 +149,12 @@ $("#logout-button").addEventListener("click",() => window.LIDUTEC_APP.signOut())
 (async function init() {
   const user=await window.LIDUTEC_APP.requireAuthenticatedUser(); if(!user)return; state.user=user;
   const [profile,permissions]=await Promise.all([window.LIDUTEC_APP.getCurrentUserProfile(user.id),window.LIDUTEC_APP.getUserPermissions(user.id)]);
-  if(!profile || !permissions.has("reclamacao.visualizar")) return window.location.replace("../dashboard.html");
+  if(!profile || profile.status !== "ATIVO") {
+    alert("Seu usuário não possui acesso ativo.");
+    await window.LIDUTEC_APP.signOut();
+    return;
+  }
+  if(!permissions.has("reclamacao.visualizar")) return window.location.replace("../dashboard.html");
   state.permissions=permissions; window.LIDUTEC_APP.applyPermissionVisibility(permissions);
   $("#user-name").textContent=profile.nome; $("#user-profile").textContent=profile.perfil || "Usuário"; $("#user-avatar").textContent=profile.nome.split(/\s+/).slice(0,2).map((x)=>x[0]).join("").toUpperCase();
   await Promise.all([loadComplaints(),loadProducts()]);

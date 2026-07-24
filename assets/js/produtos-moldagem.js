@@ -24,6 +24,9 @@ const moldingElements = {
     "#molding-new-revision-button"
   ),
   editButton: document.querySelector("#molding-edit-button"),
+  submitApprovalButton: document.querySelector("#molding-submit-approval"),
+  approveButton: document.querySelector("#molding-approve"),
+  rejectButton: document.querySelector("#molding-reject"),
   editDialog: document.querySelector("#molding-edit-dialog"),
   baseSheetSelect: document.querySelector("#molding-base-sheet"),
   issueDate: document.querySelector("#molding-issue-date"),
@@ -868,6 +871,21 @@ function applyMoldingReadOnly() {
   }
 
   moldingElements.saveButton.hidden = !moldingState.editable;
+  const canSubmit = moldingState.sheet?.status === "RASCUNHO" &&
+    (moldingState.permissions.has("ficha.editar_rascunho") ||
+      moldingState.permissions.has("ficha.criar"));
+  const canDecide = moldingState.sheet?.status === "PENDENTE_APROVACAO" &&
+    (moldingState.permissions.has("ficha.aprovar_engenharia") ||
+      moldingState.permissions.has("ficha.aprovar_producao"));
+  if (moldingElements.submitApprovalButton) {
+    moldingElements.submitApprovalButton.hidden = !canSubmit;
+  }
+  if (moldingElements.approveButton) {
+    moldingElements.approveButton.hidden = !canDecide;
+  }
+  if (moldingElements.rejectButton) {
+    moldingElements.rejectButton.hidden = !canDecide;
+  }
   updateMoldingActions();
 
   if (moldingState.mode === "SEM_FICHA") {
@@ -1477,6 +1495,61 @@ moldingElements.newRevisionButton?.addEventListener(
     }
   }
 );
+
+async function runSheetApproval(action) {
+  if (!moldingState.sheet?.id) {
+    throw new Error("Ficha não encontrada.");
+  }
+  let rpc;
+  let parameters;
+  if (action === "ENVIAR") {
+    if (moldingState.editable) {
+      await saveMoldingDraft();
+    }
+    rpc = "enviar_ficha_aprovacao";
+    parameters = { p_ficha_id: moldingState.sheet.id };
+  } else {
+    const observation = prompt(
+      action === "REJEITADA"
+        ? "Justificativa obrigatória da rejeição:"
+        : "Observação da aprovação (opcional):",
+      ""
+    );
+    if (observation === null) return;
+    if (action === "REJEITADA" && !observation.trim()) {
+      throw new Error("A justificativa da rejeição é obrigatória.");
+    }
+    rpc = "decidir_aprovacao_ficha";
+    parameters = {
+      p_ficha_id: moldingState.sheet.id,
+      p_resultado: action,
+      p_observacao: observation.trim() || null,
+      p_tornar_vigente: action === "APROVADA"
+    };
+  }
+  const { error } = await window.supabaseClient.rpc(rpc, parameters);
+  if (error) throw error;
+  const params = new URLSearchParams(window.location.search);
+  params.set("produto", moldingState.product.id);
+  params.set("ficha", moldingState.sheet.id);
+  window.location.assign(`${window.location.pathname}?${params}`);
+}
+
+for (const [button, action] of [
+  [moldingElements.submitApprovalButton, "ENVIAR"],
+  [moldingElements.approveButton, "APROVADA"],
+  [moldingElements.rejectButton, "REJEITADA"]
+]) {
+  button?.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await runSheetApproval(action);
+    } catch (error) {
+      showMoldingMessage(error.message, "error");
+      button.disabled = false;
+    }
+  });
+}
 
 moldingElements.form?.addEventListener("submit", async (event) => {
   event.preventDefault();

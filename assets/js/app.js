@@ -9,7 +9,9 @@ function getLoginPath() {
     window.location.pathname.includes("/controle-processo/") ||
     window.location.pathname.includes("/produtos/") ||
     window.location.pathname.includes("/producao/") ||
+    window.location.pathname.includes("/producao-moldes/") ||
     window.location.pathname.includes("/qualidade/") ||
+    window.location.pathname.includes("/reclamacoes/") ||
     window.location.pathname.includes("/administracao/");
 
   return isInsideSubfolder
@@ -205,13 +207,14 @@ function syncSidebarNavigation() {
       <a href="${prefix}produtos/lista.html"
          class="${activeClass(
            isActive("produtos") &&
-           !isActive("produtos", "importar-ficha.html")
+           !isActive("produtos", "importar-ficha.html") &&
+           !isActive("produtos", "revisoes.html")
          )}"
          data-permission="produto.visualizar">
         Produtos
       </a>
       <a href="${prefix}produtos/revisoes.html"
-         class="nav-link"
+         class="${activeClass(isActive("produtos", "revisoes.html"))}"
          data-permission="revisao.visualizar_historico">
         Revisões
       </a>
@@ -231,7 +234,8 @@ function syncSidebarNavigation() {
          data-permission="controle_processo.visualizar">
         Controle de Processo
       </a>
-      <a href="#" class="nav-link"
+      <a href="${prefix}producao-moldes/index.html"
+         class="${activeClass(isActive("producao-moldes"))}"
          data-permission="producao_moldes.visualizar">
         Produção de Moldes
       </a>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Histórico de Revisões | LIDUTEC+</title>
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/produtos.css">
+</head>
+<body class="app-page">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>LIDUTEC+</strong><span>Gestão Industrial</span></div></div>
+    <nav class="sidebar-nav"></nav>
+    <button id="logout-button" class="logout-button">Sair</button>
+  </aside>
+  <div class="app-shell">
+    <header class="topbar">
+      <button type="button" class="menu-button" id="menu-button" aria-label="Abrir menu">☰</button>
+      <div class="topbar-title"><h1>Histórico de Revisões</h1><p>Rastreabilidade das fichas técnicas</p></div>
+      <div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div class="user-avatar" id="user-avatar">U</div></div>
+    </header>
+    <main class="main-content">
+      <section class="page-heading">
+        <div><span class="eyebrow">Engenharia do Produto</span><h2>Revisões de fichas técnicas</h2><p>Consulte versões, vigência e decisões de aprovação.</p></div>
+      </section>
+      <section class="panel revision-filters" aria-label="Filtros">
+        <label>Produto<select id="revision-product"><option value="">Todos</option></select></label>
+        <label>Busca<input id="revision-search" type="search" placeholder="Código, produto ou cliente"></label>
+        <label>Tipo<select id="revision-type"><option value="">Todos</option></select></label>
+        <label>Status<select id="revision-status"><option value="">Todos</option></select></label>
+        <label>Vigência<select id="revision-current"><option value="">Todas</option><option value="true">Vigente</option><option value="false">Não vigente</option></select></label>
+        <label>Revisão<input id="revision-number" type="number" min="0"></label>
+        <label>De<input id="revision-from" type="date"></label>
+        <label>Até<input id="revision-to" type="date"></label>
+        <button id="revision-clear" type="button" class="button button-secondary">Limpar filtros</button>
+      </section>
+      <section class="revision-summary">
+        <article class="summary-card"><span>Registros</span><strong id="revision-total">0</strong></article>
+        <article class="summary-card"><span>Vigentes</span><strong id="revision-current-total">0</strong></article>
+        <article class="summary-card"><span>Pendentes</span><strong id="revision-pending-total">0</strong></article>
+      </section>
+      <section class="panel">
+        <div id="revision-loading" class="loading-state">Carregando revisões...</div>
+        <div id="revision-error" class="form-message error" hidden></div>
+        <div id="revision-empty" class="empty-panel" hidden><strong>Nenhuma revisão encontrada</strong><span>Ajuste os filtros ou verifique as permissões.</span></div>
+        <div id="revision-table-wrapper" class="table-wrapper" hidden>
+          <table class="products-table revision-table">
+            <thead><tr><th>Produto</th><th>Ficha</th><th>Revisão</th><th>Status</th><th>Criação</th><th>Submissão</th><th>Decisão</th><th>Observação</th><th></th></tr></thead>
+            <tbody id="revision-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/fichas-ui.js"></script>
+  <script src="../../assets/js/produtos-revisoes.js"></script>
+</body>
+</html>
