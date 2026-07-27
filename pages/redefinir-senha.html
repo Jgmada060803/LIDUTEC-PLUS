@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Definir nova senha | LIDUTEC+</title>
+  <link rel="stylesheet" href="../assets/css/app.css">
+  <link rel="stylesheet" href="../assets/css/login.css">
+</head>
+<body class="login-page" data-auth-page="new-password">
+  <main class="login-container">
+    <section class="login-brand"><div class="brand-badge">L+</div><h1>LIDUTEC+</h1><p>Escolha uma nova senha para sua conta corporativa.</p></section>
+    <section class="login-card">
+      <div class="login-header"><h2>Definir nova senha</h2><p>O link de recuperação precisa estar válido.</p></div>
+      <div id="recovery-loading" class="loading-state">Validando link...</div>
+      <form id="account-form" class="auth-form" hidden>
+        <div class="form-group"><label for="password">Nova senha</label><input id="password" name="senha" type="password" minlength="8" autocomplete="new-password" required></div>
+        <div class="form-group"><label for="password-confirmation">Confirmar nova senha</label><input id="password-confirmation" name="confirmacao" type="password" minlength="8" autocomplete="new-password" required></div>
+        <div id="account-message" class="form-message" hidden></div>
+        <button class="button button-primary button-full">Atualizar senha</button>
+      </form>
+      <nav class="auth-links"><a href="./login.html">Voltar ao login</a></nav>
+      <div class="login-footer"><span>LIDUTEC+ · Acesso seguro</span></div>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/supabase.js"></script>
+  <script src="../assets/js/auth-contas.js"></script>
+</body>
+</html>

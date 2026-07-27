@@ -89,6 +89,21 @@ loginForm.addEventListener("submit", async (event) => {
       );
     }
 
+    const { data: profile } = await window.supabaseClient
+      .from("usuarios")
+      .select("status")
+      .eq("id", data.user.id)
+      .maybeSingle();
+
+    if (profile && profile.status !== "ATIVO") {
+      await window.supabaseClient.auth.signOut();
+      showLoginMessage(
+        "E-mail confirmado. Seu acesso aguarda liberação do administrador.",
+        "success"
+      );
+      return;
+    }
+
     showLoginMessage(
       "Login realizado com sucesso.",
       "success"
@@ -114,3 +129,13 @@ loginForm.addEventListener("submit", async (event) => {
 });
 
 redirectAuthenticatedUser();
+
+if (
+  new URLSearchParams(window.location.search)
+    .has("email_confirmado")
+) {
+  showLoginMessage(
+    "E-mail confirmado. Aguarde a liberação do administrador.",
+    "success"
+  );
+}

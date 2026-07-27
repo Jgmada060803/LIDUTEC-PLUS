@@ -315,6 +315,26 @@ function renderParameter(parameter) {
     ));
   }
 
+  if (
+    fichaConfig.tipo === "FUSAO_VAZAMENTO" &&
+    parameter.permite_faixa
+  ) {
+    card.classList.add("fusion-range-compact");
+    for (const field of fields.querySelectorAll(".molding-value-field")) {
+      const name = field.querySelector("input, select")?.name;
+      field.hidden = !["valor_minimo", "valor_maximo"].includes(name);
+    }
+  }
+
+  if (fichaConfig.tipo === "MOLDAGEM") {
+    for (const field of fields.querySelectorAll(".molding-value-field")) {
+      const name = field.querySelector("input, select")?.name;
+      if (name === "valor_alvo") {
+        field.hidden = true;
+      }
+    }
+  }
+
   card.append(heading);
 
   const parameterNote = parameter.observacao ?? parameter.descricao;
@@ -329,6 +349,55 @@ function renderParameter(parameter) {
   return card;
 }
 
+function renderChemicalComposition(section, parameters) {
+  const table = document.createElement("div");
+  table.className = "chemical-composition-table";
+  table.style.gridTemplateColumns =
+    `72px repeat(${parameters.length}, 85px)`;
+
+  const corner = document.createElement("strong");
+  corner.className = "chemical-table-corner";
+  corner.textContent = "Faixa";
+  table.append(corner);
+
+  for (const parameter of parameters) {
+    const header = document.createElement("strong");
+    header.className = "chemical-element";
+    header.textContent = parameter.nome;
+    if (parameter.unidade) {
+      const unit = document.createElement("small");
+      unit.textContent = parameter.unidade;
+      header.append(unit);
+    }
+    table.append(header);
+  }
+
+  ["Mínimo", "Máximo"].forEach((labelText, index) => {
+    const label = document.createElement("strong");
+    label.className = "chemical-row-label";
+    label.textContent = labelText;
+    label.style.gridRow = String(index + 2);
+    table.append(label);
+  });
+
+  parameters.forEach((parameter, index) => {
+    const card = renderParameter(parameter);
+    card.classList.add("chemical-parameter");
+    card.style.gridColumn = String(index + 2);
+    card.querySelector(".molding-parameter-heading")?.remove();
+    card.querySelector(".molding-parameter-note")?.remove();
+
+    for (const field of card.querySelectorAll(".molding-value-field")) {
+      const name = field.querySelector("input, select")?.name;
+      field.hidden = !["valor_minimo", "valor_maximo"].includes(name);
+      field.classList.add(`chemical-field-${name || "auxiliar"}`);
+    }
+    table.append(card);
+  });
+
+  section.append(table);
+}
+
 function renderGroups(groups, parameters) {
   moldingElements.parameters.replaceChildren();
 
@@ -339,6 +408,11 @@ function renderGroups(groups, parameters) {
       .toLowerCase()
       .replaceAll("_", "-");
     section.classList.add(`layout-${layoutClass}`);
+    if (group.codigo) {
+      section.classList.add(
+        `group-${String(group.codigo).toLowerCase().replaceAll("_", "-")}`
+      );
+    }
     section.classList.toggle(
       "layout-matriz",
       group.tipo_layout === "MATRIZ"
@@ -421,6 +495,15 @@ function renderGroups(groups, parameters) {
     const groupParameters = parameters.filter(
       (parameter) => parameter.grupo_id === group.id
     );
+
+    if (
+      fichaConfig.tipo === "FUSAO_VAZAMENTO" &&
+      group.tipo_layout === "MATRIZ"
+    ) {
+      renderChemicalComposition(section, groupParameters);
+      moldingElements.parameters.append(section);
+      continue;
+    }
 
     for (const parameter of groupParameters) {
       section.append(renderParameter(parameter));
@@ -874,9 +957,16 @@ function applyMoldingReadOnly() {
   const canSubmit = moldingState.sheet?.status === "RASCUNHO" &&
     (moldingState.permissions.has("ficha.editar_rascunho") ||
       moldingState.permissions.has("ficha.criar"));
-  const canDecide = moldingState.sheet?.status === "PENDENTE_APROVACAO" &&
-    (moldingState.permissions.has("ficha.aprovar_engenharia") ||
-      moldingState.permissions.has("ficha.aprovar_producao"));
+  const requiredApprovalPermission =
+    moldingState.sheet?.etapa_aprovacao === "ENGENHARIA"
+      ? "ficha.aprovar_engenharia"
+      : moldingState.sheet?.etapa_aprovacao === "PRODUCAO"
+        ? "ficha.aprovar_producao"
+        : null;
+  const canDecide =
+    moldingState.sheet?.status === "PENDENTE_APROVACAO" &&
+    requiredApprovalPermission &&
+    moldingState.permissions.has(requiredApprovalPermission);
   if (moldingElements.submitApprovalButton) {
     moldingElements.submitApprovalButton.hidden = !canSubmit;
   }

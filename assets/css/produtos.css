@@ -1253,8 +1253,50 @@
   border-top: 5px solid #8b2f2f;
 }
 
+.sheet-layout-fusion {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .sheet-layout-fusion .molding-group {
+  grid-column: 1 / -1;
   border-left: 4px solid #8b2f2f;
+}
+
+.sheet-layout-fusion .group-fv-especificacoes,
+.sheet-layout-fusion .group-fv-matriz {
+  grid-column: span 2;
+}
+
+.sheet-layout-fusion :is(
+  .group-fv-inoculacao,
+  .group-fv-nodularizacao,
+  .group-fv-temperaturas,
+  .group-fv-analise-termica
+) {
+  grid-column: auto;
+}
+
+.sheet-layout-fusion :is(
+  .group-fv-inoculacao,
+  .group-fv-nodularizacao,
+  .group-fv-temperaturas,
+  .group-fv-analise-termica
+) .molding-parameter {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "heading"
+    "note"
+    "fields";
+}
+
+.sheet-layout-fusion :is(
+  .group-fv-inoculacao,
+  .group-fv-nodularizacao,
+  .group-fv-temperaturas,
+  .group-fv-analise-termica
+) .molding-value-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: stretch;
 }
 
 .sheet-layout-fusion .layout-matriz {
@@ -1268,6 +1310,85 @@
 
 .sheet-layout-fusion .layout-matriz .molding-value-grid {
   grid-template-columns: repeat(5, minmax(120px, 1fr));
+}
+
+.chemical-composition-table {
+  display: grid;
+  overflow-x: auto;
+  align-items: stretch;
+  min-width: max-content;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.chemical-table-corner,
+.chemical-element,
+.chemical-row-label {
+  display: grid;
+  place-items: center;
+  padding: 4px 2px;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: #f4f6f7;
+  font-size: 0.66rem;
+  text-align: center;
+}
+
+.chemical-table-corner,
+.chemical-row-label {
+  min-width: 72px;
+}
+
+.chemical-element {
+  min-width: 85px;
+}
+
+.chemical-element small {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.55rem;
+}
+
+.chemical-row-label {
+  grid-column: 1;
+}
+
+.sheet-layout-fusion .layout-matriz .chemical-parameter {
+  display: grid;
+  grid-row: 2 / span 2;
+  grid-template: repeat(2, 25px) / 85px;
+  min-width: 85px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--color-border);
+}
+
+.sheet-layout-fusion .layout-matriz .chemical-parameter .molding-value-grid {
+  display: contents;
+  grid-area: auto;
+}
+
+.chemical-parameter .molding-value-field {
+  display: block;
+  min-width: 0;
+  padding: 2px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.chemical-parameter .chemical-field-valor-maximo {
+  border-bottom: 0;
+}
+
+.chemical-parameter .molding-value-field span {
+  display: none;
+}
+
+.chemical-parameter .molding-value-field input {
+  width: 100%;
+  min-height: 20px;
+  height: 20px;
+  padding: 0 2px;
+  text-align: center;
 }
 
 .molding-parameter[data-critical="true"] {
@@ -1405,6 +1526,10 @@
   grid-template-columns: repeat(3, minmax(58px, 82px));
 }
 
+.sheet-layout-fusion .fusion-range-compact .molding-value-grid {
+  grid-template-columns: repeat(2, minmax(58px, 82px));
+}
+
 .molding-value-field {
   display: flex;
   flex-direction: column;
@@ -1477,6 +1602,57 @@
   background: #f2f5f6;
 }
 
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-parameter {
+  min-height: 0;
+  padding: 2px 0;
+  column-gap: 4px;
+}
+
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-parameter[data-critical="true"] {
+  padding: 2px 3px;
+}
+
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-parameter-heading {
+  gap: 3px;
+}
+
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-parameter-heading strong {
+  font-size: 0.68rem;
+  line-height: 1.05;
+}
+
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-parameter-unit {
+  padding: 1px 3px;
+  font-size: 0.56rem;
+}
+
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-parameter-note {
+  margin: 0;
+  font-size: 0.6rem;
+  line-height: 1.05;
+}
+
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-value-grid {
+  gap: 2px;
+}
+
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-value-field {
+  gap: 1px;
+}
+
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-value-field span {
+  font-size: 0.56rem;
+  line-height: 1;
+}
+
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-value-field input,
+.sheet-layout-fusion :is(.group-fv-especificacoes, .group-fv-matriz) .molding-value-field select {
+  min-height: 20px;
+  height: 20px;
+  padding: 0 3px;
+  font-size: 0.64rem;
+}
+
 .molding-actions {
   display: flex;
   justify-content: space-between;
@@ -1493,7 +1669,17 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .sheet-layout-molding {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(260px, 1fr));
+  }
+
+  .sheet-layout-fusion {
+    grid-template-columns: repeat(4, minmax(240px, 1fr));
+  }
+
+  .sheet-layout-molding,
+  .sheet-layout-fusion {
+    overflow-x: auto;
+    padding-bottom: 6px;
   }
 
   .molding-value-grid {
@@ -1535,7 +1721,7 @@
   }
 
   .molding-value-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: stretch;
   }
 

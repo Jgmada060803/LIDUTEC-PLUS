@@ -106,10 +106,29 @@
   color: var(--color-text-muted);
 }
 
-#login-form {
+#login-form,
+.auth-form {
   display: flex;
   flex-direction: column;
   gap: 22px;
+}
+
+.auth-links {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 22px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.auth-links a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.auth-links a:hover {
+  text-decoration: underline;
 }
 
 .password-wrapper {

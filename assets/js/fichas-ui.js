@@ -52,6 +52,10 @@
       label: "Em aprovação — Produção",
       className: "desenvolvimento"
     },
+    PENDENTE_APROVACAO: {
+      label: "Pendente de aprovação",
+      className: "desenvolvimento"
+    },
     APROVADA: { label: "Aprovada", className: "ativo" },
     VIGENTE: { label: "Vigente", className: "ativo" },
     IMPORTADA: { label: "Importada", className: "importada" },
@@ -135,6 +139,14 @@
   }
 
   function getStatusData(sheetOrStatus) {
+    if (
+      typeof sheetOrStatus === "object" &&
+      sheetOrStatus?.status === "PENDENTE_APROVACAO"
+    ) {
+      return sheetOrStatus.etapa_aprovacao === "PRODUCAO"
+        ? status.EM_APROVACAO_PRODUCAO
+        : status.EM_APROVACAO_ENGENHARIA;
+    }
     const code = typeof sheetOrStatus === "object"
       ? getEffectiveStatus(sheetOrStatus)
       : sheetOrStatus;

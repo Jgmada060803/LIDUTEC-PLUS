@@ -50,7 +50,6 @@ function getSheets(product) {
 
 function getProductAggregates(product) {
   const sheets = getSheets(product);
-  const modules = new Set(sheets.map((sheet) => sheet.tipo));
   const pendingImports = sheets.filter((sheet) => {
     const importData = window.LIDUTEC_FICHAS_UI.getImport(sheet);
     return importData && importData.estado !== "IMPORTADA";
@@ -71,7 +70,6 @@ function getProductAggregates(product) {
 
   return {
     sheets,
-    modules,
     pendingImports,
     pendingApprovals,
     latestUpdate
@@ -93,14 +91,6 @@ function renderProducts(products) {
   productsBody.innerHTML = products.map((product) => {
     const status = getProductStatus(product.status);
     const aggregates = getProductAggregates(product);
-    const moduleIndicators = [
-      ["MOLDAGEM", "M"],
-      ["FUSAO_VAZAMENTO", "F/V"]
-    ].map(([type, label]) => `
-      <span class="module-indicator ${
-        aggregates.modules.has(type) ? "available" : ""
-      }">${label}</span>
-    `).join("");
     const pendingTotal =
       aggregates.pendingImports + aggregates.pendingApprovals;
 
@@ -120,7 +110,6 @@ function renderProducts(products) {
           </span>
         </td>
         <td>${aggregates.sheets.length}</td>
-        <td><div class="module-indicators">${moduleIndicators}</div></td>
         <td>
           ${
             pendingTotal
