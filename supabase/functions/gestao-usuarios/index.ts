@@ -97,14 +97,14 @@ Deno.serve(async (request) => {
 
       const { data: profile } = await admin
         .from("perfis")
-        .select("nome")
+        .select("codigo")
         .eq("id", profileId)
         .single();
       await admin.from("usuarios").upsert({
         id: invited.user.id,
         nome,
         email: corporateEmail,
-        perfil: profile?.nome || "Usuário",
+        perfil: profile?.codigo || "CLIENTE",
         status: "ATIVO",
       });
       await admin.from("usuario_perfis").upsert({

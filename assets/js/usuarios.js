@@ -13,10 +13,16 @@ async function invoke(body){
  const {data,error}=await window.supabaseClient.functions.invoke("gestao-usuarios",{body});
  if(error){
   const message=String(error.message||"");
+  let details;
+  try{
+   details=await error.context?.json();
+  }catch{
+   details=null;
+  }
   if(/failed to send|not found|404/i.test(message)){
    throw new Error("A Edge Function gestao-usuarios ainda não foi publicada no Supabase.");
   }
-  throw error;
+  throw new Error(details?.error||message||"Não foi possível concluir a operação.");
  }
  if(data?.error)throw new Error(data.error);
  return data

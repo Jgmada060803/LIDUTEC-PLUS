@@ -81,13 +81,13 @@ security definer
 set search_path=pg_catalog,public
 as $$
 declare
-  profile_name text;
+  profile_code text;
   total integer;
 begin
-  select nome into profile_name
+  select codigo into profile_code
   from public.perfis
-  where id=p_perfil_id;
-  if profile_name is null then
+  where id=p_perfil_id and ativo=true;
+  if profile_code is null then
     raise exception 'Perfil inválido.';
   end if;
 
@@ -108,7 +108,7 @@ begin
 
   get diagnostics total=row_count;
   update public.usuarios
-  set perfil=profile_name,status='ATIVO'
+  set perfil=profile_code,status='ATIVO'
   where id=p_usuario_id;
   if not found then
     raise exception 'Usuário não encontrado.';
