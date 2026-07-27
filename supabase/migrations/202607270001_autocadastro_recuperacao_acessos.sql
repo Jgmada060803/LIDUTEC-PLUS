@@ -41,7 +41,7 @@ begin
     split_part(new.email,'@',1)
   );
   insert into public.usuarios(id,nome,email,perfil,status)
-  values(new.id,user_name,lower(new.email),'Aguardando definição','INATIVO')
+  values(new.id,user_name,lower(new.email),'VISUALIZADOR','PENDENTE')
   on conflict(id) do update
   set nome=excluded.nome,email=excluded.email;
   return new;
@@ -63,8 +63,8 @@ select
     split_part(auth_user.email,'@',1)
   ),
   lower(auth_user.email),
-  'Aguardando definição',
-  'INATIVO'
+  'VISUALIZADOR',
+  'PENDENTE'
 from auth.users auth_user
 where lower(trim(auth_user.email))
   ~ '^[^@[:space:]]+@metalsider[.]com[.]br$'

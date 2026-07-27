@@ -134,8 +134,7 @@ Deno.serve(async (request) => {
         .single();
       if (
         !account ||
-        account.status === "ATIVO" ||
-        account.perfil !== "Aguardando definição"
+        account.status !== "PENDENTE"
       ) {
         throw new Error("Somente solicitações pendentes podem ser negadas.");
       }

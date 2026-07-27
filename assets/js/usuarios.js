@@ -1,6 +1,6 @@
 const $=s=>document.querySelector(s);let users=[],profiles=[],allPermissions=[],permissions=new Set();
 const esc=(v="")=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const isPending=u=>u.status!=="ATIVO"&&u.perfil==="Aguardando definição";
+const isPending=u=>u.status==="PENDENTE";
 function render(rows=users){$("#users-list").innerHTML=rows.map(u=>`<article class="user-row"><div><strong>${esc(u.nome)}</strong><small>${esc(u.email)}</small></div><span>${esc(u.perfil||"Sem perfil")}</span><span class="status-badge ${u.status==="ATIVO"?"ativo":"inativo"}">${u.status==="ATIVO"?"ATIVO":isPending(u)?"AGUARDANDO LIBERAÇÃO":"INATIVO"}</span>${permissions.has("usuarios.gerenciar_acessos")?(u.status==="ATIVO"?`<button class="button button-secondary" data-status="${u.id}" data-next="INATIVO">Inativar</button>`:`<button class="button button-primary" data-config-user="${u.id}">Configurar acesso</button>`):""}</article>`).join("")}
 function renderPending(){
  const pending=users.filter(isPending);
