@@ -7,6 +7,7 @@ const revisionElements = {
   error: document.querySelector("#revision-error"),
   empty: document.querySelector("#revision-empty"),
   wrapper: document.querySelector("#revision-table-wrapper"),
+  approval: document.querySelector("#revision-approval"),
   product: document.querySelector("#revision-product"),
   search: document.querySelector("#revision-search"),
   type: document.querySelector("#revision-type"),
@@ -39,8 +40,73 @@ function getDecision(row) {
   const decisions = row.aprovacoes_ficha || [];
   return decisions
     .filter((item) => item.status && item.status !== "PENDENTE")
-    .sort((a, b) => new Date(b.atualizado_em || b.criado_em || 0) -
-      new Date(a.atualizado_em || a.criado_em || 0))[0] || null;
+    .sort((a, b) =>
+      new Date(b.decidido_em || b.atualizado_em || b.criado_em || 0) -
+      new Date(a.decidido_em || a.atualizado_em || a.criado_em || 0)
+    )[0] || null;
+}
+function normalizeApprovalText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+function getApprovalStage(approval) {
+  const type = normalizeApprovalText(approval.tipo_aprovacao);
+  if (type.includes("ENGENHARIA")) return "ENGENHARIA";
+  if (
+    type.includes("PRODUCAO") ||
+    type.includes("PROCESSO")
+  ) return "PRODUCAO";
+  if (Number(approval.ordem) === 1) return "ENGENHARIA";
+  if (Number(approval.ordem) === 2) return "PRODUCAO";
+  return null;
+}
+function getStageDecision(row, stage) {
+  const recordedDecision = (row.aprovacoes_ficha || [])
+    .filter((item) =>
+      getApprovalStage(item) === stage &&
+      item.status &&
+      normalizeApprovalText(item.status) !== "PENDENTE"
+    )
+    .sort((a, b) =>
+      new Date(b.decidido_em || b.atualizado_em || b.criado_em || 0) -
+      new Date(a.decidido_em || a.atualizado_em || a.criado_em || 0)
+    )[0] || null;
+  if (recordedDecision) return recordedDecision;
+
+  // Instalações antigas podem ter salvo apenas a decisão final na ficha.
+  if (
+    stage === "PRODUCAO" &&
+    ["APROVADA", "REJEITADA"].includes(row.status) &&
+    row.decidido_por
+  ) {
+    return {
+      status: row.status,
+      usuario_id: row.decidido_por,
+      decidido_em: row.decidido_em,
+      observacao: row.observacao_decisao
+    };
+  }
+  return null;
+}
+function renderStageDecision(decision) {
+  if (!decision) {
+    return `—<span class="product-secondary">Pendente ou não iniciada</span>`;
+  }
+  const approver = decision.nome_responsavel ||
+    revisionState.users.get(decision.usuario_id) || "—";
+  const rejected = /REJEITADA|REPROVADA|REPROVADO/.test(
+    normalizeApprovalText(decision.status)
+  );
+  const decisionDate = decision.decidido_em ||
+    decision.atualizado_em ||
+    decision.criado_em;
+  return `${formatRevisionDate(decisionDate, true)}
+    <span class="product-secondary">${escapeRevision(approver)}</span>
+    <span class="status-badge ${rejected ? "obsoleto" : "ativo"}">${
+      rejected ? "Reprovada" : "Aprovada"
+    }</span>`;
 }
 function getSubmission(row) {
   const approvals = row.aprovacoes_ficha || [];
@@ -48,6 +114,26 @@ function getSubmission(row) {
     .map((item) => item.criado_em)
     .filter(Boolean)
     .sort()[0] || row.submetido_em || null;
+}
+function getApprovalSituation(row) {
+  const approvals = row.aprovacoes_ficha || [];
+  if (
+    row.status === "PENDENTE_APROVACAO" ||
+    approvals.some((item) => item.status === "PENDENTE")
+  ) return "PENDENTE";
+  if (
+    row.status === "REJEITADA" ||
+    approvals.some((item) =>
+      /REJEITADA|REPROVADA|REPROVADO/.test(item.status || "")
+    )
+  ) return "REJEITADA";
+  if (
+    row.status === "APROVADA" ||
+    approvals.some((item) =>
+      /APROVADA|APROVADO/.test(item.status || "")
+    )
+  ) return "APROVADA";
+  return "OUTRA";
 }
 function getSheetUrl(row) {
   const page = row.tipo === "FUSAO_VAZAMENTO"
@@ -58,7 +144,9 @@ function getSheetUrl(row) {
     : `./${page}?produto=${encodeURIComponent(row.produto_id)}&ficha=${encodeURIComponent(row.id)}`;
 }
 function compareRevisions(a, b) {
-  return Number(b.vigente && ["APROVADA", "IMPORTADA", "VIGENTE"].includes(b.status)) -
+  return Number(getApprovalSituation(b) === "PENDENTE") -
+    Number(getApprovalSituation(a) === "PENDENTE") ||
+    Number(b.vigente && ["APROVADA", "IMPORTADA", "VIGENTE"].includes(b.status)) -
     Number(a.vigente && ["APROVADA", "IMPORTADA", "VIGENTE"].includes(a.status)) ||
     Number(b.numero_revisao || 0) - Number(a.numero_revisao || 0) ||
     new Date(b.criado_em || 0) - new Date(a.criado_em || 0) ||
@@ -69,7 +157,9 @@ function filteredRevisions() {
   return revisionState.rows.filter((row) => {
     const product = row.produtos || {};
     const created = String(row.criado_em || "").slice(0, 10);
-    return (!revisionElements.product.value ||
+    return (!revisionElements.approval.value ||
+      getApprovalSituation(row) === revisionElements.approval.value) &&
+      (!revisionElements.product.value ||
       String(row.produto_id) === revisionElements.product.value) &&
       (!term || `${product.codigo} ${product.nome} ${product.clientes?.nome || ""}`
         .toLowerCase().includes(term)) &&
@@ -95,10 +185,10 @@ function renderRevisions() {
   revisionElements.body.innerHTML = rows.map((row) => {
     const product = row.produtos || {};
     const decision = getDecision(row);
+    const engineeringDecision = getStageDecision(row, "ENGENHARIA");
+    const productionDecision = getStageDecision(row, "PRODUCAO");
     const author = revisionState.users.get(row.elaborado_por) ||
       row.elaborado_por_texto || "—";
-    const approver = decision?.nome_responsavel ||
-      revisionState.users.get(decision?.usuario_id) || "—";
     const note = decision?.observacao || row.motivo_revisao || "—";
     return `<tr class="${row.vigente ? "revision-current-row" : ""}">
       <td><strong>${escapeRevision(product.codigo || "—")}</strong><span class="product-secondary">${escapeRevision(product.nome || "—")} · ${escapeRevision(product.clientes?.nome || "Sem cliente")}</span></td>
@@ -107,7 +197,8 @@ function renderRevisions() {
       <td><span class="status-badge ${/REJEITADA|OBSOLETA/.test(row.status) ? "obsoleto" : /RASCUNHO|PENDENTE/.test(row.status) ? "desenvolvimento" : "ativo"}">${escapeRevision(revisionLabel(row.status))}</span></td>
       <td>${formatRevisionDate(row.criado_em, true)}<span class="product-secondary">${escapeRevision(author)}</span></td>
       <td>${formatRevisionDate(getSubmission(row), true)}</td>
-      <td>${formatRevisionDate(decision?.atualizado_em || decision?.criado_em, true)}<span class="product-secondary">${escapeRevision(approver)}</span></td>
+      <td>${renderStageDecision(engineeringDecision)}</td>
+      <td>${renderStageDecision(productionDecision)}</td>
       <td class="revision-note">${escapeRevision(note)}</td>
       <td><a class="table-action" href="${getSheetUrl(row)}">Abrir</a></td>
     </tr>`;
@@ -134,6 +225,7 @@ function populateRevisionFilters() {
 async function loadRevisionUsers(rows) {
   const ids = [...new Set(rows.flatMap((row) => [
     row.elaborado_por,
+    row.decidido_por,
     ...(row.aprovacoes_ficha || []).map((item) => item.usuario_id)
   ]).filter(Boolean))];
   if (!ids.length) return;
@@ -172,7 +264,8 @@ async function initializeRevisions() {
   renderRevisions();
 }
 for (const element of [
-  revisionElements.product, revisionElements.search, revisionElements.type,
+  revisionElements.approval, revisionElements.product,
+  revisionElements.search, revisionElements.type,
   revisionElements.status, revisionElements.current, revisionElements.number,
   revisionElements.from, revisionElements.to
 ]) element.addEventListener("input", renderRevisions);
@@ -182,6 +275,7 @@ revisionElements.clear.addEventListener("click", () => {
     revisionElements.status, revisionElements.current, revisionElements.number,
     revisionElements.from, revisionElements.to
   ]) element.value = "";
+  revisionElements.approval.value = "PENDENTE";
   renderRevisions();
 });
 revisionElements.menu.addEventListener("click", () => revisionElements.sidebar.classList.toggle("open"));

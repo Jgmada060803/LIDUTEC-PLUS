@@ -14,6 +14,37 @@ function setAccountBusy(busy) {
   if (button) button.disabled = busy;
 }
 
+function getAccountErrorMessage(error) {
+  const candidates = [
+    error?.message,
+    error?.error_description,
+    error?.details,
+    error?.hint,
+    error?.cause?.message,
+    error?.code && `Código ${error.code}`,
+    error?.status && `HTTP ${error.status}`,
+    typeof error === "string" ? error : null
+  ];
+  const message = candidates.find((value) =>
+    typeof value === "string" &&
+    value.trim() &&
+    value.trim() !== "{}"
+  );
+  if (message) {
+    if (/already registered|already exists|user already/i.test(message)) {
+      return "Este e-mail já possui uma solicitação ou conta cadastrada.";
+    }
+    if (/database error saving new user/i.test(message)) {
+      return "Falha interna ao registrar a solicitação no banco de dados. Informe o administrador.";
+    }
+    if (/failed to fetch|network|fetch failed/i.test(message)) {
+      return "Falha de conexão com o serviço de autenticação. Verifique sua internet e tente novamente.";
+    }
+    return `Motivo da falha: ${message}`;
+  }
+  return "Motivo da falha: o serviço de autenticação não retornou detalhes do erro. Verifique a conexão ou procure o administrador.";
+}
+
 function corporateEmail(form) {
   const email = String(new FormData(form).get("email") || "")
     .trim()
@@ -118,7 +149,7 @@ accountForm?.addEventListener("submit", async (event) => {
   } catch (error) {
     event.preventDefault();
     console.error("Erro no fluxo de conta:", error);
-    showAccountMessage(error.message || "Não foi possível concluir.");
+    showAccountMessage(getAccountErrorMessage(error));
   } finally {
     setAccountBusy(false);
   }
@@ -127,6 +158,6 @@ accountForm?.addEventListener("submit", async (event) => {
 if (authPage === "new-password") {
   validateRecoverySession().catch((error) => {
     document.querySelector("#recovery-loading").hidden = true;
-    showAccountMessage(error.message);
+    showAccountMessage(getAccountErrorMessage(error));
   });
 }

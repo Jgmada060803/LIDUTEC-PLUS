@@ -12,6 +12,7 @@ function getLoginPath() {
     window.location.pathname.includes("/producao-moldes/") ||
     window.location.pathname.includes("/qualidade/") ||
     window.location.pathname.includes("/reclamacoes/") ||
+    window.location.pathname.includes("/clientes/") ||
     window.location.pathname.includes("/administracao/");
 
   return isInsideSubfolder
@@ -217,6 +218,11 @@ function syncSidebarNavigation() {
          class="${activeClass(isActive("produtos", "revisoes.html"))}"
          data-permission="revisao.visualizar_historico">
         Revisões
+      </a>
+      <a href="${prefix}clientes/index.html"
+         class="${activeClass(isActive("clientes"))}"
+         data-permission="clientes.visualizar,clientes.gerenciar">
+        Clientes
       </a>
       <a href="${prefix}produtos/importar-ficha.html"
          class="${activeClass(

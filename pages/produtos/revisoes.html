@@ -25,6 +25,14 @@
         <div><span class="eyebrow">Engenharia do Produto</span><h2>Revisões de fichas técnicas</h2><p>Consulte versões, vigência e decisões de aprovação.</p></div>
       </section>
       <section class="panel revision-filters" aria-label="Filtros">
+        <label>Situação da aprovação
+          <select id="revision-approval">
+            <option value="PENDENTE" selected>Pendentes — prioridade</option>
+            <option value="APROVADA">Aprovadas</option>
+            <option value="REJEITADA">Reprovadas</option>
+            <option value="">Todas</option>
+          </select>
+        </label>
         <label>Produto<select id="revision-product"><option value="">Todos</option></select></label>
         <label>Busca<input id="revision-search" type="search" placeholder="Código, produto ou cliente"></label>
         <label>Tipo<select id="revision-type"><option value="">Todos</option></select></label>
@@ -46,7 +54,7 @@
         <div id="revision-empty" class="empty-panel" hidden><strong>Nenhuma revisão encontrada</strong><span>Ajuste os filtros ou verifique as permissões.</span></div>
         <div id="revision-table-wrapper" class="table-wrapper" hidden>
           <table class="products-table revision-table">
-            <thead><tr><th>Produto</th><th>Ficha</th><th>Revisão</th><th>Status</th><th>Criação</th><th>Submissão</th><th>Decisão</th><th>Observação</th><th></th></tr></thead>
+            <thead><tr><th>Produto</th><th>Ficha</th><th>Revisão</th><th>Status</th><th>Criação</th><th>Submissão</th><th>Decisão Engenharia</th><th>Decisão Produção</th><th>Observação</th><th></th></tr></thead>
             <tbody id="revision-body"></tbody>
           </table>
         </div>

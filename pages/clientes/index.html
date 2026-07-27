@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Clientes | LIDUTEC+</title>
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/produtos.css">
+</head>
+<body class="app-page">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>LIDUTEC+</strong><span>Gestão Industrial</span></div></div>
+    <nav class="sidebar-nav"></nav>
+    <button id="logout-button" class="logout-button">Sair</button>
+  </aside>
+  <div class="app-shell">
+    <header class="topbar">
+      <button id="menu-button" class="menu-button" type="button" aria-label="Abrir ou fechar menu">☰</button>
+      <div class="topbar-title"><h1>Clientes</h1><p>Cadastro comercial e contatos</p></div>
+      <div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div>
+    </header>
+    <main class="main-content">
+      <section class="page-heading">
+        <div><span class="eyebrow">Cadastro mestre</span><h2>Clientes</h2><p>Centralize dados cadastrais, endereços e contatos.</p></div>
+        <button id="new-client" class="button button-primary" type="button" data-permission="clientes.gerenciar">Novo cliente</button>
+      </section>
+      <section class="product-summary">
+        <article class="summary-card"><span>Total</span><strong id="client-total">0</strong></article>
+        <article class="summary-card"><span>Ativos</span><strong id="client-active">0</strong></article>
+        <article class="summary-card"><span>Inativos</span><strong id="client-inactive">0</strong></article>
+      </section>
+      <section class="panel client-list-panel">
+        <div class="product-toolbar">
+          <div class="search-box"><label class="sr-only" for="client-search">Pesquisar cliente</label><input id="client-search" type="search" placeholder="Pesquisar por nome, documento, cidade ou contato"></div>
+          <div class="filter-box"><label for="client-status">Situação</label><select id="client-status"><option value="">Todos</option><option value="true">Ativos</option><option value="false">Inativos</option></select></div>
+        </div>
+        <div id="client-loading" class="loading-state">Carregando clientes...</div>
+        <div id="client-empty" class="empty-panel" hidden><strong>Nenhum cliente encontrado</strong><span>Cadastre o primeiro cliente ou ajuste os filtros.</span></div>
+        <div id="client-table-wrapper" class="table-wrapper" hidden>
+          <table class="products-table client-table">
+            <thead><tr><th>Cliente</th><th>Contato</th><th>Localização</th><th>Situação</th><th>Atualização</th><th></th></tr></thead>
+            <tbody id="client-body"></tbody>
+          </table>
+        </div>
+      </section>
+      <form id="client-form" hidden novalidate>
+        <section class="page-heading client-form-heading">
+          <div><span class="eyebrow">Dados do cliente</span><h2 id="client-form-title">Novo cliente</h2><p>Campos marcados com * são obrigatórios.</p></div>
+          <button id="close-client-form" type="button" class="button button-secondary">Voltar à lista</button>
+        </section>
+        <section class="panel product-form-section">
+          <div class="panel-header"><span class="eyebrow">Identificação</span><h3>Dados cadastrais</h3></div>
+          <div class="client-identification-layout">
+            <div class="client-logo-preview"><img id="client-logo-image" alt="Pré-visualização do logotipo" hidden><span id="client-logo-placeholder">Sem logotipo</span></div>
+            <div class="product-form-grid">
+              <div class="form-group"><label for="client-name">Razão social / nome *</label><input id="client-name" name="nome" maxlength="200" required></div>
+              <div class="form-group"><label for="client-trade-name">Nome fantasia</label><input id="client-trade-name" name="nome_fantasia" maxlength="200"></div>
+              <div class="form-group"><label for="client-document">CNPJ / documento fiscal</label><input id="client-document" name="documento_fiscal" maxlength="30"></div>
+              <div class="form-group"><label for="client-state-registration">Inscrição estadual</label><input id="client-state-registration" name="inscricao_estadual" maxlength="40"></div>
+              <div class="form-group form-group-full"><label for="client-logo">URL do logotipo</label><input id="client-logo" name="logotipo_url" type="url" placeholder="https://..."></div>
+              <div class="form-group"><label for="client-site">Site</label><input id="client-site" name="site" type="url" placeholder="https://..."></div>
+              <label class="checkbox-field"><input id="client-enabled" name="ativo" type="checkbox" checked><span>Cliente ativo</span></label>
+            </div>
+          </div>
+        </section>
+        <section class="panel product-form-section">
+          <div class="panel-header"><span class="eyebrow">Relacionamento</span><h3>Contato principal</h3></div>
+          <div class="product-form-grid">
+            <div class="form-group"><label for="client-contact">Nome do contato</label><input id="client-contact" name="contato_principal" maxlength="160"></div>
+            <div class="form-group"><label for="client-role">Cargo / área</label><input id="client-role" name="cargo_contato" maxlength="120"></div>
+            <div class="form-group"><label for="client-email">E-mail</label><input id="client-email" name="email" type="email" maxlength="254"></div>
+            <div class="form-group"><label for="client-phone">Telefone</label><input id="client-phone" name="telefone" type="tel" maxlength="30"></div>
+            <div class="form-group"><label for="client-mobile">Celular / WhatsApp</label><input id="client-mobile" name="celular" type="tel" maxlength="30"></div>
+          </div>
+        </section>
+        <section class="panel product-form-section">
+          <div class="panel-header"><span class="eyebrow">Localização</span><h3>Endereço</h3></div>
+          <div class="product-form-grid">
+            <div class="form-group"><label for="client-zip">CEP</label><input id="client-zip" name="cep" maxlength="12"></div>
+            <div class="form-group"><label for="client-address">Logradouro</label><input id="client-address" name="logradouro" maxlength="220"></div>
+            <div class="form-group"><label for="client-number">Número</label><input id="client-number" name="numero" maxlength="30"></div>
+            <div class="form-group"><label for="client-complement">Complemento</label><input id="client-complement" name="complemento" maxlength="120"></div>
+            <div class="form-group"><label for="client-neighborhood">Bairro</label><input id="client-neighborhood" name="bairro" maxlength="120"></div>
+            <div class="form-group"><label for="client-city">Cidade</label><input id="client-city" name="cidade" maxlength="120"></div>
+            <div class="form-group"><label for="client-state-field">Estado / UF</label><input id="client-state-field" name="estado" maxlength="60"></div>
+            <div class="form-group"><label for="client-country">País</label><input id="client-country" name="pais" maxlength="80" value="Brasil"></div>
+            <div class="form-group form-group-full"><label for="client-notes">Observações</label><textarea id="client-notes" name="observacoes" rows="4" maxlength="2000"></textarea></div>
+          </div>
+        </section>
+        <div id="client-message" class="form-message" hidden></div>
+        <div class="form-actions"><button id="cancel-client" type="button" class="button button-secondary">Cancelar</button><button id="save-client" type="submit" class="button button-primary">Salvar cliente</button></div>
+      </form>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/clientes.js"></script>
+</body>
+</html>

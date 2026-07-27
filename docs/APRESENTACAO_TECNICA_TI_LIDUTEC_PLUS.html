@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>LIDUTEC+ — Documento Técnico para Integração com TI</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 10.2pt/1.48 Arial, sans-serif; color: #26333a; }
+  h1, h2, h3, h4 { color: #0f4c5c; page-break-after: avoid; }
+  h1 { font-size: 27pt; margin: 0 0 8px; }
+  h2 { font-size: 17pt; margin: 25px 0 10px; padding-bottom: 5px; border-bottom: 2px solid #dbe8eb; }
+  h3 { font-size: 12.5pt; margin: 18px 0 7px; }
+  h4 { font-size: 10.5pt; margin: 13px 0 5px; }
+  p { margin: 5px 0 9px; }
+  ul, ol { margin: 5px 0 10px 20px; padding: 0; }
+  li { margin: 3px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 9px 0 15px; page-break-inside: avoid; }
+  th, td { border: 1px solid #cbd7dc; padding: 6px 7px; text-align: left; vertical-align: top; }
+  th { color: #fff; background: #0f4c5c; font-size: 9pt; }
+  tr:nth-child(even) td { background: #f5f8f9; }
+  code { padding: 1px 4px; border-radius: 3px; background: #edf2f4; font: 8.8pt Consolas, monospace; overflow-wrap: anywhere; }
+  .cover { min-height: 250mm; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
+  .brand { display: flex; align-items: center; gap: 14px; padding-top: 22mm; }
+  .logo { width: 58px; height: 58px; display: grid; place-items: center; border-radius: 15px; color: #fff; background: #0f4c5c; font-size: 22pt; font-weight: 900; }
+  .subtitle { max-width: 520px; color: #52646d; font-size: 14pt; }
+  .cover-card { padding: 18px; border-left: 6px solid #0f4c5c; background: #edf5f6; }
+  .meta { color: #62737b; font-size: 9.5pt; }
+  .notice { padding: 10px 12px; border: 1px solid #e6ce82; border-radius: 6px; background: #fff9e8; }
+  .success { padding: 10px 12px; border: 1px solid #a9d8c2; border-radius: 6px; background: #edf9f3; }
+  .diagram { margin: 12px 0; padding: 13px; border: 1px solid #cbd7dc; border-radius: 8px; background: #f7fafb; text-align: center; font-weight: 700; }
+  .arrow { color: #0f4c5c; font-size: 15pt; padding: 0 8px; }
+  .tag { display: inline-block; margin: 2px; padding: 3px 7px; border-radius: 10px; color: #0f4c5c; background: #e5f0f2; font-size: 8.4pt; font-weight: 700; }
+  .toc a { color: #26333a; text-decoration: none; }
+  .toc td:first-child { width: 28px; text-align: center; font-weight: 700; }
+  .page-break { page-break-before: always; }
+  .small { font-size: 8.6pt; color: #586a73; }
+  .check td:first-child { width: 22%; font-weight: 700; }
+  .status-current { color: #147d4f; font-weight: 700; }
+  .status-decision { color: #9b6515; font-weight: 700; }
+  .footer-note { margin-top: 22px; padding-top: 8px; border-top: 1px solid #d6e0e4; color: #64757d; font-size: 8.5pt; }
+</style>
+</head>
+<body>
+<section class="cover">
+  <div>
+    <div class="brand"><div class="logo">L+</div><div><strong>LIDUTEC+</strong><br><span class="meta">Gestão Industrial</span></div></div>
+    <div style="margin-top:42mm">
+      <h1>Documento Técnico da Aplicação</h1>
+      <p class="subtitle">Material para apresentação ao departamento de Tecnologia da Informação e início do processo de integração, homologação, segurança e sustentação corporativa.</p>
+    </div>
+  </div>
+  <div>
+    <div class="cover-card">
+      <strong>Classificação:</strong> Uso interno<br>
+      <strong>Versão do documento:</strong> 1.0<br>
+      <strong>Data de referência:</strong> 27 de julho de 2026<br>
+      <strong>Aplicação:</strong> LIDUTEC+ v0.2
+    </div>
+    <p class="meta">Este documento não contém senhas, tokens privados ou chaves de serviço. Informações sensíveis devem ser tratadas em cofre corporativo.</p>
+  </div>
+</section>
+
+<h2>Sumário executivo</h2>
+<p>O LIDUTEC+ é uma aplicação web industrial destinada à gestão de produtos, fichas técnicas, revisões, aprovações, controle de processo, produção de moldes, paradas, reclamações de clientes, cadastros mestres e acessos. A solução foi construída com frontend estático em HTML, CSS e JavaScript e utiliza o Supabase como plataforma de backend.</p>
+<p>O objetivo deste documento é fornecer ao TI uma visão verificável da solução atual e orientar as decisões necessárias para colocá-la sob governança corporativa. A aplicação já possui autenticação, autorização por perfis e permissões, políticas de segurança no banco, migrations versionadas e fluxos transacionais. Ainda devem ser formalizados, com participação do TI, hospedagem definitiva, ambientes, domínio, SMTP, SSO, observabilidade, backup, processo de mudanças e integrações com sistemas corporativos.</p>
+
+<div class="success"><strong>Estado atual:</strong> protótipo funcional integrado a um projeto Supabase remoto, com módulos operacionais em evolução e migrations aplicadas até a versão <code>202607270017</code>.</div>
+
+<h3>Objetivos de negócio</h3>
+<ul>
+  <li>Centralizar informações técnicas e operacionais hoje dispersas.</li>
+  <li>Controlar versões e aprovações de fichas técnicas sem sobrescrever histórico.</li>
+  <li>Disponibilizar dados consistentes para Engenharia, Produção e Qualidade.</li>
+  <li>Registrar rastreabilidade de revisões, importações, decisões e usuários.</li>
+  <li>Reduzir retrabalho por uso de documentação desatualizada.</li>
+</ul>
+
+<h2>1. Escopo funcional atual</h2>
+<table>
+  <thead><tr><th>Módulo</th><th>Capacidades principais</th><th>Situação</th></tr></thead>
+  <tbody>
+    <tr><td>Autenticação e contas</td><td>Login, solicitação de acesso corporativo, confirmação de e-mail, recuperação e redefinição de senha.</td><td class="status-current">Implementado</td></tr>
+    <tr><td>Usuários e acessos</td><td>Solicitações pendentes, ativação, perfis, permissões individuais e matriz de permissões.</td><td class="status-current">Implementado</td></tr>
+    <tr><td>Clientes</td><td>Cadastro, pesquisa, situação, logotipo por URL, documentos, contato, endereço e observações.</td><td class="status-current">Implementado</td></tr>
+    <tr><td>Produtos</td><td>Lista mestra, cadastro, edição, cliente, família, características e módulos técnicos.</td><td class="status-current">Implementado</td></tr>
+    <tr><td>Fichas técnicas</td><td>Moldagem e Fusão/Vazamento, parâmetros tipados, rascunho, impressão e PDF.</td><td class="status-current">Implementado</td></tr>
+    <tr><td>Revisões</td><td>Nova revisão baseada na anterior, histórico, vigência e destaque visual de campos alterados.</td><td class="status-current">Implementado</td></tr>
+    <tr><td>Aprovações</td><td>Envio, decisão de Engenharia e Produção, aprovação/reprovação e datas de decisão.</td><td class="status-current">Implementado</td></tr>
+    <tr><td>Importação de PDF</td><td>Upload, extração assistida, conferência, validação, auditoria e criação de revisão.</td><td class="status-current">Implementado</td></tr>
+    <tr><td>Controle de processo</td><td>Consultas, lançamentos, registros e gráficos de acompanhamento de CE.</td><td class="status-current">Implementado</td></tr>
+    <tr><td>Produção de moldes</td><td>Lançamentos, registros, paradas, categorias, indicadores e gráficos.</td><td class="status-current">Implementado</td></tr>
+    <tr><td>Reclamações</td><td>Ocorrência, anexos, comentários, ações, prazos, responsáveis e status.</td><td class="status-current">Implementado</td></tr>
+  </tbody>
+</table>
+<p class="small">Outras áreas citadas no modelo conceitual — como Macharia, Acabamento, Laboratório e Qualidade — possuem espaço previsto na arquitetura, mas nem todas contam com telas especializadas completas nesta versão.</p>
+
+<h2>2. Arquitetura da solução</h2>
+<div class="diagram">
+  Navegador corporativo
+  <span class="arrow">→ HTTPS →</span>
+  Frontend estático<br>
+  <span class="tag">HTML5</span><span class="tag">CSS3</span><span class="tag">JavaScript</span>
+  <span class="arrow">→ API segura →</span>
+  Supabase<br>
+  <span class="tag">Auth</span><span class="tag">PostgreSQL</span><span class="tag">REST</span><span class="tag">Storage</span><span class="tag">Edge Functions</span>
+</div>
+
+<h3>2.1 Frontend</h3>
+<ul>
+  <li>Aplicação multipágina, sem framework de frontend e sem etapa obrigatória de compilação.</li>
+  <li>Arquivos servidos estaticamente a partir de <code>pages/</code> e <code>assets/</code>.</li>
+  <li>Biblioteca Supabase JS v2 carregada pelo CDN <code>cdn.jsdelivr.net</code>.</li>
+  <li>Configuração do endpoint e chave pública de frontend em <code>assets/js/config.js</code>.</li>
+  <li>Servidor local de desenvolvimento via Node.js: <code>node dev-server.cjs</code>.</li>
+</ul>
+
+<h3>2.2 Backend Supabase</h3>
+<ul>
+  <li>PostgreSQL como base transacional e fonte central dos dados.</li>
+  <li>Supabase Auth para identidade e sessões.</li>
+  <li>PostgREST para operações de leitura e escrita autorizadas.</li>
+  <li>RPCs PostgreSQL para operações críticas e transacionais.</li>
+  <li>Supabase Storage para PDFs de fichas e evidências de reclamações.</li>
+  <li>Edge Function <code>gestao-usuarios</code> para operações administrativas que exigem privilégios elevados.</li>
+</ul>
+
+<h3>2.3 Dependências externas observadas</h3>
+<table>
+  <thead><tr><th>Dependência</th><th>Finalidade</th><th>Ação recomendada ao TI</th></tr></thead>
+  <tbody>
+    <tr><td>Supabase Cloud</td><td>Autenticação, banco, APIs, storage e funções.</td><td>Aprovar fornecedor, região, contrato, retenção, SLA e responsáveis.</td></tr>
+    <tr><td>jsDelivr CDN</td><td>Entrega da biblioteca <code>@supabase/supabase-js@2</code>.</td><td>Liberar domínio no proxy ou hospedar versão fixada internamente.</td></tr>
+    <tr><td>Serviço de e-mail do Supabase</td><td>Confirmação e recuperação de contas.</td><td>Configurar SMTP corporativo, remetente, SPF, DKIM e DMARC.</td></tr>
+    <tr><td>Navegador moderno</td><td>Execução do frontend e impressão em PDF.</td><td>Homologar Edge/Chrome corporativo e política de atualização.</td></tr>
+  </tbody>
+</table>
+
+<h2>3. Segurança e controle de acesso</h2>
+<h3>3.1 Identidade</h3>
+<p>O fluxo atual aceita exclusivamente endereços terminados em <code>@metalsider.com.br</code>. Um gatilho de banco valida o domínio. Ao solicitar acesso, o registro de autenticação é associado a um usuário de negócio em <code>public.usuarios</code>, inicialmente com perfil-base <code>CLIENTE</code> e status <code>PENDENTE</code>. O acesso funcional depende de confirmação do e-mail, ativação administrativa e concessão de permissões.</p>
+
+<h3>3.2 Autorização</h3>
+<p>A autorização combina perfis e exceções individuais:</p>
+<ul>
+  <li><code>perfis</code> define papéis organizacionais.</li>
+  <li><code>permissoes</code> contém capacidades granulares por módulo.</li>
+  <li><code>perfil_permissoes</code> associa capacidades aos perfis.</li>
+  <li><code>usuario_perfis</code> associa usuários aos perfis.</li>
+  <li><code>usuario_permissoes</code> permite concessão ou negação individual.</li>
+</ul>
+<p>O frontend oculta funções sem permissão, mas a proteção efetiva está no banco, por Row Level Security (RLS), grants e funções <code>security definer</code>. Ocultar um botão não é considerado controle de segurança.</p>
+
+<h3>3.3 Credenciais</h3>
+<div class="notice">
+  <strong>Regra obrigatória:</strong> a chave <code>service_role</code> não pode existir no frontend, repositório público, navegador ou estação do usuário. Ela deve permanecer somente nas Edge Functions/segredos do Supabase. A chave pública do frontend é identificadora, não substitui RLS.
+</div>
+
+<h3>3.4 Recomendações para homologação de segurança</h3>
+<ul>
+  <li>Decidir entre autenticação atual por senha e SSO corporativo via provedor compatível com OIDC/SAML.</li>
+  <li>Aplicar MFA aos perfis administrativos e avaliar MFA para demais grupos.</li>
+  <li>Definir política de sessão, expiração, bloqueio, desligamento e revisão periódica de acessos.</li>
+  <li>Revisar todas as policies RLS e funções <code>security definer</code> antes da produção.</li>
+  <li>Habilitar logs de autenticação, banco e funções com retenção aprovada.</li>
+  <li>Executar teste de segurança focado em IDOR, elevação de privilégio, upload e injeção.</li>
+</ul>
+
+<h2>4. Modelo de dados</h2>
+<div class="diagram">
+  AUTH.USERS → USUARIOS → PERFIS / PERMISSOES<br><br>
+  CLIENTES → PRODUTOS → FICHAS_TECNICAS → VALORES_PARAMETROS<br>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↘ APROVACOES / HISTORICO / IMPORTACOES<br><br>
+  PRODUTOS → REGISTROS DE PROCESSO / PRODUÇÃO / RECLAMAÇÕES
+</div>
+
+<h3>4.1 Entidades centrais</h3>
+<table>
+  <thead><tr><th>Grupo</th><th>Entidades principais</th><th>Responsabilidade</th></tr></thead>
+  <tbody>
+    <tr><td>Identidade</td><td><code>auth.users</code>, <code>usuarios</code>, <code>perfis</code>, <code>permissoes</code></td><td>Identidade, situação e autorização.</td></tr>
+    <tr><td>Cadastros mestres</td><td><code>clientes</code>, <code>produtos</code>, <code>familias_produto</code></td><td>Dados comerciais e técnicos básicos.</td></tr>
+    <tr><td>Fichas</td><td><code>fichas_tecnicas</code>, <code>grupos_parametros</code>, <code>parametros</code>, <code>valores_parametros</code></td><td>Documentos técnicos parametrizados.</td></tr>
+    <tr><td>Revisão e aprovação</td><td><code>historico_fichas</code>, <code>aprovacoes_ficha</code></td><td>Rastreabilidade, decisão e vigência.</td></tr>
+    <tr><td>Importação</td><td><code>templates_importacao_ficha</code>, <code>importacoes_ficha</code>, <code>validacoes_importacao_ficha</code>, <code>auditoria_importacao_ficha</code></td><td>Entrada e validação de PDFs.</td></tr>
+    <tr><td>Produção</td><td><code>registros_producao_moldes</code>, <code>paradas_producao_moldes</code>, <code>linhas_maquinas_producao</code>, <code>categorias_parada_producao</code></td><td>Produção, perdas e disponibilidade.</td></tr>
+    <tr><td>Qualidade</td><td><code>reclamacoes_cliente</code>, anexos, comentários e ações</td><td>Tratamento de ocorrências e plano de ação.</td></tr>
+  </tbody>
+</table>
+
+<h3>4.2 Estratégia de revisão</h3>
+<p>Cada revisão é uma nova linha em <code>fichas_tecnicas</code>. A origem é mantida por <code>revisao_origem_id</code>. A revisão anterior não é sobrescrita. A interface compara os valores da revisão nova com a origem e destaca alterações em vermelho. A publicação de uma revisão obedece ao fluxo de aprovação e vigência.</p>
+
+<h2>5. Fluxos críticos</h2>
+<h3>5.1 Solicitação e liberação de acesso</h3>
+<ol>
+  <li>Usuário informa nome, e-mail corporativo e senha.</li>
+  <li>Supabase Auth cria a identidade e envia confirmação.</li>
+  <li>Gatilho cria <code>public.usuarios</code> com status <code>PENDENTE</code>.</li>
+  <li>Usuário confirma o endereço de e-mail.</li>
+  <li>Administrador seleciona perfil e permissões e ativa a conta.</li>
+  <li>Login cria sessão; páginas validam sessão, usuário ativo e permissões.</li>
+</ol>
+
+<h3>5.2 Ficha técnica</h3>
+<ol>
+  <li>Engenharia cria ou importa uma ficha em rascunho.</li>
+  <li>Parâmetros são preenchidos e validados por tipo e faixa.</li>
+  <li>A ficha é enviada para aprovação.</li>
+  <li>Engenharia e Produção decidem conforme a etapa configurada.</li>
+  <li>Aprovada, a revisão passa a ser vigente; a anterior permanece histórica.</li>
+</ol>
+
+<h3>5.3 Importação de PDF</h3>
+<ol>
+  <li>PDF é armazenado em bucket privado.</li>
+  <li>Template orienta o mapeamento dos campos.</li>
+  <li>Dados extraídos são conferidos e ajustados por usuário autorizado.</li>
+  <li>Validação gera ficha e eventos de auditoria.</li>
+</ol>
+
+<h2>6. Ambientes, implantação e mudanças</h2>
+<h3>6.1 Situação atual</h3>
+<ul>
+  <li>Repositório local com frontend, documentação, testes, Edge Function e migrations.</li>
+  <li>Projeto Supabase remoto vinculado ao identificador <code>ovtvxzedblhfqzukidya</code>.</li>
+  <li>Migrations versionadas em <code>supabase/migrations</code>.</li>
+  <li>Não foi identificado neste repositório um pipeline corporativo completo de CI/CD.</li>
+  <li>A hospedagem definitiva do frontend deve ser definida pelo TI.</li>
+</ul>
+
+<h3>6.2 Topologia recomendada</h3>
+<table>
+  <thead><tr><th>Ambiente</th><th>Finalidade</th><th>Dados</th><th>Deploy</th></tr></thead>
+  <tbody>
+    <tr><td>Desenvolvimento</td><td>Construção e testes locais.</td><td>Sintéticos; sem dados pessoais reais.</td><td>Manual/local.</td></tr>
+    <tr><td>Homologação</td><td>Testes integrados e aceite.</td><td>Mascarados ou sintéticos.</td><td>Pipeline após revisão.</td></tr>
+    <tr><td>Produção</td><td>Operação corporativa.</td><td>Reais e controlados.</td><td>Pipeline aprovado, com evidência e rollback.</td></tr>
+  </tbody>
+</table>
+
+<h3>6.3 Pipeline sugerido</h3>
+<ol>
+  <li>Pull request com revisão técnica e funcional.</li>
+  <li>Verificação de sintaxe JavaScript, testes e <code>git diff --check</code>.</li>
+  <li>Validação de migrations em banco de homologação restaurável.</li>
+  <li>Análise de segurança e de alteração de dados.</li>
+  <li>Deploy do frontend com versão imutável.</li>
+  <li>Aplicação de migrations pelo pipeline, nunca pelo navegador.</li>
+  <li>Smoke test, monitoramento e registro da mudança.</li>
+</ol>
+
+<h2>7. Integrações corporativas a definir</h2>
+<table>
+  <thead><tr><th>Integração</th><th>Uso potencial</th><th>Informações necessárias</th></tr></thead>
+  <tbody>
+    <tr><td>Microsoft Entra ID / IdP</td><td>SSO, MFA, grupos e desligamento automático.</td><td>Tenant, protocolo, claims, grupos e política de convidados.</td></tr>
+    <tr><td>ERP</td><td>Sincronizar clientes, produtos, códigos e situação.</td><td>Sistema de origem, API, chaves, frequência, proprietário e regra de conflito.</td></tr>
+    <tr><td>MES / apontamento</td><td>Receber produção, máquina, turno e paradas.</td><td>Eventos, granularidade, latência, identificadores e retenção.</td></tr>
+    <tr><td>Qualidade / laboratório</td><td>Importar resultados e vincular especificações.</td><td>Formato, unidade, rastreabilidade e validação.</td></tr>
+    <tr><td>SMTP corporativo</td><td>Confirmação, recuperação e notificações.</td><td>Relay, porta, TLS, remetente e limites.</td></tr>
+    <tr><td>BI</td><td>Indicadores e painéis gerenciais.</td><td>Views autorizadas, anonimização, refresh e ferramenta.</td></tr>
+  </tbody>
+</table>
+<p><strong>Princípio recomendado:</strong> definir fonte oficial para cada cadastro. Caso o ERP seja mestre de clientes e produtos, o LIDUTEC+ deve consumir esses dados e limitar alterações locais aos campos complementares.</p>
+
+<h2>8. Operação, monitoramento e continuidade</h2>
+<h3>8.1 Monitoramento mínimo</h3>
+<ul>
+  <li>Disponibilidade do frontend, Auth, REST, banco, Storage e Edge Functions.</li>
+  <li>Taxa de erros HTTP 4xx/5xx, falhas de login e erros de RPC.</li>
+  <li>Latência de consultas, conexões, armazenamento e crescimento das tabelas.</li>
+  <li>Falhas de envio de e-mail e entregabilidade.</li>
+  <li>Eventos administrativos: ativação, mudança de perfil e alteração de permissões.</li>
+</ul>
+
+<h3>8.2 Backup e recuperação</h3>
+<ul>
+  <li>Definir RPO e RTO com Engenharia, Produção, Qualidade e TI.</li>
+  <li>Confirmar plano de backup PostgreSQL e recuperação pontual do contrato Supabase.</li>
+  <li>Definir backup/replicação dos objetos no Storage.</li>
+  <li>Executar e evidenciar testes periódicos de restauração.</li>
+  <li>Versionar migrations e preservar artefatos de cada release.</li>
+</ul>
+
+<h3>8.3 Dados pessoais e LGPD</h3>
+<p>A aplicação armazena nome e e-mail de usuários e pode armazenar contatos de clientes. O TI e as áreas responsáveis devem definir finalidade, base legal, retenção, acesso, atendimento a titulares e descarte. Logs e backups também devem respeitar a política corporativa de retenção.</p>
+
+<h2>9. Qualidade e testes</h2>
+<p>Há testes puros para regras de turno e indicadores em <code>tests/turnos.test.cjs</code>. As verificações atuais incluem sintaxe JavaScript e consistência de diff. Para homologação corporativa, recomenda-se ampliar para:</p>
+<ul>
+  <li>Testes unitários das regras de ficha, revisão, aprovação e produção.</li>
+  <li>Testes de integração contra Supabase de homologação.</li>
+  <li>Testes ponta a ponta de login, permissões e fluxos críticos.</li>
+  <li>Testes de RLS com perfis permitidos e negados.</li>
+  <li>Testes de carga para listas, históricos, gráficos e uploads.</li>
+  <li>Validação de acessibilidade, navegadores e resolução de chão de fábrica.</li>
+</ul>
+
+<h2>10. Riscos e pontos de atenção</h2>
+<table>
+  <thead><tr><th>Risco</th><th>Impacto</th><th>Tratamento sugerido</th></tr></thead>
+  <tbody>
+    <tr><td>Frontend sem pipeline corporativo formal</td><td>Mudanças manuais e divergência entre versões.</td><td>Implantar Git, PR, CI/CD e versionamento de releases.</td></tr>
+    <tr><td>Um único backend remoto em uso</td><td>Teste pode afetar operação.</td><td>Separar projetos Supabase por ambiente.</td></tr>
+    <tr><td>Dependência de CDN público</td><td>Bloqueio de rede ou alteração externa.</td><td>Fixar versão e avaliar hospedagem interna do artefato.</td></tr>
+    <tr><td>Autenticação por senha sem SSO definido</td><td>Gestão duplicada de identidade.</td><td>Integrar ao IdP corporativo e aplicar MFA.</td></tr>
+    <tr><td>Upload e URLs externas</td><td>Conteúdo indevido, indisponível ou malicioso.</td><td>Allowlist, validação de MIME, antivírus e storage privado.</td></tr>
+    <tr><td>Testes automatizados ainda limitados</td><td>Regressões em fluxos industriais.</td><td>Criar suíte unitária, integração e E2E.</td></tr>
+    <tr><td>Cadastros duplicados entre sistemas</td><td>Inconsistência de cliente/produto.</td><td>Definir sistema mestre e integração idempotente.</td></tr>
+  </tbody>
+</table>
+
+<h2>11. Checklist para início da integração</h2>
+<table class="check">
+  <thead><tr><th>Frente</th><th>Decisões e evidências necessárias</th><th>Responsável sugerido</th></tr></thead>
+  <tbody>
+    <tr><td>Patrocínio</td><td>Process owner, escopo, usuários, criticidade e SLA.</td><td>Negócio + TI</td></tr>
+    <tr><td>Arquitetura</td><td>Aprovação do Supabase, região, conectividade e hospedagem.</td><td>Arquitetura TI</td></tr>
+    <tr><td>Identidade</td><td>SSO/MFA, grupos, ciclo de vida e conta de serviço.</td><td>IAM/Segurança</td></tr>
+    <tr><td>Dados</td><td>Sistemas mestres, classificação, retenção e LGPD.</td><td>Dados + DPO + Negócio</td></tr>
+    <tr><td>Segurança</td><td>Threat model, RLS, pentest, segredos e logs.</td><td>Segurança TI</td></tr>
+    <tr><td>Infraestrutura</td><td>DNS, TLS, proxy, firewall, SMTP e observabilidade.</td><td>Infra/Cloud</td></tr>
+    <tr><td>Desenvolvimento</td><td>Repositório oficial, branches, code review, CI/CD e releases.</td><td>DevOps/Desenvolvimento</td></tr>
+    <tr><td>Continuidade</td><td>RPO, RTO, backup e teste de restauração.</td><td>Infra + Negócio</td></tr>
+    <tr><td>Homologação</td><td>Casos de teste, massa, aceite e plano de implantação.</td><td>QA + Usuários-chave</td></tr>
+    <tr><td>Sustentação</td><td>Catálogo, chamados, níveis de suporte e runbook.</td><td>Service Desk + Produto</td></tr>
+  </tbody>
+</table>
+
+<h2>12. Proposta de fases</h2>
+<ol>
+  <li><strong>Assessment:</strong> workshop técnico, inventário, classificação da informação e aprovação da arquitetura.</li>
+  <li><strong>Fundação:</strong> repositório oficial, ambientes, SSO/SMTP, segredos, DNS e pipeline.</li>
+  <li><strong>Hardening:</strong> revisão de RLS, logs, testes, backup e segurança.</li>
+  <li><strong>Integração:</strong> conectar ERP/MES/BI conforme prioridade e fonte mestra.</li>
+  <li><strong>Homologação:</strong> testes funcionais, carga, segurança, treinamento e aceite.</li>
+  <li><strong>Produção:</strong> implantação controlada, hypercare, indicadores e sustentação.</li>
+</ol>
+
+<h2>13. Inventário técnico do repositório</h2>
+<table>
+  <thead><tr><th>Caminho</th><th>Conteúdo</th></tr></thead>
+  <tbody>
+    <tr><td><code>pages/</code></td><td>Telas da aplicação organizadas por módulo.</td></tr>
+    <tr><td><code>assets/js/</code></td><td>Regras do frontend, autenticação, consultas e renderização.</td></tr>
+    <tr><td><code>assets/css/</code></td><td>Design system e estilos dos módulos.</td></tr>
+    <tr><td><code>supabase/migrations/</code></td><td>Evolução versionada do banco, policies, funções e permissões.</td></tr>
+    <tr><td><code>supabase/functions/</code></td><td>Edge Functions; atualmente inclui gestão administrativa de usuários.</td></tr>
+    <tr><td><code>tests/</code></td><td>Testes automatizados disponíveis.</td></tr>
+    <tr><td><code>docs/</code></td><td>Documentação funcional, técnica, DER e módulos.</td></tr>
+    <tr><td><code>dev-server.cjs</code></td><td>Servidor HTTP para execução local.</td></tr>
+  </tbody>
+</table>
+
+<h2>14. Comandos operacionais de referência</h2>
+<h3>Desenvolvimento local</h3>
+<p><code>node dev-server.cjs</code> — disponibiliza a aplicação em <code>http://127.0.0.1:8080/</code>.</p>
+<h3>Testes atuais</h3>
+<p><code>node tests/turnos.test.cjs</code></p>
+<h3>Migrations</h3>
+<p><code>npx supabase migration list --linked</code> — consulta o estado das migrations.</p>
+<p><code>npx supabase db push --linked</code> — aplica migrations pendentes. Em ambiente corporativo, deve ser executado somente pelo pipeline e após aprovação.</p>
+
+<h2>15. Critérios sugeridos para entrada em produção</h2>
+<ul>
+  <li>Arquitetura e fornecedor aprovados pelo TI.</li>
+  <li>Ambientes separados e pipeline auditável.</li>
+  <li>SSO/SMTP e ciclo de vida de usuários homologados.</li>
+  <li>Revisão de segurança e RLS concluída sem achados críticos.</li>
+  <li>Backup e restauração testados.</li>
+  <li>Monitoramento, alertas e runbook disponíveis.</li>
+  <li>Testes dos fluxos críticos aprovados pelos usuários-chave.</li>
+  <li>Plano de implantação, rollback, treinamento e suporte aprovado.</li>
+</ul>
+
+<h2>16. Glossário</h2>
+<table>
+  <thead><tr><th>Termo</th><th>Definição</th></tr></thead>
+  <tbody>
+    <tr><td>RLS</td><td>Row Level Security; políticas PostgreSQL que controlam acesso por linha.</td></tr>
+    <tr><td>RPC</td><td>Função de banco invocada remotamente para executar uma operação transacional.</td></tr>
+    <tr><td>SSO</td><td>Single Sign-On; autenticação centralizada pelo provedor corporativo.</td></tr>
+    <tr><td>IdP</td><td>Identity Provider, como Microsoft Entra ID.</td></tr>
+    <tr><td>RPO</td><td>Perda máxima aceitável de dados em caso de incidente.</td></tr>
+    <tr><td>RTO</td><td>Tempo máximo aceitável para restauração do serviço.</td></tr>
+    <tr><td>Migration</td><td>Script versionado que altera de forma controlada o esquema ou regras do banco.</td></tr>
+    <tr><td>Edge Function</td><td>Função server-side executada fora do navegador para operações privilegiadas.</td></tr>
+  </tbody>
+</table>
+
+<p class="footer-note">Documento elaborado a partir do estado do repositório LIDUTEC+ em 27/07/2026. Antes da apresentação formal, recomenda-se incluir nomes dos responsáveis, classificação oficial da informação, diagrama de rede corporativo e decisões do assessment com o TI.</p>
+</body>
+</html>

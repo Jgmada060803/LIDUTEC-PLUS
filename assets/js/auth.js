@@ -113,16 +113,29 @@ loginForm.addEventListener("submit", async (event) => {
   } catch (error) {
     console.error("Erro no login:", error);
 
-    const invalidCredentials =
-      error.message
-        ?.toLowerCase()
-        .includes("invalid login credentials");
+    const errorCode = String(error?.code ?? "").toLowerCase();
+    const errorMessage = String(error?.message ?? "").toLowerCase();
 
-    showLoginMessage(
-      invalidCredentials
-        ? "E-mail ou senha inválidos."
-        : "Não foi possível entrar. Tente novamente."
-    );
+    if (
+      errorCode === "email_not_confirmed" ||
+      errorMessage.includes("email not confirmed")
+    ) {
+      showLoginMessage(
+        "Seu e-mail ainda não foi confirmado. Abra a mensagem enviada pelo sistema e clique no link de confirmação."
+      );
+    } else if (
+      errorCode === "invalid_credentials" ||
+      errorMessage.includes("invalid login credentials")
+    ) {
+      showLoginMessage("E-mail ou senha inválidos.");
+    } else {
+      const reason = error?.message || error?.code;
+      showLoginMessage(
+        reason
+          ? `Não foi possível entrar. Motivo: ${reason}`
+          : "Não foi possível entrar porque o serviço não informou o motivo."
+      );
+    }
   } finally {
     setLoading(false);
   }

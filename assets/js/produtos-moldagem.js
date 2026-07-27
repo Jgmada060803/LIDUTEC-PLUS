@@ -24,6 +24,7 @@ const moldingElements = {
     "#molding-new-revision-button"
   ),
   editButton: document.querySelector("#molding-edit-button"),
+  deleteDraftButton: document.querySelector("#molding-delete-draft"),
   submitApprovalButton: document.querySelector("#molding-submit-approval"),
   approveButton: document.querySelector("#molding-approve"),
   rejectButton: document.querySelector("#molding-reject"),
@@ -42,6 +43,8 @@ const moldingState = {
   parameters: [],
   history: [],
   approvals: [],
+  originSheet: null,
+  originValues: new Map(),
   editable: false,
   mode: "LEITURA",
   editRequested: false
@@ -622,7 +625,7 @@ async function loadMoldingSheets(productId) {
   return data ?? [];
 }
 
-async function loadMoldingParameters(sheetId) {
+async function loadMoldingParameters(sheetId, originSheetId = null) {
   const { data: groups, error: groupsError } =
     await window.supabaseClient
       .from("grupos_parametros")
@@ -651,10 +654,12 @@ async function loadMoldingParameters(sheetId) {
   }
 
   let values = [];
-  if (sheetId) {
+  const sheetIds = [sheetId, originSheetId].filter(Boolean);
+  if (sheetIds.length > 0) {
     const { data, error } = await window.supabaseClient
       .from("valores_parametros")
       .select(`
+        ficha_tecnica_id,
         parametro_id,
         valor_texto,
         valor_numerico,
@@ -668,7 +673,7 @@ async function loadMoldingParameters(sheetId) {
         valor_final,
         nao_aplicavel
       `)
-      .eq("ficha_tecnica_id", sheetId);
+      .in("ficha_tecnica_id", sheetIds);
 
     if (error) {
       throw error;
@@ -676,8 +681,19 @@ async function loadMoldingParameters(sheetId) {
     values = data ?? [];
   }
 
+  const currentValues = values.filter(
+    (value) => String(value.ficha_tecnica_id) === String(sheetId)
+  );
+  const originValues = new Map(
+    values
+      .filter(
+        (value) =>
+          String(value.ficha_tecnica_id) === String(originSheetId)
+      )
+      .map((value) => [String(value.parametro_id), value])
+  );
   const valueByParameter = new Map(
-    values.map((value) => [value.parametro_id, value])
+    currentValues.map((value) => [value.parametro_id, value])
   );
   const parametersWithValues = (parameters ?? []).map(
     (parameter) => ({
@@ -690,8 +706,69 @@ async function loadMoldingParameters(sheetId) {
 
   return {
     groups: groups ?? [],
-    parameters: parametersWithValues
+    parameters: parametersWithValues,
+    originValues
   };
+}
+
+function comparableFieldValue(name, value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  if ([
+    "valor_numerico",
+    "valor_minimo",
+    "valor_alvo",
+    "valor_maximo",
+    "valor_inicial",
+    "valor_final"
+  ].includes(name)) {
+    const number = Number(String(value).replace(",", "."));
+    return Number.isFinite(number) ? String(number) : String(value).trim();
+  }
+  return String(value);
+}
+
+function updateRevisionChangeHighlight(control) {
+  const field = control.closest(
+    ".molding-value-field, .molding-metadata-field"
+  );
+  if (!field || control.dataset.originValue === undefined) {
+    return;
+  }
+  const changed =
+    comparableFieldValue(control.name, control.value) !==
+    comparableFieldValue(control.name, control.dataset.originValue);
+  field.classList.toggle("revision-field-changed", changed);
+}
+
+function applyRevisionChangeHighlights() {
+  const isRevision = Boolean(moldingState.sheet?.revisao_origem_id);
+  moldingElements.form.classList.toggle(
+    "revision-comparison-active",
+    isRevision
+  );
+
+  for (const control of moldingElements.parameters.querySelectorAll(
+    "input, select, textarea"
+  )) {
+    const parameterId =
+      control.closest(".molding-parameter")?.dataset.parameterId;
+    const origin = moldingState.originValues.get(String(parameterId));
+    control.dataset.originValue = origin?.[control.name] ?? "";
+    updateRevisionChangeHighlight(control);
+  }
+
+  const metadataOrigins = new Map([
+    [moldingElements.issueDate, moldingState.originSheet?.data_emissao?.slice(0, 10)],
+    [moldingElements.reason, moldingState.originSheet?.motivo_revisao]
+  ]);
+  for (const [control, originValue] of metadataOrigins) {
+    if (!control) continue;
+    control.closest("label")?.classList.add("molding-metadata-field");
+    control.dataset.originValue = originValue ?? "";
+    updateRevisionChangeHighlight(control);
+  }
 }
 
 async function loadSheetSupportData(sheetId) {
@@ -976,6 +1053,13 @@ function applyMoldingReadOnly() {
   if (moldingElements.rejectButton) {
     moldingElements.rejectButton.hidden = !canDecide;
   }
+  if (moldingElements.deleteDraftButton) {
+    moldingElements.deleteDraftButton.hidden = !(
+      moldingState.sheet?.status === "RASCUNHO" &&
+      moldingState.sheet.elaborado_por === moldingState.user?.id &&
+      moldingState.permissions.has("ficha.excluir_rascunho")
+    );
+  }
   updateMoldingActions();
 
   if (moldingState.mode === "SEM_FICHA") {
@@ -987,13 +1071,19 @@ function applyMoldingReadOnly() {
     );
   } else if (!moldingState.editable) {
     showMoldingMessage(
-      moldingState.mode === "CONFERENCIA_IMPORTACAO"
+      canDecide
+        ? `Esta ficha aguarda sua decisão de ${
+            moldingState.sheet.etapa_aprovacao === "ENGENHARIA"
+              ? "Engenharia"
+              : "Produção"
+          }. Revise os dados e use Aprovar ou Reprovar no rodapé.`
+        : moldingState.mode === "CONFERENCIA_IMPORTACAO"
         ? "Esta importação está pendente de conferência e permanece somente para leitura."
         : moldingState.sheet?.status === "RASCUNHO" &&
             moldingState.permissions.has("ficha.editar_rascunho")
           ? "Modo de visualização. Clique em Editar ajustes para alterar este rascunho."
         : "Esta ficha está disponível somente para leitura.",
-      "error"
+      canDecide ? "success" : "error"
     );
   } else {
     moldingElements.message.hidden = true;
@@ -1432,24 +1522,32 @@ async function initializeMolding() {
   moldingState.product = product;
   moldingState.sheet = sheet;
   moldingState.sheets = sheets;
+  moldingState.originSheet = sheet?.revisao_origem_id
+    ? sheets.find(
+        (item) =>
+          String(item.id) === String(sheet.revisao_origem_id)
+      ) ?? null
+    : null;
 
   updateMoldingHeader();
   moldingElements.loading.hidden = true;
   moldingElements.content.hidden = false;
 
   const [
-    { groups, parameters },
+    { groups, parameters, originValues },
     { history, approvals }
   ] = await Promise.all([
-    loadMoldingParameters(sheet?.id),
+    loadMoldingParameters(sheet?.id, sheet?.revisao_origem_id),
     loadSheetSupportData(sheet?.id)
   ]);
   moldingState.parameters = parameters;
+  moldingState.originValues = originValues;
   moldingState.history = history;
   moldingState.approvals = approvals;
 
   renderMoldingHistory();
   renderizarFichaPorTipo(groups, parameters);
+  applyRevisionChangeHighlights();
   applyMoldingReadOnly();
 }
 
@@ -1625,6 +1723,56 @@ async function runSheetApproval(action) {
   window.location.assign(`${window.location.pathname}?${params}`);
 }
 
+moldingElements.deleteDraftButton?.addEventListener(
+  "click",
+  async () => {
+    if (!moldingState.sheet?.id) return;
+
+    const confirmed = window.confirm(
+      "Excluir este rascunho definitivamente? Esta ação não pode ser desfeita."
+    );
+    if (!confirmed) return;
+
+    moldingElements.deleteDraftButton.disabled = true;
+    try {
+      const pdfPath =
+        window.LIDUTEC_FICHAS_UI.getImport(
+          moldingState.sheet
+        )?.pdf_storage_path ?? null;
+      const { error } = await window.supabaseClient.rpc(
+        "excluir_rascunho_ficha",
+        { p_ficha_id: moldingState.sheet.id }
+      );
+      if (error) throw error;
+
+      if (pdfPath) {
+        const { error: storageError } =
+          await window.supabaseClient.storage
+            .from("fichas-tecnicas-pdf")
+            .remove([pdfPath]);
+        if (storageError) {
+          console.warn(
+            "O rascunho foi excluído, mas o PDF não pôde ser removido:",
+            storageError
+          );
+        }
+      }
+
+      window.location.assign(
+        `./detalhes.html?id=${encodeURIComponent(
+          moldingState.product.id
+        )}`
+      );
+    } catch (error) {
+      showMoldingMessage(
+        `Não foi possível excluir o rascunho: ${error.message}`,
+        "error"
+      );
+      moldingElements.deleteDraftButton.disabled = false;
+    }
+  }
+);
+
 for (const [button, action] of [
   [moldingElements.submitApprovalButton, "ENVIAR"],
   [moldingElements.approveButton, "APROVADA"],
@@ -1657,6 +1805,18 @@ moldingElements.form?.addEventListener("submit", async (event) => {
     );
   } finally {
     moldingElements.saveButton.disabled = false;
+  }
+});
+
+moldingElements.form?.addEventListener("input", (event) => {
+  if (event.target.matches("input, select, textarea")) {
+    updateRevisionChangeHighlight(event.target);
+  }
+});
+
+moldingElements.form?.addEventListener("change", (event) => {
+  if (event.target.matches("input, select, textarea")) {
+    updateRevisionChangeHighlight(event.target);
   }
 });
 

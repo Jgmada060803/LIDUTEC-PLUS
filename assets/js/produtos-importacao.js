@@ -25,6 +25,7 @@ const importElements = {
   validationNote: document.querySelector("#validation-note"),
   makeCurrent: document.querySelector("#make-current"),
   save: document.querySelector("#save-import"),
+  deleteDraft: document.querySelector("#delete-import-draft"),
   submit: document.querySelector("#submit-import"),
   reject: document.querySelector("#reject-import"),
   validate: document.querySelector("#validate-import"),
@@ -103,6 +104,7 @@ function setBusy(busy) {
   for (const button of [
     importElements.startExtraction,
     importElements.save,
+    importElements.deleteDraft,
     importElements.submit,
     importElements.reject,
     importElements.validate
@@ -629,14 +631,20 @@ function updateState() {
     importState.permissions.has("ficha.conferir_importacao");
   const canValidate = pending &&
     importState.permissions.has("ficha.validar_importacao");
+  const canDelete = Boolean(importState.importRecord?.id) &&
+    ["IMPORTACAO_RASCUNHO", "REJEITADA"].includes(state) &&
+    importState.sheet?.elaborado_por === importState.user?.id &&
+    importState.permissions.has("ficha.excluir_rascunho");
 
   importElements.save.hidden = !canEdit;
+  importElements.deleteDraft.hidden = !canDelete;
   importElements.submit.hidden =
     !importState.importRecord?.id || !canSubmit;
   importElements.validate.hidden = !canValidate;
   importElements.reject.hidden = !canValidate;
   importElements.startExtraction.disabled = !canEdit;
   importElements.save.disabled = !canEdit;
+  importElements.deleteDraft.disabled = !canDelete;
   importElements.submit.disabled = !canSubmit;
   importElements.validate.disabled = !canValidate;
   importElements.reject.disabled = !canValidate;
@@ -850,6 +858,44 @@ importElements.save?.addEventListener("click", async () => {
   } catch (error) {
     showMessage(error.message, "error");
   } finally {
+    setBusy(false);
+  }
+});
+
+importElements.deleteDraft?.addEventListener("click", async () => {
+  const confirmed = window.confirm(
+    "Excluir definitivamente este rascunho de importação? Esta ação não pode ser desfeita."
+  );
+  if (!confirmed) return;
+
+  try {
+    setBusy(true);
+    const pdfPath = importState.importRecord?.pdf_storage_path;
+    const { error } = await window.supabaseClient.rpc(
+      "excluir_rascunho_ficha",
+      { p_ficha_id: importState.sheet.id }
+    );
+    if (error) throw error;
+
+    if (pdfPath) {
+      const { error: storageError } =
+        await window.supabaseClient.storage
+          .from("fichas-tecnicas-pdf")
+          .remove([pdfPath]);
+      if (storageError) {
+        console.warn(
+          "O rascunho foi excluído, mas o PDF não pôde ser removido:",
+          storageError
+        );
+      }
+    }
+
+    window.location.assign("./lista.html");
+  } catch (error) {
+    showMessage(
+      `Não foi possível excluir o rascunho: ${error.message}`,
+      "error"
+    );
     setBusy(false);
   }
 });
