@@ -33,6 +33,30 @@ const productImagePlaceholder =
 const editProductButton =
   document.querySelector("#edit-product-button");
 
+const deleteObsoleteProductButton =
+  document.querySelector("#delete-obsolete-product-button");
+
+const deleteObsoleteProductDialog =
+  document.querySelector("#delete-obsolete-product-dialog");
+
+const deleteObsoleteProductForm =
+  document.querySelector("#delete-obsolete-product-form");
+
+const deleteObsoleteProductConfirmation =
+  document.querySelector("#delete-obsolete-product-confirmation");
+
+const deleteObsoleteProductCode =
+  document.querySelector("#delete-obsolete-product-code");
+
+const deleteObsoleteProductMessage =
+  document.querySelector("#delete-obsolete-product-message");
+
+const confirmDeleteObsoleteProduct =
+  document.querySelector("#confirm-delete-obsolete-product");
+
+const cancelDeleteObsoleteProduct =
+  document.querySelector("#cancel-delete-obsolete-product");
+
 const revisionHistoryButton =
   document.querySelector("#revision-history-button");
 
@@ -178,6 +202,16 @@ function showProduct(product) {
   productStatus.textContent = status.label;
   productStatus.className =
     `status-badge ${status.className}`;
+
+  if (deleteObsoleteProductButton) {
+    deleteObsoleteProductButton.hidden = !(
+      product.status === "OBSOLETO" &&
+      productDetailsState.permissions.has("produto.excluir_obsoleto")
+    );
+  }
+  if (deleteObsoleteProductCode) {
+    deleteObsoleteProductCode.textContent = product.codigo;
+  }
 
   setText(
     "#product-client",
@@ -896,6 +930,107 @@ moduleDetailContent?.addEventListener("click", async (event) => {
     alert(`Não foi possível criar a revisão: ${error.message}`);
   } finally {
     button.disabled = false;
+  }
+});
+
+deleteObsoleteProductButton?.addEventListener("click", () => {
+  const product = productDetailsState.product;
+  if (
+    !product ||
+    product.status !== "OBSOLETO" ||
+    !productDetailsState.permissions.has("produto.excluir_obsoleto")
+  ) {
+    return;
+  }
+
+  deleteObsoleteProductConfirmation.value = "";
+  deleteObsoleteProductMessage.hidden = true;
+  deleteObsoleteProductDialog.showModal();
+  deleteObsoleteProductConfirmation.focus();
+});
+
+cancelDeleteObsoleteProduct?.addEventListener("click", () => {
+  deleteObsoleteProductDialog.close();
+});
+
+async function removeProductStorageFiles(bucket, paths) {
+  const uniquePaths = [...new Set((paths ?? []).filter(Boolean))];
+  const errors = [];
+
+  for (let index = 0; index < uniquePaths.length; index += 100) {
+    const chunk = uniquePaths.slice(index, index + 100);
+    const { error } = await window.supabaseClient.storage
+      .from(bucket)
+      .remove(chunk);
+    if (error) {
+      errors.push(`${bucket}: ${error.message}`);
+    }
+  }
+  return errors;
+}
+
+deleteObsoleteProductForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const product = productDetailsState.product;
+  const confirmation = deleteObsoleteProductConfirmation.value.trim();
+
+  if (!product || confirmation.toUpperCase() !== product.codigo.toUpperCase()) {
+    deleteObsoleteProductMessage.textContent =
+      "Digite exatamente o código do produto para confirmar.";
+    deleteObsoleteProductMessage.hidden = false;
+    return;
+  }
+
+  confirmDeleteObsoleteProduct.disabled = true;
+  cancelDeleteObsoleteProduct.disabled = true;
+  deleteObsoleteProductConfirmation.disabled = true;
+  deleteObsoleteProductMessage.hidden = true;
+
+  try {
+    const { data, error } = await window.supabaseClient.rpc(
+      "excluir_produto_obsoleto",
+      {
+        p_produto_id: product.id,
+        p_confirmacao_codigo: confirmation
+      }
+    );
+    if (error) {
+      throw error;
+    }
+
+    const storageErrors = [
+      ...await removeProductStorageFiles(
+        "fichas-tecnicas-pdf",
+        data?.pdf_storage_paths
+      ),
+      ...await removeProductStorageFiles(
+        "reclamacoes-cliente",
+        data?.anexo_storage_paths
+      )
+    ];
+
+    deleteObsoleteProductDialog.close();
+    const summary = [
+      `Produto ${product.codigo} excluído definitivamente.`,
+      `${data?.fichas_excluidas ?? 0} ficha(s),`,
+      `${data?.reclamacoes_excluidas ?? 0} reclamação(ões),`,
+      `${data?.registros_producao_excluidos ?? 0} registro(s) de produção e`,
+      `${data?.paradas_excluidas ?? 0} parada(s) removidos.`
+    ].join(" ");
+    alert(
+      storageErrors.length
+        ? `${summary}\n\nAtenção: alguns arquivos não puderam ser removidos: ${storageErrors.join("; ")}`
+        : summary
+    );
+    window.location.replace("./lista.html");
+  } catch (error) {
+    deleteObsoleteProductMessage.textContent =
+      `Não foi possível excluir o produto: ${error.message}`;
+    deleteObsoleteProductMessage.hidden = false;
+  } finally {
+    confirmDeleteObsoleteProduct.disabled = false;
+    cancelDeleteObsoleteProduct.disabled = false;
+    deleteObsoleteProductConfirmation.disabled = false;
   }
 });
 

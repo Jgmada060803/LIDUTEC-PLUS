@@ -490,6 +490,16 @@
             Editar produto
           </a>
 
+          <button
+            id="delete-obsolete-product-button"
+            type="button"
+            class="button button-danger"
+            data-permission="produto.excluir_obsoleto"
+            hidden
+          >
+            Excluir produto obsoleto
+          </button>
+
         </section>
 
       </div>
@@ -499,6 +509,42 @@
         class="form-message error"
         hidden
       ></div>
+
+      <dialog
+        id="delete-obsolete-product-dialog"
+        class="product-delete-dialog"
+      >
+        <form method="dialog" id="delete-obsolete-product-form">
+          <div class="panel-header">
+            <span class="eyebrow">Exclusão definitiva</span>
+            <h3>Excluir produto e todos os registros?</h3>
+          </div>
+          <p>
+            Esta ação excluirá fichas, revisões, aprovações, importações,
+            PDFs, reclamações, anexos, registros de produção e paradas.
+            Não será possível recuperar esses dados.
+          </p>
+          <label for="delete-obsolete-product-confirmation">
+            Digite o código <strong id="delete-obsolete-product-code"></strong>
+            para confirmar:
+          </label>
+          <input
+            id="delete-obsolete-product-confirmation"
+            autocomplete="off"
+            required
+          >
+          <div id="delete-obsolete-product-message"
+            class="form-message error" hidden></div>
+          <div class="product-delete-dialog-actions">
+            <button type="button" class="button button-secondary"
+              id="cancel-delete-obsolete-product">Cancelar</button>
+            <button type="submit" class="button button-danger"
+              id="confirm-delete-obsolete-product">
+              Excluir definitivamente
+            </button>
+          </div>
+        </form>
+      </dialog>
 
     </main>
 

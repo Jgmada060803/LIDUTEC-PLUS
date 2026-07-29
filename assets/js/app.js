@@ -236,9 +236,19 @@ function syncSidebarNavigation() {
     <div class="nav-section">
       <span class="nav-title">Produção</span>
       <a href="${prefix}controle-processo/lista.html"
-         class="${activeClass(isActive("controle-processo"))}"
+         class="${activeClass(
+           isActive("controle-processo") &&
+           !isActive("controle-processo", "temperatura-vazamento.html")
+         )}"
          data-permission="controle_processo.visualizar">
         Controle de Processo
+      </a>
+      <a href="${prefix}controle-processo/temperatura-vazamento.html"
+         class="${activeClass(
+           isActive("controle-processo", "temperatura-vazamento.html")
+         )}"
+         data-permission="controle_processo.visualizar">
+        Temperatura de Vazamento
       </a>
       <a href="${prefix}producao-moldes/index.html"
          class="${activeClass(isActive("producao-moldes"))}"

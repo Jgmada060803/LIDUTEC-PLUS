@@ -18,6 +18,8 @@ const importElements = {
   startExtraction: document.querySelector("#start-extraction"),
   state: document.querySelector("#import-state"),
   warnings: document.querySelector("#import-warnings"),
+  historyPanel: document.querySelector("#import-history-panel"),
+  history: document.querySelector("#import-history"),
   pdfEmpty: document.querySelector("#pdf-empty"),
   pdfPreview: document.querySelector("#pdf-preview"),
   fieldsEmpty: document.querySelector("#import-fields-empty"),
@@ -404,6 +406,82 @@ function renderExtraction(extraction) {
 
   importElements.warnings.textContent = extraction.avisos.join(" ");
   importElements.warnings.hidden = !extraction.avisos.length;
+  renderHistory(extraction.historicoRevisoes ?? []);
+}
+
+function createHistoryInput(name, value, type = "text") {
+  const input = document.createElement("input");
+  input.name = name;
+  input.type = type;
+  input.value = value ?? "";
+  return input;
+}
+
+function renderHistory(history) {
+  importElements.history.replaceChildren();
+  importElements.historyPanel.hidden = false;
+
+  const header = document.createElement("div");
+  header.className = "import-history-row import-history-header";
+  for (const label of ["Revisão", "Data", "Descrição", "Responsável", ""]) {
+    const cell = document.createElement("span");
+    cell.textContent = label;
+    header.append(cell);
+  }
+  importElements.history.append(header);
+
+  for (const revision of history) {
+    appendHistoryRow(revision);
+  }
+
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "button button-secondary import-history-add";
+  add.textContent = "Adicionar revisão";
+  add.addEventListener("click", () => appendHistoryRow({}));
+  importElements.history.append(add);
+}
+
+function appendHistoryRow(revision) {
+  const row = document.createElement("div");
+  row.className = "import-history-row";
+  row.append(
+    createHistoryInput(
+      "numero_revisao",
+      revision.numero_revisao,
+      "number"
+    ),
+    createHistoryInput("data_revisao", revision.data_revisao, "date"),
+    createHistoryInput("descricao", revision.descricao),
+    createHistoryInput("responsavel", revision.responsavel)
+  );
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "button button-secondary import-history-remove";
+  remove.textContent = "Remover";
+  remove.addEventListener("click", () => row.remove());
+  row.append(remove);
+
+  const addButton = importElements.history.querySelector(
+    ".import-history-add"
+  );
+  importElements.history.insertBefore(row, addButton);
+}
+
+function collectHistory() {
+  return [...importElements.history.querySelectorAll(
+    ".import-history-row:not(.import-history-header)"
+  )].map((row) => ({
+    numero_revisao: Number(
+      row.querySelector('[name="numero_revisao"]').value
+    ),
+    data_revisao:
+      row.querySelector('[name="data_revisao"]').value || null,
+    descricao:
+      row.querySelector('[name="descricao"]').value.trim() || null,
+    responsavel:
+      row.querySelector('[name="responsavel"]').value.trim() || null
+  })).filter((revision) => Number.isInteger(revision.numero_revisao));
 }
 
 function collectValues() {
@@ -490,7 +568,7 @@ async function uploadPdfIfNeeded() {
 
 async function saveImport() {
   if (!importState.extraction) {
-    throw new Error("Inicie a extração assistida antes de salvar.");
+    throw new Error("Reconheça os campos do PDF antes de salvar.");
   }
 
   const pdf = await uploadPdfIfNeeded();
@@ -537,6 +615,16 @@ async function saveImport() {
   }
 
   const saved = Array.isArray(data) ? data[0] : data;
+  const historyResult = await window.supabaseClient.rpc(
+    "salvar_historico_importacao_ficha",
+    {
+      p_importacao_id: saved.importacao_id,
+      p_historico: collectHistory()
+    }
+  );
+  if (historyResult.error) {
+    throw historyResult.error;
+  }
   importState.sheet = {
     ...(importState.sheet ?? {}),
     id: saved.ficha_id
@@ -598,12 +686,20 @@ async function startExtraction() {
       dadosReferencia: reference
     });
 
-  if (reference.ficha && !importState.sheet) {
+  if (!importState.sheet) {
+    const header = importState.extraction.cabecalho ?? {};
     importElements.documentCode.value =
-      reference.ficha.codigo_documento ?? "";
+      header.codigo_documento ??
+      reference.ficha?.codigo_documento ??
+      "";
     importElements.revision.value =
-      reference.ficha.numero_revisao ?? "";
-    importElements.date.value = reference.ficha.data_emissao ?? "";
+      header.numero_revisao ??
+      reference.ficha?.numero_revisao ??
+      "";
+    importElements.date.value =
+      header.data_emissao ??
+      reference.ficha?.data_emissao ??
+      "";
   }
 
   renderExtraction(importState.extraction);
@@ -701,11 +797,21 @@ async function loadExistingImport(importId) {
     data.fichas_tecnicas.numero_revisao;
   importElements.date.value = data.fichas_tecnicas.data_emissao ?? "";
 
-  const reference = await loadReferenceData(
-    data.fichas_tecnicas.produto_id,
-    data.fichas_tecnicas.tipo,
-    data.fichas_tecnicas.id
-  );
+  const [reference, historyResult] = await Promise.all([
+    loadReferenceData(
+      data.fichas_tecnicas.produto_id,
+      data.fichas_tecnicas.tipo,
+      data.fichas_tecnicas.id
+    ),
+    window.supabaseClient
+      .from("historico_fichas")
+      .select("numero_revisao, data_revisao, descricao, responsavel")
+      .eq("ficha_tecnica_id", data.fichas_tecnicas.id)
+      .order("numero_revisao")
+  ]);
+  if (historyResult.error) {
+    throw historyResult.error;
+  }
   importState.extraction = {
     modo: "ASSISTIDO_MANUAL",
     confiancaGeral:
@@ -729,7 +835,8 @@ async function loadExistingImport(importId) {
       };
     }),
     avisos: data.avisos ?? [],
-    camposNaoReconhecidos: data.campos_nao_reconhecidos ?? []
+    camposNaoReconhecidos: data.campos_nao_reconhecidos ?? [],
+    historicoRevisoes: historyResult.data ?? []
   };
   renderExtraction(importState.extraction);
 

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Carta de Temperatura de Vazamento | LIDUTEC+</title>
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/controle-processo.css">
+</head>
+<body class="app-page" data-control-view="pouring-temperature">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">L+</div>
+      <div><strong>LIDUTEC+</strong><span>Gestão Industrial</span></div>
+    </div>
+    <nav class="sidebar-nav"></nav>
+    <button id="logout-button" class="logout-button">Sair</button>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <button type="button" id="menu-button" class="menu-button">☰</button>
+      <div class="topbar-title">
+        <h1>Carta de Temperatura de Vazamento</h1>
+        <p>Temperatura encontrada comparada à especificação de cada molde</p>
+      </div>
+      <div class="user-box">
+        <div>
+          <strong id="user-name">Carregando...</strong>
+          <span id="user-profile">Usuário</span>
+        </div>
+        <div id="user-avatar" class="user-avatar">U</div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div id="temperature-loading" class="loading-state">Carregando medições...</div>
+      <div id="temperature-message" class="form-message" hidden></div>
+
+      <section class="panel temperature-filters">
+        <label>
+          Molde
+          <select id="temperature-item">
+            <option value="">Todos os moldes</option>
+          </select>
+        </label>
+        <label>
+          Início
+          <input id="temperature-from" type="datetime-local">
+        </label>
+        <label>
+          Fim
+          <input id="temperature-to" type="datetime-local">
+        </label>
+        <button id="temperature-last-24h" type="button" class="button button-secondary">
+          Últimas 24 horas
+        </button>
+        <button id="temperature-refresh" type="button" class="button button-primary">
+          Atualizar
+        </button>
+      </section>
+
+      <section class="temperature-summary" aria-label="Resumo das medições">
+        <article class="panel temperature-kpi">
+          <span>Moldes medidos</span>
+          <strong id="temperature-total">0</strong>
+        </article>
+        <article class="panel temperature-kpi">
+          <span>Conformes</span>
+          <strong id="temperature-conforming">0</strong>
+        </article>
+        <article class="panel temperature-kpi temperature-kpi-danger">
+          <span>Fora da especificação</span>
+          <strong id="temperature-outside">0</strong>
+        </article>
+        <article class="panel temperature-kpi">
+          <span>Temperatura média</span>
+          <strong id="temperature-average">—</strong>
+        </article>
+      </section>
+
+      <section class="panel temperature-chart-panel">
+        <div class="temperature-chart-heading">
+          <div>
+            <span class="eyebrow">Período selecionado</span>
+            <h3>Temperatura molde a molde</h3>
+          </div>
+          <div class="temperature-legend" aria-label="Legenda">
+            <span><i class="temperature-legend-measured"></i>Encontrada</span>
+            <span><i class="temperature-legend-min"></i>Mínima especificada</span>
+            <span><i class="temperature-legend-max"></i>Máxima especificada</span>
+            <span><i class="temperature-legend-outside"></i>Fora da faixa</span>
+          </div>
+        </div>
+        <p class="production-muted">
+          As linhas representam limites de especificação próprios de cada molde,
+          não limites estatísticos calculados.
+        </p>
+        <div id="temperature-chart-empty" class="empty-panel" hidden>
+          <strong>Nenhuma medição encontrada no período.</strong>
+        </div>
+        <div id="temperature-chart" class="temperature-chart" role="img"
+             aria-label="Carta de temperatura de vazamento"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <span class="eyebrow">Rastreabilidade</span>
+          <h3>Medições do período</h3>
+        </div>
+        <div class="table-wrapper">
+          <table class="products-table production-table">
+            <thead>
+              <tr>
+                <th>Data/hora</th>
+                <th>Molde</th>
+                <th>Encontrada</th>
+                <th>Mínima</th>
+                <th>Máxima</th>
+                <th>Tempo de vazamento</th>
+                <th>Situação</th>
+              </tr>
+            </thead>
+            <tbody id="temperature-records"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/temperatura-vazamento.js"></script>
+</body>
+</html>

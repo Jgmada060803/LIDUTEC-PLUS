@@ -730,6 +730,581 @@
   }
 }
 
+.import-history-help {
+  margin: 0 0 14px;
+  color: var(--color-text-muted);
+}
+
+.import-history-row {
+  display: grid;
+  grid-template-columns: 90px 150px minmax(260px, 1fr) minmax(160px, 0.5fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.import-history-row input {
+  width: 100%;
+}
+
+.import-history-header {
+  margin-bottom: 6px;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.import-history-add {
+  margin-top: 6px;
+}
+
+.import-history-remove {
+  padding: 9px 12px;
+}
+
+.technical-sheet-print-header {
+  display: none;
+}
+
+.product-delete-dialog {
+  width: min(620px, calc(100vw - 32px));
+  padding: 24px;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgb(12 43 52 / 28%);
+}
+
+.product-delete-dialog::backdrop {
+  background: rgb(35 9 9 / 65%);
+}
+
+.product-delete-dialog p {
+  color: var(--color-danger);
+  line-height: 1.55;
+}
+
+.product-delete-dialog label {
+  display: block;
+  margin: 18px 0 7px;
+  font-size: 0.82rem;
+}
+
+.product-delete-dialog input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-danger);
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.product-delete-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+@page {
+  size: A4 landscape;
+  margin: 29mm 6mm 7mm;
+}
+
+@media print {
+  :root {
+    --print-border: #202020;
+    --print-fill: #e8e8e8;
+  }
+
+  html,
+  body {
+    width: auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #000 !important;
+    background: #fff !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 7pt !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .sidebar,
+  .topbar,
+  .sheet-sticky-header,
+  .product-tabs,
+  .molding-metadata,
+  .molding-actions,
+  .molding-footer-toolbar,
+  .molding-revision-history,
+  .preview-banner,
+  .form-message,
+  .loading-state,
+  .empty-state,
+  dialog {
+    display: none !important;
+  }
+
+  .app-shell,
+  .main-content,
+  #molding-content,
+  #molding-form {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .technical-sheet-print-header {
+    position: fixed;
+    z-index: 20;
+    top: -24mm;
+    left: 0;
+    display: grid;
+    width: 100%;
+    height: 21mm;
+    grid-template-columns: 28mm 1fr 52mm;
+    grid-template-rows: 12mm 9mm;
+    border: 0.35mm solid var(--print-border);
+    color: #000;
+    background: #fff;
+  }
+
+  .print-sheet-brand,
+  .print-sheet-title,
+  .print-sheet-control,
+  .print-sheet-product {
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .print-sheet-brand {
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: 10mm 1fr;
+    align-items: center;
+    gap: 1.5mm;
+    padding: 1.2mm;
+    border-right: 0.25mm solid var(--print-border);
+  }
+
+  .print-sheet-brand > strong {
+    display: grid;
+    width: 9mm;
+    height: 9mm;
+    place-items: center;
+    border-radius: 50%;
+    color: #fff;
+    background: #0f4c5c;
+    font-size: 10pt;
+  }
+
+  .print-sheet-brand > span {
+    font-size: 7pt;
+    font-weight: 900;
+  }
+
+  .print-sheet-title {
+    grid-row: 1;
+    display: grid;
+    place-content: center;
+    border-right: 0.25mm solid var(--print-border);
+    text-align: center;
+  }
+
+  .print-sheet-title strong {
+    font-size: 11pt;
+  }
+
+  .print-sheet-title span {
+    margin-top: 1mm;
+    font-size: 8pt;
+    font-weight: 900;
+  }
+
+  .print-sheet-control {
+    grid-row: 1;
+    display: grid;
+    grid-template-rows: repeat(3, 1fr);
+  }
+
+  .print-sheet-control > span {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2mm;
+    border-bottom: 0.2mm solid var(--print-border);
+    font-size: 6.5pt;
+  }
+
+  .print-sheet-control > span:last-child {
+    border-bottom: 0;
+  }
+
+  .print-sheet-product {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: minmax(55mm, 1fr) 45mm minmax(0, 2fr);
+    align-items: stretch;
+    border-top: 0.25mm solid var(--print-border);
+  }
+
+  .print-sheet-product > span {
+    display: flex;
+    align-items: center;
+    gap: 1mm;
+    padding: 0 2mm;
+    border-right: 0.2mm solid var(--print-border);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .print-sheet-product > div {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(24mm, 1fr);
+    overflow: hidden;
+  }
+
+  .print-sheet-product > div > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0.6mm 1.2mm;
+    border-right: 0.2mm solid var(--print-border);
+  }
+
+  .print-sheet-product > div span,
+  .print-sheet-product > div strong {
+    overflow: hidden;
+    font-size: 5.5pt;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .molding-groups {
+    width: 100% !important;
+    gap: 1.2mm !important;
+    overflow: visible !important;
+  }
+
+  .molding-group {
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    break-inside: avoid;
+    border: 0.25mm solid var(--print-border) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .molding-group .panel-header {
+    min-height: 4.5mm;
+    margin: 0 !important;
+    padding: 0.8mm 1.4mm;
+    border-bottom: 0.25mm solid var(--print-border);
+    background: var(--print-fill) !important;
+  }
+
+  .molding-group .panel-header h3 {
+    margin: 0 !important;
+    color: #000 !important;
+    font-size: 6.5pt !important;
+    line-height: 1.1;
+    text-transform: uppercase;
+  }
+
+  .molding-group-description {
+    margin: 0 !important;
+    padding: 1mm 1.5mm !important;
+    border: 0 !important;
+    border-bottom: 0.2mm solid var(--print-border) !important;
+    color: #000 !important;
+    background: #fff !important;
+    font-size: 5.5pt !important;
+  }
+
+  .molding-parameter {
+    min-height: 4.6mm !important;
+    padding: 0.5mm 1mm !important;
+    break-inside: avoid;
+    border: 0 !important;
+    border-top: 0.2mm solid #777 !important;
+    border-radius: 0 !important;
+    column-gap: 1mm !important;
+  }
+
+  .molding-group .panel-header + .molding-parameter {
+    border-top: 0 !important;
+  }
+
+  .molding-parameter[data-critical="true"] {
+    border: 0.35mm solid #c00000 !important;
+  }
+
+  .molding-parameter-heading strong {
+    color: #000 !important;
+    font-size: 5.6pt !important;
+    line-height: 1.1 !important;
+  }
+
+  .molding-parameter-unit,
+  .molding-field-unit {
+    position: static !important;
+    padding: 0 !important;
+    color: #000 !important;
+    background: transparent !important;
+    font-size: 4.8pt !important;
+  }
+
+  .molding-critical-label {
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #c00000 !important;
+    background: transparent !important;
+    font-size: 4.5pt !important;
+  }
+
+  .molding-parameter-note {
+    margin: 0 !important;
+    color: #222 !important;
+    font-size: 4.8pt !important;
+    line-height: 1.1 !important;
+  }
+
+  .molding-value-grid,
+  .sheet-layout-molding .molding-value-grid {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: end !important;
+    justify-content: end !important;
+    gap: 0.6mm !important;
+  }
+
+  .molding-value-field,
+  .sheet-layout-molding .molding-value-field {
+    display: flex !important;
+    min-width: 12mm !important;
+    max-width: 24mm;
+    flex: 1 1 13mm !important;
+    gap: 0 !important;
+  }
+
+  .molding-value-field[hidden] {
+    display: none !important;
+  }
+
+  .molding-value-field span {
+    color: #000 !important;
+    font-size: 4.5pt !important;
+    line-height: 1.1;
+  }
+
+  .molding-value-field input,
+  .molding-value-field select {
+    width: 100% !important;
+    min-height: 4.2mm !important;
+    height: 4.2mm !important;
+    padding: 0 0.7mm !important;
+    border: 0.2mm solid var(--print-border) !important;
+    border-radius: 0 !important;
+    color: #000 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    font-size: 5.5pt !important;
+    text-align: center;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #000 !important;
+    appearance: none;
+  }
+
+  .molding-information-row {
+    grid-template-columns: 22mm 1fr !important;
+    gap: 1mm !important;
+    padding: 0.8mm 1.2mm !important;
+    break-inside: avoid;
+    border-top: 0.2mm solid #777 !important;
+    font-size: 5.2pt !important;
+  }
+
+  .molding-information-row span {
+    color: #000 !important;
+    line-height: 1.15 !important;
+  }
+
+  .sheet-layout-molding {
+    display: block !important;
+    column-count: 2;
+    column-gap: 1.2mm;
+    column-fill: auto;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] #molding-form {
+    width: 132% !important;
+    zoom: 0.76;
+  }
+
+  .sheet-layout-molding .molding-group {
+    display: inline-block;
+    width: 100%;
+    margin-bottom: 1.2mm !important;
+  }
+
+  .sheet-layout-molding .molding-parameter {
+    grid-template-columns: minmax(0, 1fr) minmax(26mm, auto) !important;
+    min-height: 3.2mm !important;
+    padding: 0.25mm 0.7mm !important;
+  }
+
+  .sheet-layout-molding .molding-group .panel-header {
+    min-height: 3.4mm;
+    padding: 0.45mm 1mm;
+  }
+
+  .sheet-layout-molding .molding-parameter-heading strong {
+    font-size: 5pt !important;
+  }
+
+  .sheet-layout-molding .molding-value-field input,
+  .sheet-layout-molding .molding-value-field select {
+    min-height: 3mm !important;
+    height: 3mm !important;
+    font-size: 4.8pt !important;
+  }
+
+  .sheet-layout-molding .molding-value-field span {
+    font-size: 4pt !important;
+  }
+
+  .sheet-layout-molding .layout-historico,
+  .sheet-layout-molding .layout-aprovacao,
+  .sheet-layout-molding .layout-matriz {
+    display: block;
+    column-span: all;
+  }
+
+  .sheet-layout-fusion {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    align-items: start;
+  }
+
+  .sheet-layout-fusion .molding-group {
+    grid-column: 1 / -1;
+    border-left-width: 0.25mm !important;
+  }
+
+  .sheet-layout-fusion .group-fv-especificacoes,
+  .sheet-layout-fusion .group-fv-matriz {
+    grid-column: span 2 !important;
+  }
+
+  .sheet-layout-fusion :is(
+    .group-fv-inoculacao,
+    .group-fv-nodularizacao,
+    .group-fv-temperaturas,
+    .group-fv-analise-termica
+  ) {
+    grid-column: span 1 !important;
+  }
+
+  .sheet-layout-fusion .layout-matriz {
+    grid-column: 1 / -1 !important;
+    overflow: visible !important;
+  }
+
+  .chemical-composition-table {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns:
+      14mm repeat(var(--chemical-columns), minmax(0, 1fr)) !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .chemical-table-corner,
+  .chemical-element,
+  .chemical-row-label {
+    min-width: 0 !important;
+    padding: 0.5mm 0.2mm !important;
+    border-color: var(--print-border) !important;
+    color: #000 !important;
+    background: var(--print-fill) !important;
+    font-size: 4.7pt !important;
+  }
+
+  .chemical-element small {
+    color: #000 !important;
+    font-size: 4pt !important;
+  }
+
+  .chemical-element {
+    color: #000 !important;
+    font-weight: 900 !important;
+  }
+
+  .sheet-layout-fusion .layout-matriz .chemical-parameter {
+    min-width: 0 !important;
+    grid-template: repeat(2, 5mm) / minmax(0, 1fr) !important;
+    padding: 0 !important;
+    border-right: 0.2mm solid var(--print-border) !important;
+  }
+
+  .chemical-parameter .molding-value-field {
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 0.3mm !important;
+  }
+
+  .chemical-parameter .molding-value-field input {
+    min-height: 4mm !important;
+    height: 4mm !important;
+    border: 0 !important;
+    color: #4169e1 !important;
+    -webkit-text-fill-color: #4169e1 !important;
+    font-size: 5pt !important;
+    font-weight: 900 !important;
+  }
+
+  .layout-historico {
+    break-before: auto;
+  }
+
+  .layout-aprovacao {
+    break-inside: avoid;
+  }
+}
+
+@media (max-width: 900px) {
+  .import-history-header {
+    display: none;
+  }
+
+  .import-history-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .import-history-row [name="descricao"],
+  .import-history-row [name="responsavel"],
+  .import-history-remove {
+    grid-column: 1 / -1;
+  }
+}
+
 .product-hero-content {
   min-width: 0;
 }
@@ -1341,6 +1916,8 @@
 
 .chemical-element {
   min-width: 85px;
+  color: var(--color-text);
+  font-weight: 900;
 }
 
 .chemical-element small {
@@ -1388,7 +1965,11 @@
   min-height: 20px;
   height: 20px;
   padding: 0 2px;
+  color: #4169e1 !important;
+  -webkit-text-fill-color: #4169e1 !important;
+  opacity: 1;
   text-align: center;
+  font-weight: 900;
 }
 
 .molding-parameter[data-critical="true"] {

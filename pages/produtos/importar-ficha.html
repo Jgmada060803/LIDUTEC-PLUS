@@ -118,7 +118,7 @@
           </div>
           <div class="import-toolbar">
             <button type="button" class="button button-secondary"
-              id="start-extraction">Iniciar extração assistida</button>
+              id="start-extraction">Reconhecer campos do PDF</button>
             <span id="import-state" class="status-badge desenvolvimento">
               Nova importação
             </span>
@@ -126,6 +126,18 @@
         </section>
 
         <div id="import-warnings" class="preview-banner" hidden></div>
+
+        <section class="panel import-history-panel" hidden
+          id="import-history-panel">
+          <div class="panel-header">
+            <span class="eyebrow">Documento original</span>
+            <h3>Histórico de revisões extraído</h3>
+          </div>
+          <p class="import-history-help">
+            Confira as revisões reconhecidas no PDF antes de salvar.
+          </p>
+          <div id="import-history"></div>
+        </section>
 
         <section class="import-workspace">
           <article class="panel import-pdf-panel">
@@ -147,7 +159,7 @@
             </div>
             <div id="import-fields-empty" class="empty-panel">
               <strong>Extração ainda não iniciada</strong>
-              <span>Selecione o PDF e inicie a extração assistida.</span>
+              <span>Selecione o PDF e inicie o reconhecimento dos campos.</span>
             </div>
             <div id="import-fields"></div>
           </article>
@@ -207,6 +219,15 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js">
+  </script>
+  <script>
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+    }
+  </script>
   <script src="../../assets/js/config.js"></script>
   <script src="../../assets/js/supabase.js"></script>
   <script src="../../assets/js/app.js"></script>

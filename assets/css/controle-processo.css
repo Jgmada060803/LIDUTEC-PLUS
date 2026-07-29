@@ -97,3 +97,202 @@
     width: 100%;
   }
 }
+
+.temperature-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(190px, 0.8fr)) auto auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.temperature-filters label {
+  display: grid;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.temperature-filters input,
+.temperature-filters select {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  color: var(--color-text);
+  background: #fff;
+}
+
+.temperature-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.temperature-kpi {
+  display: grid;
+  gap: 6px;
+}
+
+.temperature-kpi span {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.temperature-kpi strong {
+  color: var(--color-primary);
+  font-size: 1.7rem;
+}
+
+.temperature-kpi-danger strong {
+  color: var(--color-danger);
+}
+
+.temperature-chart-panel {
+  margin-bottom: 16px;
+}
+
+.temperature-chart-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.temperature-chart-heading h3 {
+  margin: 3px 0 0;
+}
+
+.temperature-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 14px;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.temperature-legend span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.temperature-legend i {
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  border-radius: 3px;
+  background: #0f4c5c;
+}
+
+.temperature-legend .temperature-legend-min {
+  background: #2563eb;
+}
+
+.temperature-legend .temperature-legend-max {
+  background: #f59e0b;
+}
+
+.temperature-legend .temperature-legend-outside {
+  width: 8px;
+  height: 8px;
+  background: #d92d20;
+}
+
+.temperature-chart {
+  width: 100%;
+  overflow-x: auto;
+  padding-top: 8px;
+}
+
+.temperature-chart svg {
+  display: block;
+  min-width: 100%;
+}
+
+.temperature-grid-line {
+  stroke: #dfe7ea;
+  stroke-width: 1;
+}
+
+.temperature-axis {
+  stroke: #8da0a8;
+  stroke-width: 1.2;
+}
+
+.temperature-axis-label {
+  fill: #667780;
+  font: 11px system-ui, sans-serif;
+}
+
+.temperature-measured-line,
+.temperature-limit-min,
+.temperature-limit-max {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.temperature-measured-line {
+  stroke: #0f4c5c;
+  stroke-width: 2.2;
+}
+
+.temperature-limit-min {
+  stroke: #2563eb;
+  stroke-width: 1.7;
+  stroke-dasharray: 6 4;
+}
+
+.temperature-limit-max {
+  stroke: #f59e0b;
+  stroke-width: 1.7;
+  stroke-dasharray: 6 4;
+}
+
+.temperature-point {
+  fill: #0f4c5c;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.temperature-point-outside {
+  fill: #d92d20;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.temperature-point-unspecified {
+  fill: #7b8790;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+@media (max-width: 1000px) {
+  .temperature-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .temperature-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .temperature-filters,
+  .temperature-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .temperature-chart-heading {
+    display: grid;
+  }
+
+  .temperature-legend {
+    justify-content: flex-start;
+  }
+}

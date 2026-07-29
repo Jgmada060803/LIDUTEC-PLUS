@@ -27,9 +27,22 @@ extrairFichaPdf({
 })
 ```
 
-Enquanto não houver OCR, o modo é `ASSISTIDO_MANUAL`. Valores só são
-pré-preenchidos quando já existem no cadastro usado como referência. Campos
-sem valor não são inferidos e a conferência humana permanece obrigatória.
+PDFs com camada de texto são processados no modo `PDF_TEXTO` com PDF.js. O
+extrator identifica cabeçalho, parâmetros de Moldagem, parâmetros de
+Fusão/Vazamento e histórico de revisões, mantendo a página e a linha de origem,
+além de uma confiança por campo.
+
+Nas fichas de Fusão/Vazamento, as matrizes de composição química são lidas por
+seção e coordenada de coluna para diferenciar os valores de forno e vazamento.
+Especificações de processo, propriedades mecânicas, inoculação, nodularização,
+temperaturas e análise térmica usam regras próprias do layout da ficha.
+PDFs digitalizados, sem camada de texto suficiente, informam explicitamente
+que precisam de OCR. A conferência humana permanece obrigatória em todos os
+modos.
+
+O histórico reconhecido pode ser corrigido na tela antes de salvar e é gravado
+em `historico_fichas` pela função
+`salvar_historico_importacao_ficha`.
 
 ## PDF original
 

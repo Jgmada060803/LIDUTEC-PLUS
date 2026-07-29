@@ -28,6 +28,9 @@ const moldingElements = {
   submitApprovalButton: document.querySelector("#molding-submit-approval"),
   approveButton: document.querySelector("#molding-approve"),
   rejectButton: document.querySelector("#molding-reject"),
+  productName: document.querySelector("#molding-product-name"),
+  productCode: document.querySelector("#molding-product-code"),
+  documentCode: document.querySelector("#molding-document-code"),
   editDialog: document.querySelector("#molding-edit-dialog"),
   baseSheetSelect: document.querySelector("#molding-base-sheet"),
   issueDate: document.querySelector("#molding-issue-date"),
@@ -63,6 +66,8 @@ const fichaConfig = window.location.pathname.includes(
       nome: "Moldagem",
       classeLayout: "sheet-layout-molding"
     };
+
+document.body.dataset.fichaTipo = fichaConfig.tipo;
 
 function getMoldingProductId() {
   return new URLSearchParams(window.location.search).get("produto");
@@ -355,6 +360,7 @@ function renderParameter(parameter) {
 function renderChemicalComposition(section, parameters) {
   const table = document.createElement("div");
   table.className = "chemical-composition-table";
+  table.style.setProperty("--chemical-columns", parameters.length);
   table.style.gridTemplateColumns =
     `72px repeat(${parameters.length}, 85px)`;
 
@@ -559,10 +565,12 @@ function renderizarFichaFusaoVazamento(groups, parameters) {
 function renderizarFichaPorTipo(groups, parameters) {
   if (fichaConfig.tipo === "FUSAO_VAZAMENTO") {
     renderizarFichaFusaoVazamento(groups, parameters);
+    prepareTechnicalSheetPrint();
     return;
   }
 
   renderizarFichaMoldagem(groups, parameters);
+  prepareTechnicalSheetPrint();
 }
 
 async function loadMoldingProduct(productId) {
@@ -1565,8 +1573,76 @@ moldingElements.historyButton?.addEventListener("click", () => {
 });
 
 moldingElements.printButton?.addEventListener("click", () => {
+  prepareTechnicalSheetPrint();
   window.print();
 });
+
+function createPrintHeader() {
+  const header = document.createElement("header");
+  header.id = "technical-sheet-print-header";
+  header.className = "technical-sheet-print-header";
+  header.innerHTML = `
+    <div class="print-sheet-brand">
+      <strong>L+</strong>
+      <span>LIDUTEC+</span>
+    </div>
+    <div class="print-sheet-title">
+      <strong>FICHA TÉCNICA DE PROCESSO</strong>
+      <span data-print-sheet-type></span>
+    </div>
+    <div class="print-sheet-control">
+      <span>Código: <strong data-print-code>—</strong></span>
+      <span>Revisão: <strong data-print-revision>0</strong></span>
+      <span>Data: <strong data-print-date>—</strong></span>
+    </div>
+    <div class="print-sheet-product">
+      <span>Produto: <strong data-print-product>—</strong></span>
+      <span>Código Metalsider: <strong data-print-product-code>—</strong></span>
+      <div data-print-product-meta></div>
+    </div>
+  `;
+  document.body.prepend(header);
+  return header;
+}
+
+function prepareTechnicalSheetPrint() {
+  const header = document.querySelector("#technical-sheet-print-header") ??
+    createPrintHeader();
+  const typeLabel = fichaConfig.tipo === "FUSAO_VAZAMENTO"
+    ? "FUSÃO / VAZAMENTO"
+    : "MOLDAÇÃO";
+  header.querySelector("[data-print-sheet-type]").textContent = typeLabel;
+  header.querySelector("[data-print-code]").textContent =
+    moldingState.sheet?.codigo_documento ??
+    moldingElements.documentCode?.textContent ??
+    "—";
+  header.querySelector("[data-print-revision]").textContent =
+    moldingState.sheet?.numero_revisao ?? 0;
+  const issueDate = moldingState.sheet?.data_emissao ??
+    moldingElements.issueDate?.value;
+  header.querySelector("[data-print-date]").textContent =
+    issueDate
+      ? window.LIDUTEC_FICHAS_UI.formatDate(issueDate)
+      : "—";
+  header.querySelector("[data-print-product]").textContent =
+    moldingState.product?.nome ??
+    moldingElements.productName?.textContent ??
+    "—";
+  header.querySelector("[data-print-product-code]").textContent =
+    moldingState.product?.codigo ??
+    moldingElements.productCode?.textContent?.replace(/^Código:\s*/i, "") ??
+    "—";
+
+  const meta = header.querySelector("[data-print-product-meta]");
+  meta.replaceChildren();
+  for (const item of document.querySelectorAll("#sheet-product-meta > div")) {
+    const clone = item.cloneNode(true);
+    meta.append(clone);
+  }
+}
+
+window.addEventListener("beforeprint", prepareTechnicalSheetPrint);
+createPrintHeader();
 
 moldingElements.pdfButton?.addEventListener("click", async () => {
   const importData = window.LIDUTEC_FICHAS_UI.getImport(
