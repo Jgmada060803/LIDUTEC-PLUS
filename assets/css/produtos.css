@@ -1206,7 +1206,9 @@
 
   .sheet-layout-fusion .group-fv-especificacoes,
   .sheet-layout-fusion .group-fv-matriz {
-    grid-column: span 2 !important;
+    display: grid !important;
+    grid-column: 1 / -1 !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 
   .sheet-layout-fusion :is(
@@ -1590,6 +1592,34 @@
   margin: 5px 0;
 }
 
+.topbar:has(.topbar-sheet-code) {
+  position: relative;
+}
+
+.topbar-sheet-code {
+  position: absolute;
+  left: 50%;
+  max-width: 260px;
+  transform: translateX(-50%);
+  overflow: hidden;
+  color: var(--color-primary);
+  font-size: 1rem;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-heading-statuses {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sheet-hero-status {
+  min-width: 150px;
+}
+
 .sheet-sticky-header {
   position: static;
   z-index: 15;
@@ -1839,7 +1869,17 @@
 
 .sheet-layout-fusion .group-fv-especificacoes,
 .sheet-layout-fusion .group-fv-matriz {
-  grid-column: span 2;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.sheet-layout-fusion :is(
+  .group-fv-especificacoes,
+  .group-fv-matriz
+) > :is(.panel-header, .molding-group-description) {
+  grid-column: 1 / -1;
 }
 
 .sheet-layout-fusion :is(
@@ -2177,6 +2217,36 @@
   grid-column: auto;
 }
 
+.sheet-layout-molding
+  .molding-parameter:is(
+    [data-parameter-code="MOLD_071_OPERACAO_3AB"],
+    [data-parameter-code="MOLD_101_MODO_AJUSTE"],
+    [data-parameter-code="MOLD_102_RETENTORES"],
+    [data-parameter-code="MOLD_116_AR_EXTRACAO"],
+    [data-parameter-code="MOLD_124_BICOS"],
+    [data-parameter-code="MOLD_145_SOPRO_TOPO"],
+    [data-parameter-code="MOLD_146_SOPRO_FRENTE"],
+    [data-parameter-code="MOLD_147_SOPRO_SUPERFICIE"],
+    [data-parameter-code="MOLD_151_SOBREPOSICAO_3B_4A"],
+    [data-parameter-code="MOLD_152_SOBREPOSICAO_4_5"],
+    [data-parameter-code="MOLD_153_SOBREPOSICAO_5_4"],
+    [data-parameter-code="MOLD_154_VELOCIDADE_CAMES"],
+    [data-parameter-code="MOLD_155_SOBREPOSICAO_3_6"],
+    [data-parameter-code="MOLD_156_SOBREPOSICAO_1_2_3"],
+    [data-parameter-code="MOLD_157_SOBREPOSICAO_6_7B"],
+    [data-parameter-code="MOLD_FILTRO_CERAMICO"]
+  )
+  .molding-value-field:not(:has([name="observacao"])) {
+  flex-basis: 280px;
+}
+
+.sheet-layout-molding .group-mold-dados-modelo .molding-value-field:has(
+  [name="valor_minimo"],
+  [name="valor_maximo"]
+) {
+  display: none !important;
+}
+
 .molding-value-field input:disabled,
 .molding-value-field select:disabled {
   color: var(--color-text-muted);
@@ -2254,6 +2324,112 @@
   font-size: 0.64rem;
 }
 
+.sheet-layout-fusion .group-fv-especificacoes .molding-parameter {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "heading"
+    "note"
+    "fields";
+}
+
+.sheet-layout-fusion .group-fv-especificacoes .molding-parameter-unit,
+.sheet-layout-fusion .group-fv-especificacoes .molding-value-field:not(:has(
+  [name="observacao"]
+)) > span {
+  display: none;
+}
+
+.sheet-layout-fusion .group-fv-especificacoes .molding-value-grid {
+  width: 100%;
+  margin-top: 3px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+}
+
+.sheet-layout-fusion .group-fv-especificacoes .molding-value-field:has(
+  [name="observacao"]
+) {
+  grid-column: auto;
+}
+
+.sheet-layout-fusion .group-fv-matriz .molding-parameter {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "heading"
+    "note"
+    "fields";
+}
+
+.sheet-layout-fusion .group-fv-matriz .molding-value-grid {
+  width: 100%;
+  margin-top: 3px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: stretch;
+}
+
+.sheet-layout-fusion .group-fv-matriz .molding-value-grid:has(
+  > :only-child
+) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sheet-layout-fusion .group-fv-matriz .molding-value-field:has(
+  [name="observacao"]
+) {
+  grid-column: auto;
+}
+
+.sheet-layout-fusion .group-fv-matriz .molding-value-field:has(
+  [name="valor_numerico"],
+  [name="valor_texto"],
+  [name="valor_booleano"],
+  [name="valor_data"]
+) > span {
+  display: none;
+}
+
+.sheet-layout-fusion :is(
+  .group-fv-especificacoes,
+  .group-fv-matriz
+) .molding-parameter-heading {
+  justify-content: space-between;
+  text-align: left;
+}
+
+.sheet-layout-fusion :is(
+  .group-fv-especificacoes,
+  .group-fv-matriz
+) .molding-parameter-heading > div {
+  text-align: left;
+}
+
+.sheet-layout-fusion :is(
+  .group-fv-especificacoes,
+  .group-fv-matriz
+) .molding-parameter-heading strong {
+  font-size: 0.83rem;
+}
+
+.sheet-layout-fusion :is(
+  .group-fv-especificacoes,
+  .group-fv-matriz
+) .molding-value-field > span {
+  text-align: center;
+}
+
+:is(
+  .sheet-layout-molding,
+  .sheet-layout-fusion
+) .molding-group:not(.layout-matriz) .molding-value-field :is(input, select) {
+  color: #000;
+  -webkit-text-fill-color: #000;
+  font-size: 0.83rem;
+  font-weight: 900;
+  opacity: 1;
+  text-align: center;
+  text-align-last: center;
+}
+
 .molding-actions {
   display: flex;
   justify-content: space-between;
@@ -2262,6 +2438,12 @@
 }
 
 @media (max-width: 900px) {
+  .topbar-sheet-code {
+    position: static;
+    margin-left: auto;
+    transform: none;
+  }
+
   .sheet-product-meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2290,6 +2472,13 @@
   .sheet-layout-molding .molding-value-grid {
     flex-wrap: wrap;
   }
+
+  .sheet-layout-fusion :is(
+    .group-fv-especificacoes,
+    .group-fv-matriz
+  ) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 600px) {
@@ -2305,6 +2494,15 @@
 
   .sheet-sticky-header {
     position: static;
+  }
+
+  .topbar-sheet-code {
+    display: none;
+  }
+
+  .sheet-heading-statuses {
+    align-items: flex-end;
+    flex-direction: column;
   }
 
   .sheet-sticky-header .sheet-product-meta {
@@ -2359,6 +2557,13 @@
 
   .molding-parameter {
     display: block;
+  }
+
+  .sheet-layout-fusion :is(
+    .group-fv-especificacoes,
+    .group-fv-matriz
+  ) {
+    grid-template-columns: 1fr;
   }
 
   .molding-parameter-heading {

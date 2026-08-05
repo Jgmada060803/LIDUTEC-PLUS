@@ -47,8 +47,8 @@
       </button>
       <div class="topbar-title">
         <h1>Ficha Técnica de Moldagem</h1>
-        <p id="molding-subtitle">Carregando produto...</p>
       </div>
+      <strong id="molding-document-code" class="topbar-sheet-code">Documento ainda não emitido</strong>
       <div class="user-box">
         <div>
           <strong id="user-name">Carregando...</strong>
@@ -78,7 +78,17 @@
                 <h2 id="molding-product-name">Produto</h2>
                 <p id="molding-product-code">—</p>
               </div>
-              <span id="sheet-product-status" class="status-badge"></span>
+              <div class="sheet-heading-statuses">
+                <span id="sheet-product-status" class="status-badge"></span>
+                <div class="molding-heading-status sheet-hero-status">
+                  <span>Status da ficha</span>
+                  <strong id="molding-sheet-status">Nova ficha</strong>
+                  <small id="molding-sheet-revision">Revisão 0</small>
+                  <small id="molding-header-issue-date">Emissão: —</small>
+                  <small id="molding-header-validity">Vigência: —</small>
+                  <small id="molding-administrative-status">Situação: —</small>
+                </div>
+              </div>
             </div>
             <section id="sheet-product-meta" class="product-meta-grid" aria-label="Dados compartilhados do produto"></section>
           </div>
@@ -92,20 +102,6 @@
           <a class="product-tab" data-product-tab-link="documentos" href="./detalhes.html">Documentos</a>
           <a class="product-tab" data-product-tab-link="revisoes" href="./detalhes.html">Revisões</a>
         </nav>
-        <section class="molding-heading panel sheet-status-summary">
-          <div>
-            <span class="eyebrow">Ficha técnica de Moldagem</span>
-            <strong id="molding-document-code">Documento ainda não emitido</strong>
-          </div>
-          <div class="molding-heading-status">
-            <span>Status da ficha</span>
-            <strong id="molding-sheet-status">Nova ficha</strong>
-            <small id="molding-sheet-revision">Revisão 0</small>
-            <small id="molding-header-issue-date">Emissão: —</small>
-            <small id="molding-header-validity">Vigência: —</small>
-            <small id="molding-administrative-status">Situação: —</small>
-          </div>
-        </section>
         </div>
         <form id="molding-form">
           <div id="molding-parameters" class="molding-groups"></div>

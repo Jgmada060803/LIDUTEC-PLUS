@@ -1,2 +1,49 @@
-<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lançar Produção | LIDUTEC+</title><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/producao-moldes.css"></head>
-<body class="app-page" data-production-page="entry"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>LIDUTEC+</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside><div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Lançar Produção</h1><p>Apontamento por produto e turno</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header><main class="main-content"><div id="production-loading" class="loading-state">Carregando...</div><form id="production-form" class="panel production-form" data-permission="producao_moldes.lancar"><label>Data operacional<input name="data_operacional" type="date" required></label><label>Turno<select name="turno" required><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label><label>Produto<select name="produto_id" data-products required><option value="">Selecione</option></select></label><label>Linha/máquina<select name="linha_maquina_id" data-lines><option value="">Não informada</option></select></label><label>Planejada<input name="quantidade_planejada" type="number" min="0" value="0" required></label><label>Produzida<input name="quantidade_produzida" type="number" min="0" value="0" required></label><label>Aprovada<input name="quantidade_aprovada" type="number" min="0" value="0" required></label><label>Refugada<input name="quantidade_refugada" type="number" min="0" value="0" required></label><label class="full">Observação<textarea name="observacao" rows="3"></textarea></label><div id="production-message" class="form-message" hidden></div><div class="production-form-actions"><a href="./index.html" class="button button-secondary">Voltar</a><button class="button button-primary">Registrar produção</button></div></form></main></div><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-moldes.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Apontamento do Turno | LIDUTEC+</title>
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/producao-moldes.css">
+</head>
+<body class="app-page" data-production-page="entry">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>LIDUTEC+</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+  <div class="app-shell">
+    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Produção de Moldes</h1><p>Apontamento e fechamento do turno</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+    <main class="main-content">
+      <div id="production-loading" class="loading-state">Carregando...</div>
+      <form id="shift-entry-form" data-permission="producao_moldes.lancar" hidden>
+        <section class="panel shift-header-grid">
+          <label>Data<input name="data_operacional" type="date" required></label>
+          <label>Turno<select name="turno" required><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
+          <div class="shift-status"><span>Status</span><strong id="shift-status">Em apontamento</strong></div>
+        </section>
+        <section class="panel shift-timeline-panel" aria-label="Linha do tempo do turno">
+          <div class="shift-timeline-heading"><strong>Linha do tempo do turno</strong><span><i class="timeline-key production"></i>Produção</span><span><i class="timeline-key stop"></i>Parada</span></div>
+          <div class="shift-timeline-labels"><span id="timeline-start">—</span><span id="timeline-end">—</span></div>
+          <div id="shift-timeline" class="shift-timeline"><div class="shift-timeline-production"></div><div id="shift-production-segments"></div><div id="shift-stop-segments"></div></div>
+        </section>
+
+        <section class="panel shift-table-panel">
+          <div class="shift-section-heading"><div><h2>Produção</h2></div></div>
+          <div class="table-wrapper"><table class="products-table shift-entry-table production-entry-table"><thead><tr><th>Data e hora início</th><th>Data e hora fim</th><th>Produto</th><th>Moldes vazados</th><th>Moldes quebrados</th><th>Total de moldes</th><th>Toneladas produzidas</th><th>Total de peças</th><th></th></tr></thead><tbody id="production-entry-rows"></tbody></table></div>
+          <button id="add-production-row" type="button" class="row-add-button" aria-label="Adicionar linha de produção" title="Adicionar linha">+</button>
+        </section>
+
+        <section class="panel shift-table-panel">
+          <div class="shift-section-heading"><div><h2>Parada</h2></div></div>
+          <div class="table-wrapper"><table class="products-table shift-entry-table stop-entry-table"><thead><tr><th>Data e hora início</th><th>Data e hora fim</th><th>Tempo total</th><th>Setor responsável</th><th>Motivo da parada</th><th>Observações</th><th></th></tr></thead><tbody id="stop-entry-rows"></tbody></table></div>
+          <button id="add-stop-row" type="button" class="row-add-button" aria-label="Adicionar linha de parada" title="Adicionar linha">+</button>
+        </section>
+
+        <div id="production-message" class="form-message" hidden role="status"></div>
+        <div class="shift-close-actions"><a href="./index.html" class="button button-secondary">Voltar</a><button id="delete-shift-button" type="button" class="button button-danger" hidden>Excluir turno</button><button id="edit-shift-button" type="button" class="button button-secondary" hidden>Editar turno</button><button id="close-shift-button" class="button button-primary">Fechar turno</button></div>
+        <section id="shift-edit-history" class="panel shift-history-panel" hidden><h2>Alterações após o fechamento</h2><div class="table-wrapper"><table class="products-table shift-history-table"><thead><tr><th>Data e hora</th><th>Alteração</th></tr></thead><tbody id="shift-edit-history-rows"></tbody></table></div></section>
+      </form>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-moldes.js"></script>
+</body>
+</html>

@@ -34,8 +34,8 @@
       <button type="button" class="menu-button" id="menu-button" aria-label="Abrir ou fechar menu">☰</button>
       <div class="topbar-title">
         <h1>Ficha Técnica de Fusão/Vazamento</h1>
-        <p id="molding-subtitle">Carregando produto...</p>
       </div>
+      <strong id="molding-document-code" class="topbar-sheet-code">Documento ainda não emitido</strong>
       <div class="user-box">
         <div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div>
         <div class="user-avatar" id="user-avatar">U</div>
@@ -61,7 +61,14 @@
                 <h2 id="molding-product-name">Produto</h2>
                 <p id="molding-product-code">—</p>
               </div>
-              <span id="sheet-product-status" class="status-badge"></span>
+              <div class="sheet-heading-statuses">
+                <span id="sheet-product-status" class="status-badge"></span>
+                <div class="molding-heading-status sheet-hero-status">
+                  <span>Status da ficha</span>
+                  <strong id="molding-sheet-status">Nova ficha</strong>
+                  <small id="molding-sheet-revision">Revisão 0</small>
+                </div>
+              </div>
             </div>
             <section id="sheet-product-meta" class="product-meta-grid" aria-label="Dados compartilhados do produto"></section>
           </div>
@@ -75,17 +82,6 @@
           <a class="product-tab" data-product-tab-link="documentos" href="./detalhes.html">Documentos</a>
           <a class="product-tab" data-product-tab-link="revisoes" href="./detalhes.html">Revisões</a>
         </nav>
-        <section class="molding-heading panel sheet-status-summary">
-          <div>
-            <span class="eyebrow">Ficha técnica de Fusão/Vazamento</span>
-            <strong id="molding-document-code">Documento ainda não emitido</strong>
-          </div>
-          <div class="molding-heading-status">
-            <span>Status da ficha</span>
-            <strong id="molding-sheet-status">Nova ficha</strong>
-            <small id="molding-sheet-revision">Revisão 0</small>
-          </div>
-        </section>
         </div>
 
         <form id="molding-form">

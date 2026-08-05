@@ -196,6 +196,7 @@ function renderParameter(parameter) {
   const card = document.createElement("article");
   card.className = "molding-parameter";
   card.dataset.parameterId = parameter.id;
+  card.dataset.parameterCode = parameter.codigo ?? "";
   card.dataset.dataType = parameter.tipo_dado;
   card.dataset.allowsRange = String(Boolean(parameter.permite_faixa));
   card.dataset.critical = String(Boolean(parameter.critico));
@@ -358,18 +359,41 @@ function renderParameter(parameter) {
 }
 
 function renderChemicalComposition(section, parameters) {
+  const optionalRangeCodes = new Set([
+    "FV_VAZ_MG",
+    "FV_VAZ_MO"
+  ]);
+  const displayParameters = parameters.map((parameter) => {
+    if (!optionalRangeCodes.has(parameter.codigo)) {
+      return parameter;
+    }
+
+    const storedValues = parameter.valores_parametros?.map((value) => ({
+      ...value,
+      valor_texto: null,
+      nao_aplicavel: false
+    })) ?? [];
+
+    return {
+      ...parameter,
+      tipo_dado: "NUMERO",
+      permite_faixa: true,
+      valores_parametros: storedValues
+    };
+  });
+
   const table = document.createElement("div");
   table.className = "chemical-composition-table";
-  table.style.setProperty("--chemical-columns", parameters.length);
+  table.style.setProperty("--chemical-columns", displayParameters.length);
   table.style.gridTemplateColumns =
-    `72px repeat(${parameters.length}, 85px)`;
+    `72px repeat(${displayParameters.length}, 85px)`;
 
   const corner = document.createElement("strong");
   corner.className = "chemical-table-corner";
   corner.textContent = "Faixa";
   table.append(corner);
 
-  for (const parameter of parameters) {
+  for (const parameter of displayParameters) {
     const header = document.createElement("strong");
     header.className = "chemical-element";
     header.textContent = parameter.nome;
@@ -389,7 +413,7 @@ function renderChemicalComposition(section, parameters) {
     table.append(label);
   });
 
-  parameters.forEach((parameter, index) => {
+  displayParameters.forEach((parameter, index) => {
     const card = renderParameter(parameter);
     card.classList.add("chemical-parameter");
     card.style.gridColumn = String(index + 2);
@@ -515,7 +539,18 @@ function renderGroups(groups, parameters) {
     }
 
     for (const parameter of groupParameters) {
-      section.append(renderParameter(parameter));
+      const card = renderParameter(parameter);
+      if (
+        fichaConfig.tipo === "MOLDAGEM" &&
+        group.codigo === "MOLD_DADOS_MODELO"
+      ) {
+        for (const fieldName of ["valor_minimo", "valor_maximo"]) {
+          card.querySelector(`[name="${fieldName}"]`)
+            ?.closest(".molding-value-field")
+            ?.remove();
+        }
+      }
+      section.append(card);
     }
 
     moldingElements.parameters.append(section);
@@ -639,13 +674,32 @@ async function loadMoldingParameters(sheetId, originSheetId = null) {
       .from("grupos_parametros")
       .select("*")
       .eq("tipo_ficha", fichaConfig.tipo)
+      .eq("ativo", true)
       .order("ordem_exibicao", { ascending: true });
 
   if (groupsError) {
     throw groupsError;
   }
 
-  const groupIds = (groups ?? []).map((group) => group.id);
+  const uniqueGroupsByName = new Map();
+  for (const group of groups ?? []) {
+    const normalizedName = String(group.nome ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase();
+    const existing = uniqueGroupsByName.get(normalizedName);
+    if (!existing || (!existing.codigo && group.codigo)) {
+      uniqueGroupsByName.set(normalizedName, group);
+    }
+  }
+  const uniqueGroups = [...uniqueGroupsByName.values()]
+    .sort((left, right) =>
+      Number(left.ordem_exibicao ?? 0) -
+      Number(right.ordem_exibicao ?? 0)
+    );
+
+  const groupIds = uniqueGroups.map((group) => group.id);
   if (groupIds.length === 0) {
     return { groups: [], parameters: [] };
   }
@@ -655,6 +709,7 @@ async function loadMoldingParameters(sheetId, originSheetId = null) {
     .from("parametros")
     .select("*")
     .in("grupo_id", groupIds)
+    .eq("ativo", true)
     .order("ordem_exibicao", { ascending: true });
 
   if (parametersError) {
@@ -713,7 +768,7 @@ async function loadMoldingParameters(sheetId, originSheetId = null) {
   );
 
   return {
-    groups: groups ?? [],
+    groups: uniqueGroups,
     parameters: parametersWithValues,
     originValues
   };
@@ -814,8 +869,10 @@ async function loadSheetSupportData(sheetId) {
 function updateMoldingHeader() {
   const { product, sheet } = moldingState;
   const ui = window.LIDUTEC_FICHAS_UI;
-  document.querySelector("#molding-subtitle").textContent =
-    `${product.codigo} — ${product.nome}`;
+  const subtitle = document.querySelector("#molding-subtitle");
+  if (subtitle) {
+    subtitle.textContent = `${product.codigo} — ${product.nome}`;
+  }
   document.querySelector("#molding-product-name").textContent =
     `${product.codigo} — ${product.nome}`;
   document.querySelector("#molding-product-code").textContent =

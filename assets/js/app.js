@@ -253,7 +253,7 @@ function syncSidebarNavigation() {
       <a href="${prefix}producao-moldes/index.html"
          class="${activeClass(isActive("producao-moldes"))}"
          data-permission="producao_moldes.visualizar">
-        Produção de Moldes
+        Registros de Produção
       </a>
     </div>
 
