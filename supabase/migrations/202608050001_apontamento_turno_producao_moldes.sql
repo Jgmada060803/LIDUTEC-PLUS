@@ -80,6 +80,8 @@ language plpgsql security definer
 set search_path=pg_catalog,public as $$
 declare
   v_turno_id bigint;
+  v_esperado integer;
+  v_inserido integer;
 begin
   if not public.usuario_tem_permissao_producao_moldes('producao_moldes.lancar') then
     raise exception 'Usuário sem permissão para fechar o turno.';
@@ -100,6 +102,7 @@ begin
     raise exception 'Este turno já foi apontado ou fechado.';
   end if;
 
+  v_esperado := jsonb_array_length(coalesce(p_producoes,'[]'::jsonb));
   insert into public.registros_producao_moldes (
     turno_producao_id,data_operacional,turno,produto_id,inicio,fim,
     quantidade_planejada,quantidade_produzida,quantidade_aprovada,quantidade_refugada,
@@ -120,8 +123,12 @@ begin
     and item.moldes_vazados>=0 and item.moldes_quebrados>=0
     and produto.cavidades_molde is not null and produto.peso_peca_kg is not null;
 
-  if not found then raise exception 'Produção inválida ou produto sem peso/cavidades.'; end if;
+  get diagnostics v_inserido = row_count;
+  if v_inserido <> v_esperado then
+    raise exception 'Uma ou mais produções são inválidas ou possuem produto sem peso/cavidades.';
+  end if;
 
+  v_esperado := jsonb_array_length(coalesce(p_paradas,'[]'::jsonb));
   insert into public.paradas_producao_moldes (
     turno_producao_id,data_operacional,turno,categoria_id,setor_responsavel_id,
     motivo,inicio,fim,duracao_minutos,observacao,criado_por
@@ -134,6 +141,10 @@ begin
   ) join public.categorias_parada_producao categoria on categoria.id=item.categoria_id
   where item.inicio is not null and item.fim is not null and item.fim>=item.inicio
     and item.setor_id is not null;
+  get diagnostics v_inserido = row_count;
+  if v_inserido <> v_esperado then
+    raise exception 'Uma ou mais paradas possuem dados ou horários inválidos.';
+  end if;
 
   return v_turno_id;
 end;

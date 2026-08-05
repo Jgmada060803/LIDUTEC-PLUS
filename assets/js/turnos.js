@@ -43,6 +43,35 @@
     if (duration < 0) throw new Error("A duração da parada não pode ser negativa.");
     return duration;
   }
+  function shiftBounds(operationalDate, shiftCode) {
+    const shift = shifts[shiftCode];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(operationalDate)) || !shift) {
+      throw new Error("Data operacional ou turno inválido.");
+    }
+    const start = new Date(`${operationalDate}T${shift.inicio}`);
+    const end = new Date(`${operationalDate}T${shift.fim}`);
+    if (end <= start) end.setDate(end.getDate() + 1);
+    return { start, end };
+  }
+  function intervalWithinShift(operationalDate, shiftCode, startValue, endValue) {
+    const bounds = shiftBounds(operationalDate, shiftCode);
+    const start = new Date(startValue);
+    const end = new Date(endValue);
+    return !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) &&
+      start >= bounds.start && end <= bounds.end && end >= start;
+  }
+  function productionCalculation(moldesVazados, moldesQuebrados, pecasPorMolde, pesoPecaKg) {
+    const poured = Math.max(0, Number(moldesVazados || 0));
+    const broken = Math.max(0, Number(moldesQuebrados || 0));
+    const cavities = Math.max(0, Number(pecasPorMolde || 0));
+    const weight = Math.max(0, Number(pesoPecaKg || 0));
+    const totalPieces = poured * cavities;
+    return {
+      totalMolds: poured + broken,
+      totalPieces,
+      tons: Number((totalPieces * weight / 1000).toFixed(6))
+    };
+  }
   const effectiveMinutes = (scheduled, stops) =>
     Math.max(0, Number(scheduled || 0) - Math.max(0, Number(stops || 0)));
   const percentage = (part, total) =>
@@ -50,6 +79,9 @@
   return {
     shifts,
     determineShift,
+    shiftBounds,
+    intervalWithinShift,
+    productionCalculation,
     stopDurationMinutes,
     effectiveMinutes,
     planAttendance: (actual, planned) => percentage(actual, planned),

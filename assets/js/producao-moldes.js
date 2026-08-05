@@ -7,20 +7,10 @@ const formatDateTime = (value) => value ? new Date(value).toLocaleString("pt-BR"
 const formatMinutes = (value) => `${Math.floor(number(value)/60)}h ${String(number(value)%60).padStart(2,"0")}min`;
 function message(text,type="success"){const el=q("#production-message");if(!el)return;el.textContent=text;el.className=`form-message ${type}`;el.hidden=false}
 async function loadSupport(){
-  const [products,lines,categories,sectors]=await Promise.all([
-    window.supabaseClient.from("produtos").select("id,codigo,nome,cavidades_molde,peso_peca_kg").eq("status","ATIVO").order("codigo"),
-    window.supabaseClient.from("linhas_maquinas_producao").select("id,codigo,nome").eq("ativo",true).order("codigo"),
-    window.supabaseClient.from("categorias_parada_producao").select("id,codigo,nome").eq("ativo",true).order("nome"),
-    window.supabaseClient.from("setores_responsaveis_parada").select("id,codigo,nome").eq("ativo",true).order("nome")
-  ]);
-  if(products.error)throw products.error;
-  if(lines.error)throw lines.error;if(categories.error)throw categories.error;
-  if(sectors.error)throw sectors.error;
-  productionState.products=products.data||[];
-  productionState.lines=lines.data||[];productionState.categories=categories.data||[];productionState.sectors=sectors.data||[];
+  const{products,lines,categories,sectors}=await window.LIDUTEC_PRODUCAO_DATA.support();productionState.products=products;productionState.lines=lines;productionState.categories=categories;productionState.sectors=sectors;
   for(const select of document.querySelectorAll("[data-products]"))select.insertAdjacentHTML("beforeend",productionState.products.map(p=>`<option value="${p.id}">${esc(p.codigo)} — ${esc(p.nome)}</option>`).join(""));
-  for(const select of document.querySelectorAll("[data-lines]"))select.insertAdjacentHTML("beforeend",(lines.data||[]).map(x=>`<option value="${x.id}">${esc(x.codigo)} — ${esc(x.nome)}</option>`).join(""));
-  for(const select of document.querySelectorAll("[data-categories]"))select.insertAdjacentHTML("beforeend",(categories.data||[]).map(x=>`<option value="${x.id}">${esc(x.nome)}</option>`).join(""));
+  for(const select of document.querySelectorAll("[data-lines]"))select.insertAdjacentHTML("beforeend",lines.map(x=>`<option value="${x.id}">${esc(x.codigo)} — ${esc(x.nome)}</option>`).join(""));
+  for(const select of document.querySelectorAll("[data-categories]"))select.insertAdjacentHTML("beforeend",categories.map(x=>`<option value="${x.id}">${esc(x.nome)}</option>`).join(""));
   for(const select of document.querySelectorAll("[data-sectors]"))select.insertAdjacentHTML("beforeend",productionState.sectors.map(x=>`<option value="${x.id}">${esc(x.nome)}</option>`).join(""));
 }
 
@@ -37,11 +27,11 @@ function stopRow(){
 }
 function shiftDateTimeBounds(){
   const form=q("#shift-entry-form"),date=form?.elements.data_operacional.value,shift=window.LIDUTEC_TURNOS.shifts[form?.elements.turno.value];if(!date||!shift)return null;
-  const start=new Date(`${date}T${shift.inicio}`),end=new Date(`${date}T${shift.fim}`);if(end<=start)end.setDate(end.getDate()+1);
+  const{start,end}=window.LIDUTEC_TURNOS.shiftBounds(date,form.elements.turno.value);
   const inputValue=value=>{const pad=item=>String(item).padStart(2,"0");return`${value.getFullYear()}-${pad(value.getMonth()+1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`};return{start,end,min:inputValue(start),max:inputValue(end)};
 }
 function applyShiftDateTimeLimits(){const bounds=shiftDateTimeBounds();if(!bounds)return;for(const input of document.querySelectorAll('.shift-entry-table input[type="datetime-local"]')){input.min=bounds.min;input.max=bounds.max}}
-function validateShiftInterval(startValue,endValue,label){const bounds=shiftDateTimeBounds(),start=new Date(startValue),end=new Date(endValue);if(!bounds||start<bounds.start||start>bounds.end||end<bounds.start||end>bounds.end)throw new Error(`${label} deve estar entre ${bounds?.min.replace("T"," ")} e ${bounds?.max.replace("T"," ")}.`);if(end<start)throw new Error(`O fim de ${label.toLowerCase()} não pode ser anterior ao início.`)}
+function validateShiftInterval(startValue,endValue,label){const form=q("#shift-entry-form"),bounds=shiftDateTimeBounds();if(!bounds||!window.LIDUTEC_TURNOS.intervalWithinShift(form.elements.data_operacional.value,form.elements.turno.value,startValue,endValue))throw new Error(`${label} deve estar entre ${bounds?.min.replace("T"," ")} e ${bounds?.max.replace("T"," ")}.`)}
 function appendEntryRow(target,row){q(target).append(row);applyShiftDateTimeLimits();}
 function shiftDraftKey(){return `lidutec:producao-moldes:rascunho:${productionState.user?.id||"anonimo"}`;}
 function rowValues(row){return Object.fromEntries([...row.querySelectorAll("input,select")].map(control=>[control.name,control.value]));}
@@ -68,8 +58,8 @@ function resetShiftEntryRows(){
 function updateProductionRow(row){
   const product=productionState.products.find(x=>String(x.id)===row.querySelector('[name="produto_id"]').value);
   const poured=number(row.querySelector('[name="moldes_vazados"]').value);const broken=number(row.querySelector('[name="moldes_quebrados"]').value);
-  const pieces=poured*number(product?.cavidades_molde);const tons=pieces*number(product?.peso_peca_kg)/1000;
-  row.querySelector("[data-total-moldes]").textContent=poured+broken;row.querySelector("[data-total-pecas]").textContent=pieces.toLocaleString("pt-BR");row.querySelector("[data-toneladas]").textContent=tons.toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3});renderShiftTimeline();
+  const calculation=window.LIDUTEC_TURNOS.productionCalculation(poured,broken,product?.cavidades_molde,product?.peso_peca_kg);
+  row.querySelector("[data-total-moldes]").textContent=calculation.totalMolds;row.querySelector("[data-total-pecas]").textContent=calculation.totalPieces.toLocaleString("pt-BR");row.querySelector("[data-toneladas]").textContent=calculation.tons.toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3});renderShiftTimeline();
 }
 function updateStopRow(row){
   const start=row.querySelector('[name="inicio"]').value,end=row.querySelector('[name="fim"]').value;
@@ -121,13 +111,14 @@ function populateShiftRows(productions,stops){
   for(const item of stops.length?stops:[{}]){const row=stopRow();applyRowValues(row,{inicio:toDateTimeInput(item.inicio),fim:toDateTimeInput(item.fim),setor_id:item.setor_responsavel_id??item.setor_id??"",categoria_id:item.categoria_id??"",observacao:item.observacao??""});q("#stop-entry-rows").append(row);try{updateStopRow(row)}catch{}}
 }
 async function loadShiftHistory(turnId){
-  const{data,error}=await window.supabaseClient.from("historico_edicoes_turno_producao").select("alterado_em,descricao,usuarios(nome)").eq("turno_producao_id",turnId).order("alterado_em",{ascending:false});if(error)throw error;
-  const panel=q("#shift-edit-history");panel.hidden=!data?.length;q("#shift-edit-history-rows").innerHTML=(data||[]).map(item=>`<tr><td>${formatDateTime(item.alterado_em)}</td><td>${esc(item.usuarios?.nome||"Usuário")} alterou ${esc(item.descricao)}.</td></tr>`).join("");
+  const data=await window.LIDUTEC_PRODUCAO_DATA.history(turnId);
+  const rows=(data||[]).flatMap(item=>{const normalize=snapshot=>({productions:snapshot?.productions||[],stops:(snapshot?.stops||[]).map(stop=>({...stop,setor_id:stop.setor_responsavel_id}))}),changes=item.dados_anteriores&&item.dados_novos?changeDescriptions(normalize(item.dados_anteriores),normalize(item.dados_novos)):[item.descricao];return(changes.length?changes:[item.descricao]).map(description=>({alterado_em:item.alterado_em,nome:item.usuarios?.nome||"Usuário",description}))});
+  const panel=q("#shift-edit-history");panel.hidden=!rows.length;q("#shift-edit-history-rows").innerHTML=rows.map(item=>`<tr><td>${formatDateTime(item.alterado_em)}</td><td>${esc(item.nome)} alterou ${esc(item.description)}.</td></tr>`).join("");
 }
 async function editClosedShift(){
   const turnId=productionState.currentShift?.id;if(!turnId)return;
-  const[productions,stops]=await Promise.all([window.supabaseClient.from("registros_producao_moldes").select("produto_id,inicio,fim,moldes_vazados,moldes_quebrados").eq("turno_producao_id",turnId).order("inicio"),window.supabaseClient.from("paradas_producao_moldes").select("inicio,fim,setor_responsavel_id,categoria_id,observacao").eq("turno_producao_id",turnId).order("inicio")]);if(productions.error)throw productions.error;if(stops.error)throw stops.error;
-  productionState.originalShiftData={productions:productions.data||[],stops:stops.data||[]};populateShiftRows(productionState.originalShiftData.productions,productionState.originalShiftData.stops);productionState.editingClosed=true;
+  const[productions,stops]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.shiftProductions(turnId),window.LIDUTEC_PRODUCAO_DATA.shiftStops(turnId)]);
+  productionState.originalShiftData={productions,stops};populateShiftRows(productions,stops);productionState.editingClosed=true;
   const form=q("#shift-entry-form");for(const control of form.querySelectorAll("tbody input,tbody select,tbody button,#add-production-row,#add-stop-row"))control.disabled=false;q("#edit-shift-button").hidden=true;q("#delete-shift-button").hidden=true;q("#close-shift-button").hidden=false;q("#close-shift-button").disabled=false;q("#close-shift-button").textContent="Salvar alterações";q("#shift-status").textContent="Editando turno fechado";
 }
 function changeDescriptions(original,current){
@@ -140,16 +131,16 @@ function changeDescriptions(original,current){
 }
 async function checkShiftStatus(){
   const form=q("#shift-entry-form"),date=form.elements.data_operacional.value,shift=form.elements.turno.value;if(!date||!shift)return;
-  const{data,error}=await window.supabaseClient.from("turnos_producao_moldes").select("id,status").eq("data_operacional",date).eq("turno",shift).maybeSingle();if(error)throw error;
+  const data=await window.LIDUTEC_PRODUCAO_DATA.shift(date,shift);
   productionState.currentShift=data;productionState.editingClosed=false;productionState.originalShiftData=null;const closed=data?.status==="FECHADO",canEdit=closed&&productionState.permissions.has("producao_moldes.editar"),canDelete=closed&&productionState.permissions.has("producao_moldes.excluir_turno");q("#shift-status").textContent=closed?"Fechado":"Em apontamento";q("#close-shift-button").hidden=closed;q("#close-shift-button").disabled=closed;q("#close-shift-button").textContent="Fechar turno";q("#edit-shift-button").hidden=!canEdit;q("#delete-shift-button").hidden=!canDelete;q("#delete-shift-button").disabled=false;for(const control of form.querySelectorAll("tbody input,tbody select,tbody button,#add-production-row,#add-stop-row"))control.disabled=closed;if(data?.id)await loadShiftHistory(data.id);else q("#shift-edit-history").hidden=true;
 }
 async function deleteClosedShift(){
   const turnId=productionState.currentShift?.id;if(!turnId)return;if(!confirm("Excluir definitivamente este turno, suas produções, paradas e histórico de alterações?"))return;
-  const button=q("#delete-shift-button");button.disabled=true;try{const{error}=await window.supabaseClient.rpc("excluir_turno_producao_moldes",{p_turno_id:turnId});if(error)throw error;localStorage.removeItem(shiftDraftKey());resetShiftEntryRows();q("#shift-edit-history").hidden=true;message("Turno excluído com sucesso.");await checkShiftStatus()}catch(error){message(error.message,"error");button.disabled=false}
+  const button=q("#delete-shift-button");button.disabled=true;try{await window.LIDUTEC_PRODUCAO_DATA.deleteShift(turnId);localStorage.removeItem(shiftDraftKey());resetShiftEntryRows();q("#shift-edit-history").hidden=true;message("Turno excluído com sucesso.");await checkShiftStatus()}catch(error){message(error.message,"error");button.disabled=false}
 }
 async function closeShift(event){
   event.preventDefault();const button=q("#close-shift-button");button.disabled=true;
-  try{const form=event.currentTarget,{productions,stops}=serializeShift();if(productionState.editingClosed){const changes=changeDescriptions(productionState.originalShiftData,{productions,stops});const{error}=await window.supabaseClient.rpc("editar_turno_producao_moldes",{p_turno_id:productionState.currentShift.id,p_producoes:productions,p_paradas:stops,p_alteracoes:changes});if(error)throw error;localStorage.removeItem(shiftDraftKey());resetShiftEntryRows();message("Alterações do turno salvas com sucesso.");await checkShiftStatus();return}const{error}=await window.supabaseClient.rpc("fechar_turno_producao_moldes",{p_data_operacional:form.elements.data_operacional.value,p_turno:form.elements.turno.value,p_producoes:productions,p_paradas:stops});if(error)throw error;localStorage.removeItem(shiftDraftKey());resetShiftEntryRows();message("Turno fechado com sucesso.");await checkShiftStatus();}
+  try{const form=event.currentTarget,{productions,stops}=serializeShift();if(productionState.editingClosed){const changes=changeDescriptions(productionState.originalShiftData,{productions,stops});await window.LIDUTEC_PRODUCAO_DATA.editShift({p_turno_id:productionState.currentShift.id,p_producoes:productions,p_paradas:stops,p_alteracoes:changes});localStorage.removeItem(shiftDraftKey());resetShiftEntryRows();message("Alterações do turno salvas com sucesso.");await checkShiftStatus();return}await window.LIDUTEC_PRODUCAO_DATA.closeShift({p_data_operacional:form.elements.data_operacional.value,p_turno:form.elements.turno.value,p_producoes:productions,p_paradas:stops});localStorage.removeItem(shiftDraftKey());resetShiftEntryRows();message("Turno fechado com sucesso.");await checkShiftStatus();}
   catch(error){message(error.message,"error");button.disabled=false;}
 }
 function initializeShiftEntry(){
@@ -162,29 +153,21 @@ function initializeShiftEntry(){
   q("#delete-shift-button").addEventListener("click",deleteClosedShift);
 }
 async function loadProductionData(){
-  const [records,stops]=await Promise.all([
-    window.supabaseClient.from("registros_producao_moldes").select("*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome)").order("data_operacional",{ascending:false}).limit(500),
-    window.supabaseClient.from("paradas_producao_moldes").select("*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome),categorias_parada_producao(nome),setores_responsaveis_parada(nome)").order("inicio",{ascending:false}).limit(500)
-  ]);
-  if(records.error)throw records.error;if(stops.error)throw stops.error;
-  productionState.records=records.data||[];productionState.stops=stops.data||[];
+  [productionState.records,productionState.stops]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.records(),window.LIDUTEC_PRODUCAO_DATA.stops()]);
 }
 function productionTotals(records=productionState.records,stops=productionState.stops){
-  const planned=records.reduce((sum,x)=>sum+number(x.quantidade_planejada),0);
-  const produced=records.reduce((sum,x)=>sum+number(x.quantidade_produzida),0);
-  const approved=records.reduce((sum,x)=>sum+number(x.quantidade_aprovada),0);
-  const scrap=records.reduce((sum,x)=>sum+number(x.quantidade_refugada),0);
+  const poured=records.reduce((sum,x)=>sum+number(x.moldes_vazados),0),broken=records.reduce((sum,x)=>sum+number(x.moldes_quebrados),0),totalMolds=poured+broken,totalPieces=records.reduce((sum,x)=>sum+number(x.total_pecas),0),tons=records.reduce((sum,x)=>sum+number(x.toneladas_produzidas),0);
   const stopMinutes=stops.reduce((sum,x)=>sum+number(x.duracao_minutos),0);
   const scheduled=[...new Set(records.map(x=>`${x.data_operacional}|${x.turno}`))].reduce((sum,key)=>sum+window.LIDUTEC_TURNOS.shifts[key.split("|")[1]].minutos,0);
   const worked=window.LIDUTEC_TURNOS.effectiveMinutes(scheduled,stopMinutes);
-  return{planned,produced,approved,scrap,stopMinutes,worked,attendance:window.LIDUTEC_TURNOS.planAttendance(produced,planned),scrapRate:window.LIDUTEC_TURNOS.scrapPercentage(scrap,produced),productivity:worked?Number((produced/(worked/60)).toFixed(2)):0};
+  return{poured,broken,totalMolds,totalPieces,tons,stopMinutes,worked,productivity:worked?Number((totalMolds/(worked/60)).toFixed(2)):0};
 }
 function renderDashboard(){
   const today=window.LIDUTEC_TURNOS.determineShift().dataOperacional;
   const records=productionState.records.filter(x=>x.data_operacional===today);
   const stops=productionState.stops.filter(x=>x.data_operacional===today);
   const t=productionTotals(records,stops);
-  const values={produced:t.produced,planned:t.planned,attendance:`${t.attendance}%`,stops:formatMinutes(t.stopMinutes),worked:formatMinutes(t.worked),productivity:t.productivity,scrap:t.scrap,scrapRate:`${t.scrapRate}%`};
+  const values={poured:t.poured,broken:t.broken,totalMolds:t.totalMolds,totalPieces:t.totalPieces.toLocaleString("pt-BR"),tons:t.tons.toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3}),stops:formatMinutes(t.stopMinutes),worked:formatMinutes(t.worked),productivity:t.productivity};
   for(const [key,value] of Object.entries(values)){const el=q(`[data-metric="${key}"]`);if(el)el.textContent=value}
   renderBars(records,"#shift-chart",x=>x.turno,x=>x.quantidade_produzida);
   renderProductionQuery();
@@ -213,18 +196,6 @@ function renderCharts(){
   renderBars(productionState.records,"#product-chart",x=>x.produtos?.codigo||"—",x=>x.quantidade_produzida);
   renderBars(productionState.stops,"#stop-chart",x=>x.categorias_parada_producao?.nome||"—",x=>x.duracao_minutos);
 }
-async function submitProduction(event){
-  event.preventDefault();const form=event.currentTarget;const button=event.submitter;button.disabled=true;
-  try{const payload=Object.fromEntries(new FormData(form));for(const key of["quantidade_planejada","quantidade_produzida","quantidade_aprovada","quantidade_refugada"])payload[key]=number(payload[key]);payload.produto_id=number(payload.produto_id);payload.linha_maquina_id=payload.linha_maquina_id?number(payload.linha_maquina_id):null;payload.criado_por=productionState.user.id;
-    const{error}=await window.supabaseClient.from("registros_producao_moldes").insert(payload);if(error)throw error;form.reset();applyCurrentShift(form);message("Produção registrada com sucesso.");
-  }catch(error){message(error.message,"error")}finally{button.disabled=false}
-}
-async function submitStop(event){
-  event.preventDefault();const form=event.currentTarget;const button=event.submitter;button.disabled=true;
-  try{const payload=Object.fromEntries(new FormData(form));const shift=window.LIDUTEC_TURNOS.determineShift(payload.inicio);payload.data_operacional=shift.dataOperacional;payload.turno=shift.codigo;payload.produto_id=payload.produto_id?number(payload.produto_id):null;payload.linha_maquina_id=payload.linha_maquina_id?number(payload.linha_maquina_id):null;payload.categoria_id=number(payload.categoria_id);payload.duracao_minutos=window.LIDUTEC_TURNOS.stopDurationMinutes(payload.inicio,payload.fim);payload.criado_por=productionState.user.id;
-    const{error}=await window.supabaseClient.from("paradas_producao_moldes").insert(payload);if(error)throw error;form.reset();message(`Parada registrada: ${formatMinutes(payload.duracao_minutos)}.`);
-  }catch(error){message(error.message,"error")}finally{button.disabled=false}
-}
 function applyCurrentShift(form){const shift=window.LIDUTEC_TURNOS.determineShift();form.querySelector('[name="data_operacional"]')?.setAttribute("value",shift.dataOperacional);const select=form.querySelector('[name="turno"]');if(select)select.value=shift.codigo}
 async function initializeProduction(){
   const user=await window.LIDUTEC_APP.requireAuthenticatedUser();if(!user)return;
@@ -237,8 +208,6 @@ async function initializeProduction(){
   if(productionPage==="dashboard")renderDashboard();if(productionPage==="records")renderRecords();if(productionPage==="stops")renderStops();if(productionPage==="charts")renderCharts();
   q("#production-query-filters")?.addEventListener("input",renderProductionQuery);q("#stop-query-filters")?.addEventListener("input",renderStops);
   if(productionPage==="entry"){if(!permissions.has("producao_moldes.lancar"))throw new Error("Usuário sem permissão para lançar produção.");initializeShiftEntry();}
-  const productionForm=q("#production-form");if(productionForm){applyCurrentShift(productionForm);productionForm.addEventListener("submit",submitProduction)}
-  q("#stop-form")?.addEventListener("submit",submitStop);
 }
 q("#menu-button")?.addEventListener("click",()=>q("#sidebar").classList.toggle("open"));q("#logout-button")?.addEventListener("click",()=>window.LIDUTEC_APP.signOut());
 initializeProduction().catch(error=>{console.error(error);q("#production-loading").textContent=`Erro: ${error.message}`});

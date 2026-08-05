@@ -21,5 +21,26 @@ assert.equal(shifts.effectiveMinutes(440, 500), 0);
 assert.equal(shifts.effectiveMinutes(490, 70), 420);
 assert.equal(shifts.planAttendance(90, 100), 90);
 assert.equal(shifts.scrapPercentage(5, 100), 5);
+const nightBounds = shifts.shiftBounds("2026-07-24", "NOITE");
+assert.equal(nightBounds.start.getDate(), 24);
+assert.equal(nightBounds.end.getDate(), 25);
+assert.equal(
+  shifts.intervalWithinShift(
+    "2026-07-24", "NOITE",
+    "2026-07-24T22:00:00", "2026-07-25T05:30:00"
+  ),
+  true
+);
+assert.equal(
+  shifts.intervalWithinShift(
+    "2026-07-24", "MANHA",
+    "2026-07-24T05:59:00", "2026-07-24T07:00:00"
+  ),
+  false
+);
+assert.deepEqual(
+  shifts.productionCalculation(10, 2, 6, 6.82),
+  { totalMolds: 12, totalPieces: 60, tons: 0.4092 }
+);
 
 console.log("Testes de turnos e indicadores: OK");
