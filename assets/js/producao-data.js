@@ -30,7 +30,22 @@
     shift: (date, shift) => result(client().from("turnos_producao_moldes").select("id,status").eq("data_operacional", date).eq("turno", shift).maybeSingle(), null),
     shiftProductions: (id) => result(client().from("registros_producao_moldes").select("produto_id,inicio,fim,moldes_vazados,moldes_quebrados").eq("turno_producao_id", id).order("inicio")),
     shiftStops: (id) => result(client().from("paradas_producao_moldes").select("inicio,fim,setor_responsavel_id,categoria_id,observacao").eq("turno_producao_id", id).order("inicio")),
-    history: (id) => result(client().from("historico_edicoes_turno_producao").select("alterado_em,descricao,dados_anteriores,dados_novos,usuarios(nome)").eq("turno_producao_id", id).order("alterado_em", { ascending: false })),
+    history: async (id) => {
+      const table = "historico_edicoes_turno_producao";
+      const detailed = await client().from(table)
+        .select("alterado_em,descricao,dados_anteriores,dados_novos,usuarios(nome)")
+        .eq("turno_producao_id", id)
+        .order("alterado_em", { ascending: false });
+      if (!detailed.error) return detailed.data ?? [];
+      const missingSnapshots = /dados_anteriores|dados_novos/i.test(
+        `${detailed.error.message || ""} ${detailed.error.details || ""}`
+      );
+      if (!missingSnapshots) throw detailed.error;
+      return result(client().from(table)
+        .select("alterado_em,descricao,usuarios(nome)")
+        .eq("turno_producao_id", id)
+        .order("alterado_em", { ascending: false }));
+    },
     closeShift: (payload) => result(client().rpc("fechar_turno_producao_moldes", payload)),
     editShift: (payload) => result(client().rpc("editar_turno_producao_moldes", payload)),
     deleteShift: (id) => result(client().rpc("excluir_turno_producao_moldes", { p_turno_id: id }))

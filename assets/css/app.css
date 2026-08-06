@@ -1,7 +1,8 @@
 :root {
-  --color-primary: #0f4c5c;
-  --color-primary-dark: #0a3540;
-  --color-primary-light: #e8f1f3;
+  --color-primary: #1f45a8;
+  --color-primary-dark: #142d73;
+  --color-primary-light: #e9efff;
+  --color-accent: #c5162e;
 
   --color-background: #f4f6f8;
   --color-surface: #ffffff;
@@ -13,10 +14,10 @@
 
   --color-success: #147d4f;
   --color-warning: #b7791f;
-  --color-danger: #b42318;
+  --color-danger: #b90e2c;
 
   --shadow-card:
-    0 18px 45px rgba(15, 76, 92, 0.12);
+    0 18px 45px rgba(31, 69, 168, 0.14);
 
   --radius-small: 8px;
   --radius-medium: 14px;
@@ -85,7 +86,7 @@ button {
 .form-group input:focus {
   border-color: var(--color-primary);
   box-shadow:
-    0 0 0 3px rgba(15, 76, 92, 0.14);
+    0 0 0 3px rgba(31, 69, 168, 0.16);
 }
 
 .button {

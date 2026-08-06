@@ -1663,6 +1663,15 @@ function createPrintHeader() {
 }
 
 function prepareTechnicalSheetPrint() {
+  let pageStyle = document.querySelector("#technical-sheet-page-style");
+  if (!pageStyle) {
+    pageStyle = document.createElement("style");
+    pageStyle.id = "technical-sheet-page-style";
+    document.head.append(pageStyle);
+  }
+  pageStyle.textContent = fichaConfig.tipo === "MOLDAGEM"
+    ? "@page { size: A4 portrait; margin: 12mm 4mm 3mm; }"
+    : "@page { size: A4 landscape; margin: 29mm 6mm 7mm; }";
   const header = document.querySelector("#technical-sheet-print-header") ??
     createPrintHeader();
   const typeLabel = fichaConfig.tipo === "FUSAO_VAZAMENTO"

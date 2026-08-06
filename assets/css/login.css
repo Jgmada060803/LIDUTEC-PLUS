@@ -10,9 +10,10 @@
   background:
     linear-gradient(
       135deg,
-      #092f39 0%,
-      #0f4c5c 48%,
-      #dde9ec 48%,
+      #142d73 0%,
+      #1f45a8 45%,
+      #c5162e 48%,
+      #e7ecf8 48%,
       #f4f6f8 100%
     );
 }
@@ -42,8 +43,9 @@
   background:
     linear-gradient(
       160deg,
-      rgba(8, 47, 57, 0.96),
-      rgba(15, 76, 92, 0.9)
+      rgba(20, 45, 115, 0.98),
+      rgba(31, 69, 168, 0.94) 78%,
+      rgba(197, 22, 46, 0.92)
     );
 }
 

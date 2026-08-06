@@ -41,7 +41,7 @@
 .form-group textarea:focus {
   border-color: var(--color-primary);
   box-shadow:
-    0 0 0 3px rgba(15, 76, 92, 0.14);
+    0 0 0 3px rgba(31, 69, 168, 0.16);
 }
 
 .form-group-full {
@@ -186,7 +186,7 @@
   width: 18px;
   height: 3px;
   border-radius: 3px;
-  background: #0f4c5c;
+  background: var(--color-primary);
 }
 
 .temperature-legend .temperature-legend-min {
@@ -238,7 +238,7 @@
 }
 
 .temperature-measured-line {
-  stroke: #0f4c5c;
+  stroke: #1f45a8;
   stroke-width: 2.2;
 }
 
@@ -255,7 +255,7 @@
 }
 
 .temperature-point {
-  fill: #0f4c5c;
+  fill: #1f45a8;
   stroke: #fff;
   stroke-width: 1.5;
 }

@@ -611,7 +611,7 @@
 .form-group select:focus {
   border-color: var(--color-primary);
   box-shadow:
-    0 0 0 3px rgba(15, 76, 92, 0.14);
+    0 0 0 3px rgba(31, 69, 168, 0.16);
 }
 
 .form-group-full {
@@ -807,8 +807,8 @@
 }
 
 @page {
-  size: A4 landscape;
-  margin: 29mm 6mm 7mm;
+  size: A4 portrait;
+  margin: 12mm 4mm 3mm;
 }
 
 @media print {
@@ -829,6 +829,38 @@
     font-size: 7pt !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .technical-sheet-print-header {
+    top: -10mm;
+    height: 10mm;
+    grid-template-columns: 24mm 1fr 43mm;
+    grid-template-rows: 6mm 4mm;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .print-sheet-brand {
+    grid-template-columns: 8mm 1fr;
+    gap: 1mm;
+    padding: 0.8mm;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .print-sheet-brand > strong {
+    width: 5mm;
+    height: 5mm;
+    font-size: 6.5pt;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .print-sheet-title strong {
+    font-size: 7.5pt;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .print-sheet-title span {
+    margin-top: 0;
+    font-size: 6pt;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .print-sheet-product {
+    grid-template-columns: minmax(42mm, 1fr) 38mm minmax(0, 1.5fr);
   }
 
   .sidebar,
@@ -901,7 +933,7 @@
     place-items: center;
     border-radius: 50%;
     color: #fff;
-    background: #0f4c5c;
+    background: var(--color-primary);
     font-size: 10pt;
   }
 
@@ -1150,8 +1182,73 @@
   }
 
   body[data-ficha-tipo="MOLDAGEM"] #molding-form {
-    width: 132% !important;
-    zoom: 0.76;
+    width: 100% !important;
+    zoom: 1;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding {
+    display: block !important;
+    width: 100% !important;
+    columns: 2;
+    column-gap: 1mm;
+    column-rule: 0.25mm solid var(--print-border);
+    column-fill: balance;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding .molding-group {
+    display: inline-block;
+    width: 100% !important;
+    margin: 0 0 0.8mm !important;
+    break-inside: avoid-column;
+    border-width: 0.3mm !important;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding :is(
+    .layout-historico,
+    .layout-aprovacao,
+    .layout-matriz
+  ) {
+    display: block;
+    width: 100% !important;
+    column-span: all;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding .molding-group .panel-header {
+    min-height: 3.6mm;
+    padding: 0.45mm 0.9mm;
+    background: #d9e2f3 !important;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding .molding-group .panel-header h3 {
+    font-size: 6.2pt !important;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding .molding-parameter {
+    min-height: 3mm !important;
+    grid-template-columns: minmax(0, 1fr) 36mm !important;
+    padding: 0.15mm 0.55mm !important;
+    border-top: 0.2mm solid #555 !important;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding .molding-parameter-heading strong {
+    font-size: 6pt !important;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding :is(.molding-parameter-unit, .molding-parameter-note) {
+    font-size: 5.2pt !important;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding .molding-value-field input,
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding .molding-value-field select {
+    min-height: 2.8mm !important;
+    height: 2.8mm !important;
+    border-color: #555 !important;
+    font-size: 5.8pt !important;
+    font-weight: 700 !important;
+  }
+
+  body[data-ficha-tipo="MOLDAGEM"] .sheet-layout-molding .molding-value-field span {
+    font-size: 5pt !important;
   }
 
   .sheet-layout-molding .molding-group {
@@ -2718,7 +2815,7 @@
 .form-group textarea:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.14);
+  box-shadow: 0 0 0 3px rgba(31, 69, 168, 0.16);
 }
 
 @media (max-width: 900px) {

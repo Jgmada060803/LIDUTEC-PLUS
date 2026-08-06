@@ -16,7 +16,7 @@
   flex-direction: column;
 
   color: #ffffff;
-  background: #0b3540;
+  background: #142d73;
 
   transition: transform 180ms ease;
 }
@@ -94,6 +94,7 @@
 
 .nav-link:hover,
 .nav-link.active {
+  box-shadow: inset 3px 0 0 var(--color-accent);
   color: #ffffff;
   background: rgba(255, 255, 255, 0.1);
 }
@@ -182,7 +183,7 @@
   border-radius: 50%;
 
   color: #ffffff;
-  background: #0f4c5c;
+  background: var(--color-primary);
 
   font-weight: 900;
 }
@@ -205,8 +206,9 @@
   background:
     linear-gradient(
       135deg,
-      #0b3540,
-      #0f4c5c
+      #142d73,
+      #1f45a8 72%,
+      #c5162e
     );
 }
 
@@ -346,7 +348,7 @@
 
 .module-card:hover {
   transform: translateY(-2px);
-  border-color: #0f4c5c;
+  border-color: var(--color-primary);
   background: #edf5f7;
 }
 
