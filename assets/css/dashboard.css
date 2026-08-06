@@ -21,6 +21,16 @@
   transition: transform 180ms ease;
 }
 
+.sidebar::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 6px;
+  background: var(--color-accent);
+  content: "";
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;
@@ -29,16 +39,23 @@
   padding: 4px 6px 28px;
 }
 
+.sidebar-brand > div:not(.sidebar-logo) {
+  display: none;
+}
+
 .sidebar-logo {
-  width: 46px;
-  height: 46px;
+  width: 112px;
+  height: 36px;
 
   display: grid;
   place-items: center;
 
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 14px;
+  border: 0;
 
+  overflow: hidden;
+  border-radius: 4px;
+  background: transparent url("../images/metalsider-logo-transparent.png") center / contain no-repeat;
+  font-size: 0;
   font-weight: 900;
 }
 
@@ -202,14 +219,9 @@
 
   border-radius: 18px;
 
+  border-bottom: 5px solid var(--color-accent);
   color: #ffffff;
-  background:
-    linear-gradient(
-      135deg,
-      #142d73,
-      #1f45a8 72%,
-      #c5162e
-    );
+  background: var(--color-primary-dark);
 }
 
 .eyebrow {

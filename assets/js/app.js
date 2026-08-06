@@ -151,11 +151,24 @@ async function getUserPermissions(userId) {
     }
   }
 
-  return new Set(
+  const resolvedPermissions = new Set(
     [...permissions.entries()]
       .filter(([, allowed]) => allowed)
       .map(([code]) => code)
   );
+
+  if (resolvedPermissions.has("ficha.visualizar")) {
+    resolvedPermissions.add("it.visualizar");
+  }
+
+  if (
+    resolvedPermissions.has("ficha.criar") ||
+    resolvedPermissions.has("ficha.editar_rascunho")
+  ) {
+    resolvedPermissions.add("it.gerenciar");
+  }
+
+  return resolvedPermissions;
 }
 
 function userHasAnyPermission(
@@ -234,35 +247,34 @@ function syncSidebarNavigation() {
     </div>
 
     <div class="nav-section">
-      <span class="nav-title">Produção</span>
+      <span class="nav-title">Controle de Processo</span>
       <a href="${prefix}controle-processo/lista.html"
-         class="${activeClass(
-           isActive("controle-processo") &&
-           !isActive("controle-processo", "temperatura-vazamento.html")
-         )}"
-         data-permission="controle_processo.visualizar">
+         class="${activeClass(isActive("controle-processo"))}"
+         data-permission="controle_processo.visualizar,checklist.visualizar,it.visualizar">
         Controle de Processo
-      </a>
-      <a href="${prefix}controle-processo/temperatura-vazamento.html"
-         class="${activeClass(
-           isActive("controle-processo", "temperatura-vazamento.html")
-         )}"
-         data-permission="controle_processo.visualizar">
-        Temperatura de Vazamento
-      </a>
-      <a href="${prefix}producao-moldes/index.html"
-         class="${activeClass(isActive("producao-moldes"))}"
-         data-permission="producao_moldes.visualizar">
-        Registros de Produção
       </a>
     </div>
 
     <div class="nav-section">
-      <span class="nav-title">Qualidade</span>
+      <span class="nav-title">Produção</span>
+      <a href="${prefix}producao-moldes/index.html"
+         class="${activeClass(isActive("producao-moldes") && !isActive("producao-moldes", "paradas.html"))}"
+         data-permission="producao_moldes.visualizar">
+        Registros de Produção
+      </a>
+      <a href="${prefix}producao-moldes/paradas.html"
+         class="${activeClass(isActive("producao-moldes", "paradas.html"))}"
+         data-permission="producao_moldes.visualizar">
+        Paradas de Produção
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <span class="nav-title">Manutenção</span>
       <a href="${prefix}reclamacoes/index.html"
          class="${activeClass(isActive("reclamacoes"))}"
          data-permission="reclamacao.visualizar">
-        Reclamações do Cliente
+        Solicitações de Manutenção
       </a>
     </div>
 
@@ -272,6 +284,16 @@ function syncSidebarNavigation() {
          class="${activeClass(isActive("administracao"))}"
          data-permission="usuarios.visualizar">
         Usuários e acessos
+      </a>
+      <a href="${prefix}administracao/areas-operacionais.html"
+         class="${activeClass(isActive("administracao", "areas-operacionais.html"))}"
+         data-permission="usuarios.gerenciar_acessos">
+        Áreas operacionais
+      </a>
+      <a href="${prefix}administracao/codigos-parada.html"
+         class="${activeClass(isActive("administracao", "codigos-parada.html"))}"
+         data-permission="paradas.configurar_codigos">
+        Códigos de parada
       </a>
     </div>
   `;
@@ -314,3 +336,9 @@ window.LIDUTEC_APP = {
   applyPermissionVisibility,
   signOut
 };
+
+if (window.location.pathname.endsWith("/administracao/codigos-parada.html")) {
+  const importScript = document.createElement("script");
+  importScript.src = "../../assets/js/codigos-parada-import.js";
+  document.head.append(importScript);
+}

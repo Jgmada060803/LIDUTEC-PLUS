@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Controle de Processo | LIDUTEC+</title>
+  <title>Controle de Processo | Metalsider</title>
 
   <link rel="stylesheet" href="../../assets/css/app.css">
   <link rel="stylesheet" href="../../assets/css/dashboard.css">
@@ -19,7 +19,7 @@
       <div class="sidebar-logo">L+</div>
 
       <div>
-        <strong>LIDUTEC+</strong>
+        <strong>Metalsider</strong>
         <span>Gestão Industrial</span>
       </div>
     </div>
@@ -129,84 +129,12 @@
     <main class="main-content">
 
       <section class="page-heading">
-
-        <div>
-          <span class="eyebrow">Produção e qualidade</span>
-
-          <h2>Planos de Controle</h2>
-
-          <p>
-            Selecione o controle que deseja lançar,
-            consultar ou analisar.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          id="new-plan-button"
-          class="button button-primary"
-          data-permission="controle_processo.configurar"
-        >
-          Novo plano
-        </button>
-
+        <div><span class="eyebrow">Processo industrial</span><h2>Controles disponíveis</h2><p>Acesse os registros, verificações e documentos controlados do processo.</p></div>
       </section>
-
-      <section class="control-summary">
-
-        <article class="summary-card">
-          <span>Planos ativos</span>
-          <strong id="active-plans-count">0</strong>
-        </article>
-
-        <article class="summary-card">
-          <span>Registros hoje</span>
-          <strong id="today-records-count">0</strong>
-        </article>
-
-        <article class="summary-card">
-          <span>Fora de especificação</span>
-          <strong id="nonconforming-count">0</strong>
-        </article>
-
-      </section>
-
-      <section class="panel control-panel">
-
-        <div class="panel-header control-panel-header">
-
-          <div>
-            <span class="eyebrow">Controles disponíveis</span>
-            <h3>Selecione um plano</h3>
-          </div>
-
-          <div class="search-box">
-            <label class="sr-only" for="plan-search">
-              Pesquisar plano
-            </label>
-
-            <input
-              type="search"
-              id="plan-search"
-              placeholder="Pesquisar controle..."
-            >
-          </div>
-
-        </div>
-
-        <div id="plans-loading" class="loading-state">
-          Carregando planos de controle...
-        </div>
-
-        <div id="plans-empty" class="empty-panel" hidden>
-          <strong>Nenhum plano encontrado</strong>
-          <span>
-            Cadastre um plano de controle para começar.
-          </span>
-        </div>
-
-        <div id="plans-grid" class="plans-grid"></div>
-
+      <section class="process-module-grid">
+        <a class="panel process-module-card process-module-temperature" href="./temperatura-vazamento.html" data-permission="controle_processo.visualizar"><span class="process-module-icon">°C</span><div><strong>Temperatura de Vazamento</strong><p>Registros por produto e corrida, consulta histórica e acompanhamento das temperaturas.</p></div><span class="process-module-arrow">→</span></a>
+        <a class="panel process-module-card process-module-checklist" href="./checklists.html" data-permission="checklist.visualizar"><span class="process-module-icon">✓</span><div><strong>Checklists Operacionais</strong><p>Verificações de Moldagem, Vazamento, Fusão, Macharia e Acabamento.</p></div><span class="process-module-arrow">→</span></a>
+        <a class="panel process-module-card process-module-documents" href="./instrucoes-trabalho.html" data-permission="it.visualizar"><span class="process-module-icon">IT</span><div><strong>Instruções de Trabalho</strong><p>Revisões, especificações e aprovação sequencial pela Engenharia e Produção.</p></div><span class="process-module-arrow">→</span></a>
       </section>
 
     </main>
@@ -217,7 +145,7 @@
   <script src="../../assets/js/config.js"></script>
   <script src="../../assets/js/supabase.js"></script>
   <script src="../../assets/js/app.js"></script>
-  <script src="../../assets/js/controle-processo.js"></script>
+  <script src="../../assets/js/controle-processo-home.js"></script>
 
 </body>
 </html>

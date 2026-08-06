@@ -1641,7 +1641,7 @@ function createPrintHeader() {
   header.innerHTML = `
     <div class="print-sheet-brand">
       <strong>L+</strong>
-      <span>LIDUTEC+</span>
+      <span>Metalsider</span>
     </div>
     <div class="print-sheet-title">
       <strong>FICHA TÉCNICA DE PROCESSO</strong>

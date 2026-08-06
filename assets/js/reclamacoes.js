@@ -48,6 +48,8 @@ async function openDetail(id) {
   $("#detail-code").textContent = complaint.codigo; $("#detail-title").textContent = complaint.titulo; $("#detail-description").textContent = complaint.descricao;
   $("#detail-meta").innerHTML = `<p><strong>Cliente:</strong> ${escapeHtml(complaint.cliente_nome)}</p><p><strong>Produto:</strong> ${escapeHtml(complaint.produtos?.nome || "—")}</p><p><strong>Prioridade:</strong> ${label(complaint.prioridade)}</p><p><strong>Ocorrência:</strong> ${formatDate(complaint.data_ocorrencia)}</p>`;
   $("#status-form [name=status]").value = complaint.status;
+  $("#status-form [name=prazo_atendimento]").value = complaint.prazo_atendimento || "";
+  $("#status-form [name=acao_planejada]").value = complaint.acao_planejada || "";
   const [attachments,comments,actions] = await Promise.all([
     window.supabaseClient.from("reclamacoes_anexos").select("*").eq("reclamacao_id",id).order("criado_em"),
     window.supabaseClient.from("reclamacoes_comentarios").select("*").eq("reclamacao_id",id).order("criado_em"),
@@ -113,7 +115,7 @@ $("#complaint-form").addEventListener("submit", async (event) => {
   submitButton.textContent = "Registrando...";
   try {
     const form = new FormData(complaintForm);
-    const code = `RC-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    const code = `SM-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
     const payload = Object.fromEntries(["titulo","cliente_nome","descricao","prioridade","data_ocorrencia","produto_id"].map((key) => [key,form.get(key) || null]));
     payload.codigo = code;
     const { data, error } = await window.supabaseClient.from("reclamacoes_cliente").insert(payload).select("id").single();
@@ -139,7 +141,7 @@ $("#complaint-form").addEventListener("submit", async (event) => {
 });
 $("#comment-form").addEventListener("submit", async (event) => { event.preventDefault(); const form=event.currentTarget; const text=new FormData(form).get("comentario"); const {error}=await window.supabaseClient.from("reclamacoes_comentarios").insert({reclamacao_id:state.current.id,comentario:text}); if(error)return alert(error.message); form.reset(); openDetail(state.current.id); });
 $("#action-form").addEventListener("submit", async (event) => { event.preventDefault(); const form=event.currentTarget; const payload=Object.fromEntries(new FormData(form)); payload.reclamacao_id=state.current.id; const {error}=await window.supabaseClient.from("reclamacoes_acoes").insert(payload); if(error)return alert(error.message); form.reset(); openDetail(state.current.id); });
-$("#status-form").addEventListener("submit", async (event) => { event.preventDefault(); const status=new FormData(event.currentTarget).get("status"); const {error}=await window.supabaseClient.from("reclamacoes_cliente").update({status,atualizado_em:new Date().toISOString()}).eq("id",state.current.id); if(error)return alert(error.message); await loadComplaints(); openDetail(state.current.id); });
+$("#status-form").addEventListener("submit", async (event) => { event.preventDefault(); const form=new FormData(event.currentTarget),payload={status:form.get("status"),prazo_atendimento:form.get("prazo_atendimento")||null,acao_planejada:form.get("acao_planejada")||null,atualizado_em:new Date().toISOString()}; const {error}=await window.supabaseClient.from("reclamacoes_cliente").update(payload).eq("id",state.current.id); if(error)return alert(error.message); await loadComplaints(); openDetail(state.current.id); });
 $("#new-complaint").addEventListener("click",() => show("create"));
 $("#delete-complaint").addEventListener("click", deleteCurrentComplaint);
 document.addEventListener("click",(event) => { const card=event.target.closest("[data-id]"); if(card) openDetail(card.dataset.id); if(event.target.closest("[data-back]")) show("list"); });

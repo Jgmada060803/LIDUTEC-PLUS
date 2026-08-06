@@ -1,20 +1,21 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Apontamento do Turno | LIDUTEC+</title>
+  <title>Apontamento do Turno | Metalsider</title>
   <link rel="stylesheet" href="../../assets/css/app.css">
   <link rel="stylesheet" href="../../assets/css/dashboard.css">
   <link rel="stylesheet" href="../../assets/css/producao-moldes.css">
 </head>
 <body class="app-page" data-production-page="entry">
-  <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>LIDUTEC+</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+  <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
   <div class="app-shell">
     <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Produção de Moldes</h1><p>Apontamento e fechamento do turno</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
     <main class="main-content">
       <div id="production-loading" class="loading-state">Carregando...</div>
       <form id="shift-entry-form" data-permission="producao_moldes.lancar" hidden>
+        <section id="shift-checklist-alerts" class="shift-checklist-alerts" hidden aria-live="polite"></section>
         <section class="panel shift-header-grid">
           <label>Data<input name="data_operacional" type="date" required></label>
           <label>Turno<select name="turno" required><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
@@ -44,6 +45,6 @@
       </form>
     </main>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-data.js"></script><script src="../../assets/js/producao-moldes.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-data.js"></script><script src="../../assets/js/producao-moldes.js"></script><script src="../../assets/js/producao-checklist-alerts.js"></script>
 </body>
 </html>

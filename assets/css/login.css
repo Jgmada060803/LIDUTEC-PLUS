@@ -7,15 +7,7 @@
 
   padding: 32px;
 
-  background:
-    linear-gradient(
-      135deg,
-      #142d73 0%,
-      #1f45a8 45%,
-      #c5162e 48%,
-      #e7ecf8 48%,
-      #f4f6f8 100%
-    );
+  background: var(--color-background);
 }
 
 .login-container {
@@ -40,17 +32,12 @@
 
   color: #ffffff;
 
-  background:
-    linear-gradient(
-      160deg,
-      rgba(20, 45, 115, 0.98),
-      rgba(31, 69, 168, 0.94) 78%,
-      rgba(197, 22, 46, 0.92)
-    );
+  border-bottom: 6px solid var(--color-accent);
+  background: var(--color-primary-dark);
 }
 
 .brand-badge {
-  width: 72px;
+  width: 250px;
   height: 72px;
 
   display: grid;
@@ -58,19 +45,17 @@
 
   margin-bottom: 26px;
 
-  border: 2px solid rgba(255, 255, 255, 0.55);
-  border-radius: 20px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: transparent url("../images/metalsider-logo-transparent.png") center / contain no-repeat;
 
-  font-size: 1.55rem;
+  font-size: 0;
   font-weight: 900;
 }
 
 .login-brand h1 {
-  margin: 0 0 14px;
-
-  font-size: clamp(2.6rem, 6vw, 4.4rem);
-  line-height: 1;
-  letter-spacing: -0.05em;
+  display: none;
 }
 
 .login-brand p {

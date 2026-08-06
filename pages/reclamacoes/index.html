@@ -3,32 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Reclamações do Cliente | LIDUTEC+</title>
+  <title>Solicitações de Manutenção | Metalsider</title>
   <link rel="stylesheet" href="../../assets/css/app.css">
   <link rel="stylesheet" href="../../assets/css/dashboard.css">
   <link rel="stylesheet" href="../../assets/css/reclamacoes.css">
 </head>
 <body class="app-page">
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>LIDUTEC+</strong><span>Gestão Industrial</span></div></div>
+    <div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div>
     <nav class="sidebar-nav">
       <a href="../dashboard.html" class="nav-link">Dashboard</a>
       <div class="nav-section"><span class="nav-title">Engenharia</span><a href="../produtos/lista.html" class="nav-link" data-permission="produto.visualizar">Produtos</a></div>
       <div class="nav-section"><span class="nav-title">Produção</span><a href="../controle-processo/lista.html" class="nav-link" data-permission="controle_processo.visualizar">Controle de Processo</a></div>
-      <div class="nav-section"><span class="nav-title">Qualidade</span><a href="./index.html" class="nav-link active" data-permission="reclamacao.visualizar">Reclamações do Cliente</a></div>
+      <div class="nav-section"><span class="nav-title">Manutenção</span><a href="./index.html" class="nav-link active" data-permission="reclamacao.visualizar">Solicitações de Manutenção</a></div>
     </nav>
     <button id="logout-button" class="logout-button">Sair</button>
   </aside>
   <div class="app-shell">
     <header class="topbar">
       <button type="button" class="menu-button" id="menu-button" aria-label="Abrir menu">☰</button>
-      <div class="topbar-title"><h1>Reclamações do Cliente</h1><p>Ocorrências, evidências e plano de ações</p></div>
+      <div class="topbar-title"><h1>Solicitações de Manutenção</h1><p>Solicitação, triagem, prazo e plano de atendimento</p></div>
       <div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div class="user-avatar" id="user-avatar">U</div></div>
     </header>
     <main class="main-content">
       <section class="page-heading">
-        <div><span class="eyebrow">Qualidade e melhoria contínua</span><h2>Gestão de reclamações</h2><p>Registre problemas relatados pelo cliente e acompanhe a solução.</p></div>
-        <button id="new-complaint" class="button button-primary" data-permission="reclamacao.criar">Nova reclamação</button>
+        <div><span class="eyebrow">Manutenção</span><h2>Solicitações de serviços</h2><p>Registre a necessidade e acompanhe o atendimento da Manutenção e PCM.</p></div>
+        <button id="new-complaint" class="button button-primary" data-permission="reclamacao.criar">Nova solicitação</button>
       </section>
       <section class="complaint-summary">
         <article class="summary-card"><span>Total</span><strong id="count-total">0</strong></article>
@@ -38,7 +38,7 @@
       </section>
       <section id="list-view">
         <article class="panel">
-          <div class="panel-header complaint-inline"><div><span class="eyebrow">Registros</span><h3>Reclamações recebidas</h3></div><input id="complaint-search" type="search" placeholder="Pesquisar..."></div>
+          <div class="panel-header complaint-inline"><div><span class="eyebrow">Registros</span><h3>Solicitações recebidas</h3></div><input id="complaint-search" type="search" placeholder="Pesquisar..."></div>
           <div id="complaint-loading" class="loading-state">Carregando reclamações...</div>
           <div id="complaint-empty" class="empty-panel" hidden><strong>Nenhuma reclamação encontrada</strong><span>Crie o primeiro registro para começar.</span></div>
           <div id="complaint-grid" class="complaint-grid"></div>
@@ -46,10 +46,10 @@
       </section>
       <section id="create-view" class="is-hidden">
         <form id="complaint-form" class="panel">
-          <div class="panel-header"><span class="eyebrow">Novo registro</span><h3>Dados da reclamação</h3></div>
+          <div class="panel-header"><span class="eyebrow">Novo registro</span><h3>Dados da solicitação</h3></div>
           <div class="complaint-form-grid">
             <label>Título<input name="titulo" maxlength="160" required></label>
-            <label>Cliente<input name="cliente_nome" maxlength="160" required></label>
+            <label>Área/setor solicitante<input name="cliente_nome" maxlength="160" required></label>
             <label>Produto<select name="produto_id" id="product-select"><option value="">Não informado</option></select></label>
             <label>Data da ocorrência<input name="data_ocorrencia" type="date"></label>
             <label>Prioridade<select name="prioridade"><option>BAIXA</option><option selected>MEDIA</option><option>ALTA</option><option>CRITICA</option></select></label>
@@ -57,14 +57,14 @@
             <label class="full">Fotos ou vídeos (até 50 MB por arquivo)<input id="evidence-files" type="file" accept="image/*,video/mp4,video/webm,video/quicktime" multiple></label>
           </div>
           <div id="form-message" class="form-message" hidden></div>
-          <div class="form-actions"><button type="button" class="button button-secondary" data-back>Cancelar</button><button type="submit" class="button button-primary">Registrar reclamação</button></div>
+          <div class="form-actions"><button type="button" class="button button-secondary" data-back>Cancelar</button><button type="submit" class="button button-primary">Registrar solicitação</button></div>
         </form>
       </section>
       <section id="detail-view" class="is-hidden">
         <div class="complaint-detail-head page-heading">
           <div><span class="eyebrow" id="detail-code"></span><h2 id="detail-title"></h2><p id="detail-description"></p></div>
           <div class="complaint-detail-buttons">
-            <button type="button" id="delete-complaint" class="button button-danger" data-permission="reclamacao.gerenciar">Remover reclamação</button>
+            <button type="button" id="delete-complaint" class="button button-danger" data-permission="reclamacao.gerenciar">Remover solicitação</button>
             <button class="button button-secondary" data-back>Voltar</button>
           </div>
         </div>
@@ -74,8 +74,8 @@
             <article class="panel"><div class="panel-header"><h3>Comentários</h3></div><div id="comments-list" class="timeline"></div><form id="comment-form" class="quick-form" data-permission="reclamacao.comentar"><label>Novo comentário<textarea name="comentario" rows="3" required></textarea></label><button class="button button-primary">Comentar</button></form></article>
           </div>
           <div>
-            <article class="panel"><div class="panel-header"><h3>Dados</h3></div><div id="detail-meta"></div><form id="status-form" class="quick-form" data-permission="reclamacao.gerenciar"><label>Status<select name="status"><option>ABERTA</option><option>EM_ANALISE</option><option>EM_ACAO</option><option>CONCLUIDA</option><option>CANCELADA</option></select></label><button class="button button-secondary">Atualizar status</button></form></article>
-            <article class="panel"><div class="panel-header"><h3>Melhorias e ações</h3></div><div id="actions-list" class="complaint-actions-list"></div><form id="action-form" class="quick-form" data-permission="reclamacao.gerenciar"><label>Ação/melhoria<input name="titulo" required></label><label>Tipo<select name="tipo"><option>MELHORIA</option><option>CORRECAO</option><option>CONTENCAO</option><option>ACAO</option></select></label><label>Responsável<input name="responsavel"></label><label>Prazo<input name="prazo" type="date"></label><label>Descrição<textarea name="descricao" rows="3"></textarea></label><button class="button button-primary">Adicionar ação</button></form></article>
+            <article class="panel"><div class="panel-header"><h3>Triagem da Manutenção / PCM</h3></div><div id="detail-meta"></div><form id="status-form" class="quick-form" data-permission="reclamacao.gerenciar"><label>Status<select name="status"><option>ABERTA</option><option>EM_ANALISE</option><option>EM_ACAO</option><option>CONCLUIDA</option><option>CANCELADA</option></select></label><label>Prazo de atendimento<input name="prazo_atendimento" type="date"></label><label>Ação planejada<textarea name="acao_planejada" rows="3"></textarea></label><button class="button button-secondary">Atualizar atendimento</button></form></article>
+            <article class="panel"><div class="panel-header"><h3>Plano de atendimento</h3></div><div id="actions-list" class="complaint-actions-list"></div><form id="action-form" class="quick-form" data-permission="reclamacao.gerenciar"><label>Ação a executar<input name="titulo" required></label><label>Tipo<select name="tipo"><option>CORRECAO</option><option>CONTENCAO</option><option>ACAO</option><option>MELHORIA</option></select></label><label>Responsável<input name="responsavel"></label><label>Prazo<input name="prazo" type="date"></label><label>Descrição<textarea name="descricao" rows="3"></textarea></label><button class="button button-primary">Adicionar ação</button></form></article>
           </div>
         </div>
       </section>

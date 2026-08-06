@@ -1,0 +1,12 @@
+begin;
+insert into public.perfis(codigo,nome,descricao,ativo) values
+ ('GERENTE_MANUTENCAO','Gerente de Manutenção','Gerencia solicitações, prazos e ações de manutenção.',true),
+ ('PCM','PCM','Planejamento e Controle da Manutenção.',true)
+on conflict(codigo) do update set nome=excluded.nome,descricao=excluded.descricao,ativo=true;
+alter table public.usuarios drop constraint if exists usuarios_perfil_check;
+alter table public.usuarios add constraint usuarios_perfil_check check(perfil=any(array['ADMINISTRADOR','GERENTE_ENGENHARIA','GERENTE_PRODUCAO','GERENTE_QUALIDADE','GERENTE_MANUTENCAO','GERENTE_GERAL','TECNICO_ENGENHARIA','COORDENADOR_PRODUCAO','PCM','FUSAO','MOLDAGEM','VAZAMENTO','MACHARIA','ACABAMENTO','REFUGO','ASSISTENTE_TECNICO','CLIENTE']::text[]));
+update public.permissoes set modulo='MANUTENCAO',nome=case codigo when 'reclamacao.visualizar' then 'Visualizar solicitações de manutenção' when 'reclamacao.criar' then 'Solicitar serviço de manutenção' when 'reclamacao.comentar' then 'Comentar solicitações de manutenção' when 'reclamacao.gerenciar' then 'Tratar solicitações de manutenção' end where codigo like 'reclamacao.%';
+insert into public.perfil_permissoes(perfil_id,permissao_id) select pf.id,pm.id from public.perfis pf cross join public.permissoes pm where pm.codigo in('reclamacao.visualizar','reclamacao.criar','reclamacao.comentar') and upper(pf.codigo) in('ADMIN','ADMINISTRADOR','GERENTE_GERAL','GERENTE_PRODUCAO','COORDENADOR_PRODUCAO','GERENTE_ENGENHARIA','GERENTE_QUALIDADE','GERENTE_MANUTENCAO','PCM') and not exists(select 1 from public.perfil_permissoes pp where pp.perfil_id=pf.id and pp.permissao_id=pm.id);
+insert into public.perfil_permissoes(perfil_id,permissao_id) select pf.id,pm.id from public.perfis pf cross join public.permissoes pm where pm.codigo='reclamacao.gerenciar' and upper(pf.codigo) in('ADMIN','ADMINISTRADOR','GERENTE_GERAL','GERENTE_MANUTENCAO','PCM') and not exists(select 1 from public.perfil_permissoes pp where pp.perfil_id=pf.id and pp.permissao_id=pm.id);
+alter table public.reclamacoes_cliente add column if not exists area_id bigint references public.areas_checklist(id),add column if not exists equipamento_id bigint references public.linhas_maquinas_producao(id),add column if not exists responsavel_id uuid references public.usuarios(id),add column if not exists prazo_atendimento date,add column if not exists acao_planejada text;
+notify pgrst,'reload schema';commit;

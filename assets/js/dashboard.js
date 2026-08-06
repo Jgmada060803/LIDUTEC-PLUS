@@ -273,7 +273,7 @@ async function initializeDashboard() {
 
     if (profile.status !== "ATIVO") {
       alert(
-        "Seu acesso ao LIDUTEC+ ainda não está ativo."
+        "Seu acesso ao Metalsider ainda não está ativo."
       );
 
       await window.LIDUTEC_APP.signOut();

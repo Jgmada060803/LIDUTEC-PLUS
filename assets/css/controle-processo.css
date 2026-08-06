@@ -272,7 +272,19 @@
   stroke-width: 1.5;
 }
 
+.process-module-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+.process-module-card { --module-color:#1f45a8; display:grid; grid-template-columns:58px minmax(0,1fr) auto; align-items:start; gap:16px; min-height:210px; padding:24px; border-top:5px solid var(--module-color); color:var(--color-text); text-decoration:none; transition:transform .18s ease,box-shadow .18s ease; }
+.process-module-card:hover { transform:translateY(-3px); box-shadow:0 15px 35px rgb(25 48 65 / 14%); }
+.process-module-card strong { display:block; margin:5px 0 9px; font-size:1.05rem; }
+.process-module-card p { margin:0; color:var(--color-text-muted); line-height:1.55; }
+.process-module-icon { display:grid; width:52px; height:52px; place-items:center; border-radius:12px; color:#fff; background:var(--module-color); font-size:1rem; font-weight:900; }
+.process-module-arrow { align-self:center; color:var(--module-color); font-size:1.5rem; font-weight:900; }
+.process-module-temperature { --module-color:#d7352a; }
+.process-module-checklist { --module-color:#1f45a8; }
+.process-module-documents { --module-color:#0f766e; }
+
 @media (max-width: 1000px) {
+  .process-module-grid { grid-template-columns:1fr; }
   .temperature-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
