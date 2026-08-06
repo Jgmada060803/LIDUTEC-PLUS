@@ -58,14 +58,14 @@ begin
     turno_producao_id,data_operacional,turno,produto_id,inicio,fim,
     quantidade_planejada,quantidade_produzida,quantidade_aprovada,quantidade_refugada,
     moldes_vazados,moldes_quebrados,pecas_por_molde,peso_peca_kg,
-    total_pecas,toneladas_produzidas,criado_por
+    total_pecas,toneladas_produzidas,observacao,criado_por
   ) select p_turno_id,v_turno.data_operacional,v_turno.turno,item.produto_id,item.inicio,item.fim,
     0,item.moldes_vazados+item.moldes_quebrados,item.moldes_vazados,item.moldes_quebrados,
     item.moldes_vazados,item.moldes_quebrados,produto.cavidades_molde,produto.peso_peca_kg,
     item.moldes_vazados*produto.cavidades_molde,
-    item.moldes_vazados*produto.cavidades_molde*produto.peso_peca_kg/1000,auth.uid()
+    item.moldes_vazados*produto.cavidades_molde*produto.peso_peca_kg/1000,nullif(trim(item.observacao),''),auth.uid()
   from jsonb_to_recordset(p_producoes) as item(
-    inicio timestamptz,fim timestamptz,produto_id bigint,moldes_vazados integer,moldes_quebrados integer
+    inicio timestamptz,fim timestamptz,produto_id bigint,moldes_vazados integer,moldes_quebrados integer,observacao text
   ) join public.produtos produto on produto.id=item.produto_id
   where item.inicio is not null and item.fim>=item.inicio
     and item.moldes_vazados>=0 and item.moldes_quebrados>=0

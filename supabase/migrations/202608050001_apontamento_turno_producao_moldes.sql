@@ -42,7 +42,8 @@ alter table public.registros_producao_moldes
   add column if not exists pecas_por_molde numeric(12,3) check (pecas_por_molde>=0),
   add column if not exists peso_peca_kg numeric(14,4) check (peso_peca_kg>=0),
   add column if not exists total_pecas numeric(16,3) not null default 0 check (total_pecas>=0),
-  add column if not exists toneladas_produzidas numeric(16,6) not null default 0 check (toneladas_produzidas>=0);
+  add column if not exists toneladas_produzidas numeric(16,6) not null default 0 check (toneladas_produzidas>=0),
+  add column if not exists observacao text;
 
 alter table public.paradas_producao_moldes
   add column if not exists turno_producao_id bigint references public.turnos_producao_moldes(id),
@@ -107,17 +108,17 @@ begin
     turno_producao_id,data_operacional,turno,produto_id,inicio,fim,
     quantidade_planejada,quantidade_produzida,quantidade_aprovada,quantidade_refugada,
     moldes_vazados,moldes_quebrados,pecas_por_molde,peso_peca_kg,
-    total_pecas,toneladas_produzidas,criado_por
+    total_pecas,toneladas_produzidas,observacao,criado_por
   )
   select v_turno_id,p_data_operacional,p_turno,item.produto_id,item.inicio,item.fim,
     0,item.moldes_vazados+item.moldes_quebrados,item.moldes_vazados,item.moldes_quebrados,
     item.moldes_vazados,item.moldes_quebrados,produto.cavidades_molde,produto.peso_peca_kg,
     item.moldes_vazados*produto.cavidades_molde,
-    item.moldes_vazados*produto.cavidades_molde*produto.peso_peca_kg/1000,
+    item.moldes_vazados*produto.cavidades_molde*produto.peso_peca_kg/1000,nullif(trim(item.observacao),''),
     auth.uid()
   from jsonb_to_recordset(coalesce(p_producoes,'[]'::jsonb)) as item(
     inicio timestamptz,fim timestamptz,produto_id bigint,
-    moldes_vazados integer,moldes_quebrados integer
+    moldes_vazados integer,moldes_quebrados integer,observacao text
   ) join public.produtos produto on produto.id=item.produto_id
   where item.inicio is not null and item.fim is not null and item.fim>=item.inicio
     and item.moldes_vazados>=0 and item.moldes_quebrados>=0

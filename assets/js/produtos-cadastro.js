@@ -249,7 +249,10 @@ async function saveProduct(event) {
     if (isEditing) {
       const { error } = await window.supabaseClient
         .from("produtos")
-        .update(payload)
+        .update({
+          ...payload,
+          cadastro_pendente: false
+        })
         .eq("id", productId);
 
       if (error) {

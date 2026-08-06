@@ -27,12 +27,18 @@
         p_decisao: decision,
         p_justificativa: justification
       }), null),
-    executions: () => unwrap(client().from("execucoes_checklist").select(`
+    executions: (filters = {}) => {
+      let query = client().from("execucoes_checklist").select(`
       id,data_operacional,turno,equipamento,corrida,status,iniciado_em,concluido_em,
       modelos_checklist(id,codigo,nome,areas_checklist(id,codigo,nome,cor)),
       produtos(id,codigo,nome),
       usuarios!execucoes_checklist_operador_id_fkey(nome)
-    `).order("iniciado_em", { ascending: false }).limit(1000)),
+      `).order("iniciado_em", { ascending: false });
+      if (filters.from) query = query.gte("data_operacional", filters.from);
+      if (filters.to) query = query.lte("data_operacional", filters.to);
+      if (filters.status) query = query.eq("status", filters.status);
+      return unwrap(query.limit(1000));
+    },
     pendingApprovals: () => unwrap(client().from("execucoes_checklist").select(`
       id,data_operacional,turno,equipamento,corrida,status,iniciado_em,
       modelos_checklist(codigo,nome,areas_checklist(nome,cor)),
@@ -52,7 +58,7 @@
       `).eq("item_id", itemId).order("medido_em");
       if (from) query = query.gte("medido_em", `${from}T00:00:00`);
       if (to) query = query.lte("medido_em", `${to}T23:59:59.999`);
-      return unwrap(query);
+      return unwrap(query.limit(2000));
     }
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

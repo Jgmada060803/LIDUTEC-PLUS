@@ -53,12 +53,29 @@
     if (end <= start) end.setDate(end.getDate() + 1);
     return { start, end };
   }
+  function resolveShiftTime(operationalDate, shiftCode, timeValue) {
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(timeValue || ""))) return null;
+    const bounds = shiftBounds(operationalDate, shiftCode);
+    const [hours, minutes] = timeValue.split(":").map(Number);
+    const date = new Date(bounds.start);
+    date.setHours(hours, minutes, 0, 0);
+    if (date < bounds.start) date.setDate(date.getDate() + 1);
+    return date >= bounds.start && date <= bounds.end ? date : null;
+  }
   function intervalWithinShift(operationalDate, shiftCode, startValue, endValue) {
     const bounds = shiftBounds(operationalDate, shiftCode);
     const start = new Date(startValue);
     const end = new Date(endValue);
     return !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) &&
       start >= bounds.start && end <= bounds.end && end >= start;
+  }
+  function isScheduledShiftDay(operationalDate, shiftCode) {
+    const date = new Date(`${operationalDate}T12:00:00`);
+    if (Number.isNaN(date.getTime()) || !shifts[shiftCode]) return false;
+    const day = date.getDay();
+    if (shiftCode === "MANHA") return day >= 1 && day <= 6;
+    if (shiftCode === "TARDE") return day >= 1 && day <= 5;
+    return day >= 0 && day <= 5;
   }
   function productionCalculation(moldesVazados, moldesQuebrados, pecasPorMolde, pesoPecaKg) {
     const poured = Math.max(0, Number(moldesVazados || 0));
@@ -80,7 +97,9 @@
     shifts,
     determineShift,
     shiftBounds,
+    resolveShiftTime,
     intervalWithinShift,
+    isScheduledShiftDay,
     productionCalculation,
     stopDurationMinutes,
     effectiveMinutes,

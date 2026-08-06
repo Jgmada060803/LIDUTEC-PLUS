@@ -122,6 +122,14 @@ function linePath(records, xFor, yFor, property) {
 }
 
 function renderTemperatureChart(records) {
+  const maximumChartPoints = 5000;
+  if (records.length > maximumChartPoints) {
+    const step = (records.length - 1) / (maximumChartPoints - 1);
+    records = Array.from(
+      { length: maximumChartPoints },
+      (_, index) => records[Math.round(index * step)]
+    );
+  }
   temperatureElements.chartEmpty.hidden = records.length > 0;
   temperatureElements.chart.hidden = records.length === 0;
 
@@ -130,7 +138,7 @@ function renderTemperatureChart(records) {
     return;
   }
 
-  const width = Math.max(900, records.length * 18);
+  const width = Math.max(900, Math.min(records.length * 18, 12000));
   const height = 430;
   const margin = { top: 22, right: 26, bottom: 58, left: 62 };
   const values = records.flatMap((record) => [

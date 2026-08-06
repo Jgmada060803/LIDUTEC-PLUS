@@ -5,15 +5,17 @@
     if (response.error) throw response.error;
     return response.data ?? fallback;
   };
-  async function allPages(table, columns, order) {
-    const pageSize = 1000;
-    const rows = [];
-    for (let from = 0; ; from += pageSize) {
-      const data = await result(client().from(table).select(columns)
-        .order(order, { ascending: false }).range(from, from + pageSize - 1));
-      rows.push(...data);
-      if (data.length < pageSize) return rows;
+  function applyFilters(query, filters = {}) {
+    if (filters.from) query = query.gte("data_operacional", filters.from);
+    if (filters.to) query = query.lte("data_operacional", filters.to);
+    if (filters.shift) query = query.eq("turno", filters.shift);
+    if (filters.productId) query = query.eq("produto_id", filters.productId);
+    if (filters.sectorId) query = query.eq("setor_responsavel_id", filters.sectorId);
+    if (filters.categoryId) query = query.eq("categoria_id", filters.categoryId);
+    for (const term of String(filters.search || "").split(/\s+/).filter(Boolean)) {
+      query = query.ilike("observacao", `%${term}%`);
     }
+    return query.limit(Math.min(Math.max(Number(filters.limit) || 1000, 1), 5000));
   }
   root.LIDUTEC_PRODUCAO_DATA = {
     support: async () => {
@@ -25,10 +27,19 @@
       ]);
       return { products, lines, categories, sectors };
     },
-    records: () => allPages("registros_producao_moldes", "*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome)", "data_operacional"),
-    stops: () => allPages("paradas_producao_moldes", "*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome),categorias_parada_producao(nome),setores_responsaveis_parada(nome)", "inicio"),
+    records: (filters = {}) => result(applyFilters(client()
+      .from("registros_producao_moldes")
+      .select("*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome)")
+      .order("data_operacional", { ascending: false }), filters)),
+    stops: (filters = {}) => result(applyFilters(client()
+      .from("paradas_producao_moldes")
+      .select("*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome),categorias_parada_producao(nome),setores_responsaveis_parada(nome)")
+      .order("data_operacional", { ascending: false }), filters)),
     shift: (date, shift) => result(client().from("turnos_producao_moldes").select("id,status").eq("data_operacional", date).eq("turno", shift).maybeSingle(), null),
-    shiftProductions: (id) => result(client().from("registros_producao_moldes").select("produto_id,inicio,fim,moldes_vazados,moldes_quebrados").eq("turno_producao_id", id).order("inicio")),
+    monthShifts: (from, to, shift) => result(client().from("turnos_producao_moldes").select("data_operacional,turno,status").gte("data_operacional", from).lte("data_operacional", to).eq("turno", shift).limit(40)),
+    calendarEvents: (from, to, shift) => result(client().from("calendario_operacional").select("id,nome,tipo,escopo,data_inicio,data_fim,turno,observacao").eq("ativo",true).lte("data_inicio",to).gte("data_fim",from).or(`turno.eq.TODOS,turno.eq.${shift}`).order("data_inicio").limit(200)),
+    previousProduction: (from, before) => result(client().from("registros_producao_moldes").select("produto_id,inicio").gte("inicio", from).lt("inicio", before).order("inicio", { ascending: false }).limit(1).maybeSingle(), null),
+    shiftProductions: (id) => result(client().from("registros_producao_moldes").select("produto_id,inicio,fim,moldes_vazados,moldes_quebrados,observacao").eq("turno_producao_id", id).order("inicio")),
     shiftStops: (id) => result(client().from("paradas_producao_moldes").select("inicio,fim,setor_responsavel_id,categoria_id,observacao").eq("turno_producao_id", id).order("inicio")),
     history: async (id) => {
       const table = "historico_edicoes_turno_producao";

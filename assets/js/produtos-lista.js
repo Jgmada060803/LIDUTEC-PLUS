@@ -95,10 +95,13 @@ function renderProducts(products) {
       aggregates.pendingImports + aggregates.pendingApprovals;
 
     return `
-      <tr>
+      <tr class="${product.cadastro_pendente ? "product-import-pending" : ""}">
         <td>
           <span class="product-code">${ui.escapeHtml(product.codigo)}</span>
           <span class="product-name">${ui.escapeHtml(product.nome)}</span>
+          ${product.cadastro_pendente
+            ? `<span class="product-import-badge">Importado — completar cadastro</span>`
+            : ""}
           <span class="product-secondary">
             ${ui.escapeHtml(product.part_number ?? "Sem part number")}
           </span>
@@ -184,6 +187,9 @@ function createProductQuery(includeImports) {
       codigo_cliente,
       part_number,
       status,
+      cadastro_pendente,
+      importacao_lote,
+      importado_em,
       criado_em,
       clientes (nome),
       fichas_tecnicas (

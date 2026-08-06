@@ -25,6 +25,32 @@ const nightBounds = shifts.shiftBounds("2026-07-24", "NOITE");
 assert.equal(nightBounds.start.getDate(), 24);
 assert.equal(nightBounds.end.getDate(), 25);
 assert.equal(
+  shifts.resolveShiftTime("2026-07-24", "NOITE", "23:30").toISOString(),
+  new Date("2026-07-24T23:30:00").toISOString()
+);
+assert.equal(
+  shifts.resolveShiftTime("2026-07-24", "NOITE", "00:15").toISOString(),
+  new Date("2026-07-25T00:15:00").toISOString()
+);
+assert.equal(
+  shifts.stopDurationMinutes(
+    shifts.resolveShiftTime("2026-07-24", "NOITE", "23:30"),
+    shifts.resolveShiftTime("2026-07-24", "NOITE", "00:15")
+  ),
+  45
+);
+assert.equal(
+  new Date(shifts.resolveShiftTime("2026-07-24", "NOITE", "00:15").getTime() - 60000).getMinutes(),
+  14
+);
+assert.equal(shifts.resolveShiftTime("2026-07-24", "NOITE", "06:01"), null);
+assert.equal(shifts.isScheduledShiftDay("2026-08-08", "MANHA"), true);
+assert.equal(shifts.isScheduledShiftDay("2026-08-09", "MANHA"), false);
+assert.equal(shifts.isScheduledShiftDay("2026-08-08", "TARDE"), false);
+assert.equal(shifts.isScheduledShiftDay("2026-08-07", "TARDE"), true);
+assert.equal(shifts.isScheduledShiftDay("2026-08-09", "NOITE"), true);
+assert.equal(shifts.isScheduledShiftDay("2026-08-08", "NOITE"), false);
+assert.equal(
   shifts.intervalWithinShift(
     "2026-07-24", "NOITE",
     "2026-07-24T22:00:00", "2026-07-25T05:30:00"

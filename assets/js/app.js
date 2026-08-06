@@ -295,6 +295,11 @@ function syncSidebarNavigation() {
          data-permission="paradas.configurar_codigos">
         Códigos de parada
       </a>
+      <a href="${prefix}administracao/calendario-operacional.html"
+         class="${activeClass(isActive("administracao", "calendario-operacional.html"))}"
+         data-permission="calendario_operacional.gerenciar">
+        Calendário operacional
+      </a>
     </div>
   `;
 }

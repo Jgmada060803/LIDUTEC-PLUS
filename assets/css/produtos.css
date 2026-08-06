@@ -2743,6 +2743,28 @@
   min-width: 880px;
 }
 
+.products-table tbody tr.product-import-pending > td {
+  background: #fff8cf;
+}
+
+.products-table tbody tr.product-import-pending:hover > td {
+  background: #fff1a8;
+}
+
+.product-import-badge {
+  display: block;
+  width: fit-content;
+  margin-top: 5px;
+  padding: 3px 7px;
+  border: 1px solid #e1b72f;
+  border-radius: 999px;
+  color: #735600;
+  background: #fff4b8;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .client-identity {
   display: flex;
   align-items: center;

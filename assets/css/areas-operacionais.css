@@ -1,0 +1,4 @@
+.area-access-page .checklist-result-options input:checked+span{border-color:var(--color-primary);color:#fff;background:var(--color-primary);box-shadow:0 2px 7px rgb(24 113 143 / 22%)}
+.area-access-page .checklist-result-options input:focus-visible+span{outline:2px solid var(--color-primary);outline-offset:2px}
+.area-access-page .checklist-result-options input:disabled+span{cursor:wait;opacity:.65}
+.area-access-page .checklist-result-options span{transition:color .15s ease,background .15s ease,border-color .15s ease,box-shadow .15s ease}
