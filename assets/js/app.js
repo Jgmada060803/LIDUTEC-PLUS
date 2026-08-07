@@ -348,6 +348,20 @@ window.LIDUTEC_APP = {
   signOut
 };
 
+if (window.location.pathname.replace(/\\/g, "/").includes("/pages/controle-processo/")) {
+  const userBox = document.querySelector(".topbar .user-box");
+
+  if (userBox && !document.querySelector("#return-to-shift-entry")) {
+    const returnToShift = document.createElement("a");
+    returnToShift.id = "return-to-shift-entry";
+    returnToShift.className = "topbar-return-shift";
+    returnToShift.href = "../producao-moldes/lancamento.html";
+    returnToShift.dataset.permission = "producao_moldes.lancar";
+    returnToShift.textContent = "Voltar ao apontamento";
+    userBox.before(returnToShift);
+  }
+}
+
 if (window.location.pathname.endsWith("/administracao/codigos-parada.html")) {
   const importScript = document.createElement("script");
   importScript.src = "../../assets/js/codigos-parada-import.js";
