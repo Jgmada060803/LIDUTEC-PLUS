@@ -6,6 +6,14 @@ assert.equal(shifts.determineShift(new Date(2026, 6, 24, 13, 19)).codigo, "MANHA
 assert.equal(shifts.determineShift(new Date(2026, 6, 24, 13, 20)).codigo, "TARDE");
 assert.equal(shifts.determineShift(new Date(2026, 6, 24, 21, 30)).codigo, "NOITE");
 assert.equal(
+  shifts.determineShift(new Date(2026, 7, 7, 5, 59)).dataOperacional,
+  "2026-08-06"
+);
+assert.equal(
+  shifts.determineShift(new Date(2026, 7, 7, 6, 0)).dataOperacional,
+  "2026-08-07"
+);
+assert.equal(
   shifts.determineShift(new Date(2026, 6, 25, 2, 0)).dataOperacional,
   "2026-07-24"
 );
