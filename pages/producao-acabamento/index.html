@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Produção de Acabamento | Metalsider</title>
+  <link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/producao-moldes.css"><link rel="stylesheet" href="../../assets/css/producao-acabamento.css">
+</head>
+<body class="app-page" data-production-page="dashboard">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+  <div class="app-shell">
+    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Produção de Acabamento</h1><p>Produção, disponibilidade e paradas</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+    <main class="main-content">
+      <div id="production-loading" class="loading-state">Carregando produção...</div>
+      <section class="production-actions">
+        <a class="panel production-action production-action-entry" href="./lancamento.html" data-permission="producao_acabamento.lancar"><strong>Apontar turno</strong><span>Registrar produção e paradas até o fechamento</span></a>
+        <a class="panel production-action production-action-stops" href="./paradas.html"><strong>Consultar paradas</strong><span>Períodos e motivos</span></a>
+        <a class="panel production-action production-action-charts" href="./graficos.html"><strong>Indicadores OEE</strong><span>Disponibilidade, eficiência, qualidade</span></a>
+      </section>
+      <section class="production-metrics">
+        <article class="summary-card"><span>Peças liberadas</span><strong data-metric="liberadas">0</strong></article>
+        <article class="summary-card"><span>Peças refugadas</span><strong data-metric="refugadas">0</strong></article>
+        <article class="summary-card"><span>Peças retrabalhadas</span><strong data-metric="retrabalhadas">0</strong></article>
+        <article class="summary-card"><span>Peças rejeitadas</span><strong data-metric="rejeitadas">0</strong></article>
+        <article class="summary-card"><span>Absenteísmo</span><strong data-metric="absenteismo">0%</strong></article>
+        <article class="summary-card"><span>Tempo de parada</span><strong data-metric="stops">0h</strong></article>
+      </section>
+      <section class="panel production-query-panel">
+        <div class="panel-header query-heading"><h2>Peças produzidas hoje</h2></div>
+        <div class="table-wrapper"><table class="products-table production-query-table"><thead><tr><th>Data</th><th>Turno</th><th>Produto</th><th>Liberada</th><th>Rejeitada</th><th>Retrabalhada</th><th>Refugada</th></tr></thead><tbody id="dashboard-production-records"></tbody></table></div>
+        <p id="dashboard-production-empty" class="production-muted" hidden>Nenhum registro encontrado.</p>
+      </section>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-acabamento-data.js"></script><script src="../../assets/js/producao-acabamento.js"></script>
+</body></html>

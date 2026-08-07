@@ -120,6 +120,50 @@
     Math.max(0, Number(scheduled || 0) - Math.max(0, Number(stops || 0)));
   const percentage = (part, total) =>
     Number(total) > 0 ? Number(((Number(part || 0) / Number(total)) * 100).toFixed(2)) : 0;
+
+  function minutosDisponiveisProducao({ minutosTurno, operadoresPlanejados, operadoresPresentes, minutosParada }) {
+    const turno = Math.max(0, Number(minutosTurno) || 0);
+    const planejados = Math.max(0, Number(operadoresPlanejados) || 0);
+    const presentes = Math.max(0, Number(operadoresPresentes) || 0);
+    const paradas = Math.max(0, Number(minutosParada) || 0);
+    const faltaProporcional = planejados > 0 ? Math.max(0, 1 - presentes / planejados) : 0;
+    const perdaAbsenteismo = turno * faltaProporcional;
+    return Math.max(0, turno - perdaAbsenteismo - paradas);
+  }
+
+  function calcularDisponibilidade({ minutosTurno, operadoresPlanejados, operadoresPresentes, minutosParada }) {
+    const turno = Math.max(0, Number(minutosTurno) || 0);
+    if (turno <= 0) return 0;
+    const disponivel = minutosDisponiveisProducao({ minutosTurno, operadoresPlanejados, operadoresPresentes, minutosParada });
+    return disponivel / turno;
+  }
+
+  function calcularTempoTeorico({ pecasLiberadas, pecasRefugadas, tempoCicloSegundos }) {
+    const pecas = Math.max(0, Number(pecasLiberadas) || 0) + Math.max(0, Number(pecasRefugadas) || 0);
+    const cicloMinutos = Math.max(0, Number(tempoCicloSegundos) || 0) / 60;
+    return pecas * cicloMinutos;
+  }
+
+  function calcularEficiencia({ tempoTeoricoMinutos, tempoDisponivelMinutos }) {
+    const disponivel = Math.max(0, Number(tempoDisponivelMinutos) || 0);
+    if (disponivel <= 0) return 0;
+    const teorico = Math.max(0, Number(tempoTeoricoMinutos) || 0);
+    return teorico / disponivel;
+  }
+
+  function calcularQualidade({ pecasLiberadas, pecasRefugadas }) {
+    const liberadas = Math.max(0, Number(pecasLiberadas) || 0);
+    const refugadas = Math.max(0, Number(pecasRefugadas) || 0);
+    const total = liberadas + refugadas;
+    return total > 0 ? liberadas / total : 0;
+  }
+
+  function calcularOEE({ disponibilidade, eficiencia, qualidade }) {
+    return Math.max(0, Number(disponibilidade) || 0) *
+      Math.max(0, Number(eficiencia) || 0) *
+      Math.max(0, Number(qualidade) || 0);
+  }
+
   return {
     shifts,
     determineShift,
@@ -133,6 +177,12 @@
     stopDurationMinutes,
     effectiveMinutes,
     planAttendance: (actual, planned) => percentage(actual, planned),
-    scrapPercentage: (scrap, produced) => percentage(scrap, produced)
+    scrapPercentage: (scrap, produced) => percentage(scrap, produced),
+    minutosDisponiveisProducao,
+    calcularDisponibilidade,
+    calcularTempoTeorico,
+    calcularEficiencia,
+    calcularQualidade,
+    calcularOEE
   };
 });

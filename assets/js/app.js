@@ -10,6 +10,7 @@ function getLoginPath() {
     window.location.pathname.includes("/produtos/") ||
     window.location.pathname.includes("/producao/") ||
     window.location.pathname.includes("/producao-moldes/") ||
+    window.location.pathname.includes("/producao-acabamento/") ||
     window.location.pathname.includes("/qualidade/") ||
     window.location.pathname.includes("/reclamacoes/") ||
     window.location.pathname.includes("/clientes/") ||
@@ -273,6 +274,16 @@ function syncSidebarNavigation() {
          data-permission="producao_moldes.visualizar">
         Paradas de Produção
       </a>
+      <a href="${prefix}producao-acabamento/index.html"
+         class="${activeClass(isActive("producao-acabamento") && !isActive("producao-acabamento", "paradas.html"))}"
+         data-permission="producao_acabamento.visualizar">
+        Registros de Acabamento
+      </a>
+      <a href="${prefix}producao-acabamento/paradas.html"
+         class="${activeClass(isActive("producao-acabamento", "paradas.html"))}"
+         data-permission="producao_acabamento.visualizar">
+        Paradas de Acabamento
+      </a>
     </div>
 
     <div class="nav-section">
@@ -295,6 +306,11 @@ function syncSidebarNavigation() {
          class="${activeClass(isActive("administracao", "areas-operacionais.html"))}"
          data-permission="usuarios.gerenciar_acessos">
         Áreas operacionais
+      </a>
+      <a href="${prefix}administracao/metas-gerenciais.html"
+         class="${activeClass(isActive("administracao", "metas-gerenciais.html"))}"
+         data-permission="metas.gerenciar">
+        Metas gerenciais
       </a>
       <a href="${prefix}administracao/codigos-parada.html"
          class="${activeClass(isActive("administracao", "codigos-parada.html"))}"

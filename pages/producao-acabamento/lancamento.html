@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Apontamento do Turno | Metalsider</title>
+  <link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/producao-moldes.css"><link rel="stylesheet" href="../../assets/css/producao-acabamento.css">
+</head>
+<body class="app-page" data-production-page="entry">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+  <div class="app-shell">
+    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Produção de Acabamento</h1><p>Apontamento e fechamento do turno</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+    <main class="main-content">
+      <div id="production-loading" class="loading-state">Carregando...</div>
+      <form id="shift-entry-form" data-permission="producao_acabamento.lancar" hidden>
+        <div id="production-message" class="form-message" hidden role="status"></div>
+        <section class="panel shift-header-grid acabamento-shift-header">
+          <label>Turno<select name="turno" required><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
+          <label>Data<input name="data_operacional" type="date" required></label>
+          <label>Linha de produção<select name="linha_maquina_id" data-lines required><option value="">Selecione</option></select></label>
+          <label>Operadores presentes<input name="operadores_presentes" type="number" min="0" step="1" required><small id="operadores-planejados-hint" class="production-muted"></small></label>
+          <div class="shift-status"><span>Status</span><strong id="shift-status">Em apontamento</strong></div>
+        </section>
+
+        <section class="panel shift-table-panel">
+          <div class="shift-section-heading"><div><h2>Produção</h2></div></div>
+          <div class="table-wrapper"><table class="products-table shift-entry-table"><thead><tr><th>Produto</th><th>Liberada</th><th>Rejeitada</th><th>Retrabalhada</th><th>Refugada</th><th></th></tr></thead><tbody id="production-entry-rows"></tbody></table></div>
+          <button id="add-production-row" type="button" class="row-add-button" aria-label="Adicionar produto" title="Adicionar produto">+</button>
+        </section>
+
+        <section class="panel shift-table-panel">
+          <div class="shift-section-heading"><div><h2>Parada</h2></div></div>
+          <div class="table-wrapper"><table class="products-table shift-entry-table stop-entry-table"><thead><tr><th>Hora início</th><th>Hora fim</th><th>Tempo total</th><th>Setor de origem</th><th>Motivo da parada</th><th>Observações</th><th></th></tr></thead><tbody id="stop-entry-rows"></tbody></table></div>
+          <button id="add-stop-row" type="button" class="row-add-button" aria-label="Adicionar parada" title="Adicionar parada">+</button>
+        </section>
+
+        <div class="shift-close-actions"><a href="./index.html" class="button button-secondary">Voltar</a><button id="delete-shift-button" type="button" class="button button-danger" hidden>Excluir turno</button><button id="edit-shift-button" type="button" class="button button-secondary" hidden>Editar turno</button><button id="close-shift-button" class="button button-primary">Fechar turno</button></div>
+        <section id="shift-edit-history" class="panel shift-history-panel" hidden><h2>Alterações após o fechamento</h2><div class="table-wrapper"><table class="products-table shift-history-table"><thead><tr><th>Data e hora</th><th>Alteração</th></tr></thead><tbody id="shift-edit-history-rows"></tbody></table></div></section>
+      </form>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-acabamento-data.js"></script><script src="../../assets/js/producao-acabamento.js"></script>
+</body></html>

@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s);let users=[],profiles=[],allPermissions=[],permissions=new Set();
+const $=s=>document.querySelector(s);let users=[],profiles=[],allPermissions=[],permissions=new Set(),operationalAreas=[];
 const esc=(v="")=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const isPending=u=>u.status==="PENDENTE";
 function render(rows=users){$("#users-list").innerHTML=rows.map(u=>`<article class="user-row"><div><strong>${esc(u.nome)}</strong><small>${esc(u.email)}</small></div><span>${esc(u.perfil||"Sem perfil")}</span><span class="status-badge ${u.status==="ATIVO"?"ativo":"inativo"}">${u.status==="ATIVO"?"ATIVO":isPending(u)?"AGUARDANDO LIBERAÇÃO":"INATIVO"}</span>${permissions.has("usuarios.gerenciar_acessos")?(u.status==="ATIVO"?`<button class="button button-secondary" data-status="${u.id}" data-next="INATIVO">Inativar</button>`:`<button class="button button-primary" data-config-user="${u.id}">Configurar acesso</button>`):""}</article>`).join("")}
@@ -53,15 +53,24 @@ async function getPermissionCatalog(){
  const{data,error}=await window.supabaseClient.from("permissoes").select("id,codigo,nome,descricao,modulo,ativo").eq("ativo",true).order("modulo").order("nome");
  if(error)throw error;allPermissions=data||[];return allPermissions;
 }
+async function getOperationalAreas(){
+ if(operationalAreas.length)return operationalAreas;
+ const{data,error}=await window.supabaseClient.from("areas_checklist").select("id,codigo,nome").order("ordem");
+ if(error)throw error;operationalAreas=data||[];return operationalAreas;
+}
+function renderUserAreaMatrix(selected){
+ $("#user-area-matrix").innerHTML=operationalAreas.map(a=>`<label class="permission-option"><input type="checkbox" name="area_id" value="${a.id}" ${selected.has(String(a.id))?"checked":""}><span><strong>${esc(a.nome)}</strong><small>Área operacional · ${esc(a.codigo)}</small></span></label>`).join("")||"<p>Nenhuma área operacional cadastrada.</p>";
+}
 async function loadUserAccess(userId){
  if(!userId){$("#user-access-form").hidden=true;$("#user-access-empty").hidden=false;return}
  $("#user-access-loading").hidden=false;$("#user-access-empty").hidden=true;$("#user-access-form").hidden=true;
- await getPermissionCatalog();
- const[{data:relations,error:relationError},{data:individual,error:individualError}]=await Promise.all([
+ await getPermissionCatalog();await getOperationalAreas();
+ const[{data:relations,error:relationError},{data:individual,error:individualError},{data:userAreas,error:userAreasError}]=await Promise.all([
   window.supabaseClient.from("usuario_perfis").select("perfil_id").eq("usuario_id",userId),
-  window.supabaseClient.from("usuario_permissoes").select("permissao_id,permitido").eq("usuario_id",userId)
+  window.supabaseClient.from("usuario_permissoes").select("permissao_id,permitido").eq("usuario_id",userId),
+  window.supabaseClient.from("usuario_areas_operacionais").select("area_id").eq("usuario_id",userId)
  ]);
- if(relationError||individualError)throw relationError||individualError;
+ if(relationError||individualError||userAreasError)throw relationError||individualError||userAreasError;
  const profileId=relations?.[0]?.perfil_id||"";
  $("#user-access-profile").value=profileId;
  let selected;
@@ -72,6 +81,7 @@ async function loadUserAccess(userId){
   if(error)throw error;selected=new Set((data||[]).map(x=>String(x.permissao_id)));
  }else selected=new Set();
  renderUserPermissionMatrix(selected);
+ renderUserAreaMatrix(new Set((userAreas||[]).map(x=>String(x.area_id))));
  $("#user-access-loading").hidden=true;$("#user-access-form").hidden=false;
 }
 async function loadUserProfileDefaults(profileId){
@@ -88,7 +98,7 @@ $("#user-access-user").onchange=e=>loadUserAccess(e.target.value).catch(x=>{aler
 $("#user-access-profile").onchange=e=>loadUserProfileDefaults(e.target.value).catch(x=>alert(x.message));
 $("#user-select-all").onclick=()=>document.querySelectorAll('#user-permission-matrix input[type="checkbox"]').forEach(x=>x.checked=true);
 $("#user-clear-all").onclick=()=>document.querySelectorAll('#user-permission-matrix input[type="checkbox"]').forEach(x=>x.checked=false);
-$("#user-access-form").onsubmit=async e=>{e.preventDefault();const button=e.submitter;button.disabled=true;const message=$("#user-access-message");try{const userId=$("#user-access-user").value,profileId=Number($("#user-access-profile").value);if(!userId||!profileId)throw new Error("Selecione o usuário e o perfil.");const ids=[...document.querySelectorAll('#user-permission-matrix input:checked')].map(x=>Number(x.value));await invoke({action:"set_user_access",usuario_id:userId,perfil_id:profileId,permissao_ids:ids});message.textContent=`Acesso liberado com ${ids.length} permissões.`;message.className="form-message success";message.hidden=false;await load();$("#user-access-user").value=userId}catch(x){message.textContent=x.message;message.className="form-message error";message.hidden=false}finally{button.disabled=false}};
+$("#user-access-form").onsubmit=async e=>{e.preventDefault();const button=e.submitter;button.disabled=true;const message=$("#user-access-message");try{const userId=$("#user-access-user").value,profileId=Number($("#user-access-profile").value);if(!userId||!profileId)throw new Error("Selecione o usuário e o perfil.");const ids=[...document.querySelectorAll('#user-permission-matrix input:checked')].map(x=>Number(x.value));await invoke({action:"set_user_access",usuario_id:userId,perfil_id:profileId,permissao_ids:ids});const areaIds=new Set([...document.querySelectorAll('#user-area-matrix input:checked')].map(x=>Number(x.value)));const{data:currentAreas,error:currentAreasError}=await window.supabaseClient.from("usuario_areas_operacionais").select("area_id").eq("usuario_id",userId);if(currentAreasError)throw currentAreasError;const currentAreaIds=new Set((currentAreas||[]).map(x=>Number(x.area_id)));const toAdd=[...areaIds].filter(id=>!currentAreaIds.has(id));const toRemove=[...currentAreaIds].filter(id=>!areaIds.has(id));if(toAdd.length){const{error}=await window.supabaseClient.from("usuario_areas_operacionais").insert(toAdd.map(area_id=>({usuario_id:userId,area_id})));if(error)throw error}for(const area_id of toRemove){const{error}=await window.supabaseClient.from("usuario_areas_operacionais").delete().eq("usuario_id",userId).eq("area_id",area_id);if(error)throw error}message.textContent=`Acesso liberado com ${ids.length} permissões e ${areaIds.size} área${areaIds.size===1?"":"s"} operacional${areaIds.size===1?"":"is"}.`;message.className="form-message success";message.hidden=false;await load();$("#user-access-user").value=userId}catch(x){message.textContent=x.message;message.className="form-message error";message.hidden=false}finally{button.disabled=false}};
 document.addEventListener("click",e=>{const button=e.target.closest("[data-config-user]");if(!button)return;$("#user-access-user").value=button.dataset.configUser;$("#user-access-user").dispatchEvent(new Event("change"));$("#user-access-user").scrollIntoView({behavior:"smooth",block:"center"})});
 document.addEventListener("click",async e=>{const button=e.target.closest("[data-reject-user]");if(!button)return;if(!confirm(`Negar e remover a solicitação de ${button.dataset.rejectName}?`))return;button.disabled=true;try{await invoke({action:"reject_access",usuario_id:button.dataset.rejectUser});await load()}catch(error){alert(error.message);button.disabled=false}});
 $("#menu-button").onclick=()=>$("#sidebar").classList.toggle("open");$("#logout-button").onclick=()=>window.LIDUTEC_APP.signOut();

@@ -117,4 +117,34 @@ assert.deepEqual(
   { totalMolds: 12, totalPieces: 60, tons: 0.4092 }
 );
 
+// OEE — Acabamento
+assert.equal(
+  shifts.minutosDisponiveisProducao({ minutosTurno: 440, operadoresPlanejados: 10, operadoresPresentes: 10, minutosParada: 0 }),
+  440
+);
+assert.equal(
+  shifts.minutosDisponiveisProducao({ minutosTurno: 440, operadoresPlanejados: 10, operadoresPresentes: 8, minutosParada: 20 }),
+  332
+);
+assert.equal(
+  shifts.minutosDisponiveisProducao({ minutosTurno: 440, operadoresPlanejados: 0, operadoresPresentes: 5, minutosParada: 0 }),
+  440
+);
+assert.equal(shifts.calcularDisponibilidade({ minutosTurno: 0, operadoresPlanejados: 10, operadoresPresentes: 10, minutosParada: 0 }), 0);
+assert.equal(
+  shifts.calcularDisponibilidade({ minutosTurno: 440, operadoresPlanejados: 10, operadoresPresentes: 10, minutosParada: 44 }),
+  0.9
+);
+assert.equal(shifts.calcularTempoTeorico({ pecasLiberadas: 100, pecasRefugadas: 20, tempoCicloSegundos: 30 }), 60);
+assert.equal(shifts.calcularTempoTeorico({ pecasLiberadas: 0, pecasRefugadas: 0, tempoCicloSegundos: 30 }), 0);
+assert.equal(shifts.calcularEficiencia({ tempoTeoricoMinutos: 60, tempoDisponivelMinutos: 80 }), 0.75);
+assert.equal(shifts.calcularEficiencia({ tempoTeoricoMinutos: 60, tempoDisponivelMinutos: 0 }), 0);
+assert.equal(shifts.calcularQualidade({ pecasLiberadas: 90, pecasRefugadas: 10 }), 0.9);
+assert.equal(shifts.calcularQualidade({ pecasLiberadas: 0, pecasRefugadas: 0 }), 0);
+assert.equal(
+  Number(shifts.calcularOEE({ disponibilidade: 0.9, eficiencia: 0.75, qualidade: 0.9 }).toFixed(4)),
+  0.6075
+);
+assert.equal(shifts.calcularOEE({ disponibilidade: 0, eficiencia: 0.9, qualidade: 0.9 }), 0);
+
 console.log("Testes de turnos e indicadores: OK");

@@ -18,13 +18,15 @@
   <div id="user-access-loading" class="loading-state" hidden>Carregando acessos...</div>
   <div id="user-access-empty" class="empty-panel"><strong>Selecione um usuário</strong><span>As telas e funções serão exibidas aqui.</span></div>
   <form id="user-access-form" hidden>
+    <div class="permission-hint"><strong>Atenção:</strong> marcar uma permissão de Produção, Checklist ou Instruções de trabalho não é suficiente por si só — o usuário só enxerga os dados se a <strong>área operacional</strong> correspondente também estiver marcada em "Áreas liberadas", logo abaixo.</div>
     <div id="user-permission-matrix" class="permission-matrix"></div>
+    <div class="area-access-block"><h4>Áreas liberadas</h4><p>Necessário, além da permissão acima, para ver produção, checklists e instruções de trabalho da área.</p><div id="user-area-matrix" class="permission-list"></div></div>
     <div id="user-access-message" class="form-message" hidden></div>
     <div class="access-actions"><button type="button" id="user-select-all" class="button button-secondary">Marcar todas</button><button type="button" id="user-clear-all" class="button button-secondary">Desmarcar todas</button><button class="button button-primary">Salvar e liberar acesso</button></div>
   </form>
 </section>
 <section class="panel access-panel" data-permission="usuarios.gerenciar_acessos">
-  <div class="panel-header access-heading"><div><span class="eyebrow">Perfis de acesso</span><h3>O que cada perfil pode fazer</h3><p>Selecione um perfil e marque as permissões que ele deve possuir.</p></div><div class="profile-picker"><label for="access-profile">Perfil</label><select id="access-profile"><option value="">Selecione um perfil</option></select></div></div>
+  <div class="panel-header access-heading"><div><span class="eyebrow">Perfis de acesso</span><h3>O que cada perfil pode fazer</h3><p>Selecione um perfil e marque as permissões que ele deve possuir. Estas são as permissões padrão do perfil — a liberação de área operacional (Moldagem, Fusão, etc.) é feita por usuário, em "Acesso individual".</p></div><div class="profile-picker"><label for="access-profile">Perfil</label><select id="access-profile"><option value="">Selecione um perfil</option></select></div></div>
   <div id="access-loading" class="loading-state" hidden>Carregando permissões...</div>
   <div id="access-empty" class="empty-panel"><strong>Selecione um perfil</strong><span>A matriz de permissões será exibida aqui.</span></div>
   <form id="access-form" hidden>

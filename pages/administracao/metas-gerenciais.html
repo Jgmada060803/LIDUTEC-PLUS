@@ -1,0 +1,28 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Metas Gerenciais | Metalsider</title><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"></head>
+<body class="app-page"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+<div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Metas Gerenciais</h1><p>Parâmetros de planejamento por setor</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+<main class="main-content">
+  <section class="page-heading"><div><span class="eyebrow">Administração</span><h2>Metas por setor</h2><p>Estrutura única, usada por todos os módulos de produção. Uma nova meta encerra a vigência anterior automaticamente — o histórico é preservado.</p></div></section>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Nova meta</h3></div>
+    <form id="meta-form" class="meta-form">
+      <label>Setor<select id="meta-area" name="area_id" required><option value="">Selecione</option></select></label>
+      <label>Indicador<select id="meta-indicador" name="indicador_codigo" required disabled><option value="">Selecione o setor primeiro</option></select></label>
+      <label>Linha/equipamento<select id="meta-linha" name="linha_maquina_id"><option value="">Todas as linhas</option></select></label>
+      <label>Turno<select id="meta-turno" name="turno"><option value="">Todos os turnos</option><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
+      <label>Valor planejado<input id="meta-valor" name="valor" type="number" min="0" step="0.01" required></label>
+      <label>Vigente a partir de<input id="meta-vigencia" name="vigencia_inicio" type="date" required></label>
+      <div id="meta-message" class="form-message" hidden></div>
+      <div class="meta-form-actions"><button class="button button-primary">Salvar meta</button></div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Metas vigentes</h3></div>
+    <div id="meta-list-loading" class="loading-state">Carregando metas...</div>
+    <div class="table-wrapper"><table class="products-table" id="meta-list-table" hidden><thead><tr><th>Setor</th><th>Indicador</th><th>Linha/equipamento</th><th>Turno</th><th>Valor planejado</th><th>Vigente desde</th></tr></thead><tbody id="meta-list-rows"></tbody></table></div>
+    <p id="meta-list-empty" class="production-muted" hidden>Nenhuma meta cadastrada.</p>
+  </section>
+</main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/metas-gerenciais.js"></script></body></html>

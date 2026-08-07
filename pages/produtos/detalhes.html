@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../../assets/css/app.css">
   <link rel="stylesheet" href="../../assets/css/dashboard.css">
   <link rel="stylesheet" href="../../assets/css/produtos.css">
+  <link rel="stylesheet" href="../../assets/css/produto-tempo-ciclo.css">
   <link rel="prefetch" href="./moldagem.html">
   <link rel="prefetch" href="./fusao-vazamento.html">
   <link rel="prefetch" href="../../assets/js/produtos-moldagem.js" as="script">
@@ -307,6 +308,20 @@
             <div id="product-module-cards" class="product-module-grid"></div>
           </section>
 
+          <section class="panel" id="cycle-time-panel" data-permission="produto.editar">
+            <div class="panel-header"><span class="eyebrow">Engenharia</span><h3>Tempo de ciclo padrão</h3></div>
+            <p class="production-muted">Tempo padrão de produção por setor, usado no cálculo automático de eficiência (OEE). Definido pela Engenharia — não é informado pelo operador.</p>
+            <div class="table-wrapper"><table class="products-table" id="cycle-time-table"><thead><tr><th>Setor</th><th>Identificador</th><th>Tempo de ciclo (segundos)</th><th></th></tr></thead><tbody id="cycle-time-rows"></tbody></table></div>
+            <p id="cycle-time-empty" class="production-muted" hidden>Nenhum tempo de ciclo cadastrado para este produto.</p>
+            <form id="cycle-time-form" class="cycle-time-form">
+              <label>Setor<select name="area_id" required><option value="">Selecione</option></select><small id="cycle-time-unit-hint" class="production-muted"></small></label>
+              <label>Identificador (opcional)<input name="identificador" type="text" maxlength="20" placeholder="ex.: M1, M2..."><small class="production-muted">Use quando o produto tiver mais de um macho/etapa com tempos diferentes.</small></label>
+              <label>Tempo de ciclo (segundos)<input name="tempo_ciclo_segundos" type="number" min="0.01" step="0.01" required></label>
+              <div class="cycle-time-form-actions"><button class="button button-primary">Salvar</button></div>
+            </form>
+            <div id="cycle-time-message" class="form-message" hidden></div>
+          </section>
+
           <article id="module-detail" class="panel module-detail" hidden>
             <div class="panel-header">
               <span class="eyebrow">Histórico do módulo</span>
@@ -557,6 +572,7 @@
   <script src="../../assets/js/fichas-preview.js"></script>
   <script src="../../assets/js/fichas-ui.js"></script>
   <script src="../../assets/js/produtos-detalhes.js"></script>
+  <script src="../../assets/js/produto-tempo-ciclo.js"></script>
 
 </body>
 </html>

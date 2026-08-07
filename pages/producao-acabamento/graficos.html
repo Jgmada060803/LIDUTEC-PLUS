@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Indicadores de Acabamento | Metalsider</title>
+  <link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/producao-moldes.css"><link rel="stylesheet" href="../../assets/css/producao-acabamento.css">
+</head>
+<body class="app-page" data-production-page="charts">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+  <div class="app-shell">
+    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Indicadores de Acabamento</h1><p>Disponibilidade, eficiência, qualidade e OEE — últimos 30 dias</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+    <main class="main-content">
+      <div id="production-loading" class="loading-state">Carregando...</div>
+      <section class="production-donut-grid">
+        <article class="panel production-donut-panel"><h3>Disponibilidade</h3><p>Operadores presentes e paradas registradas</p><div id="gauge-disponibilidade" class="production-donut-chart production-gauge"></div></article>
+        <article class="panel production-donut-panel"><h3>Eficiência</h3><p>Tempo teórico × tempo disponível</p><div id="gauge-eficiencia" class="production-donut-chart production-gauge"></div></article>
+        <article class="panel production-donut-panel"><h3>Qualidade</h3><p>Liberadas ÷ (liberadas + refugadas)</p><div id="gauge-qualidade" class="production-donut-chart production-gauge"></div></article>
+        <article class="panel production-donut-panel"><h3>OEE</h3><p>Disponibilidade × Eficiência × Qualidade</p><div id="gauge-oee" class="production-donut-chart production-gauge"></div></article>
+      </section>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-acabamento-data.js"></script><script src="../../assets/js/producao-acabamento.js"></script>
+</body></html>

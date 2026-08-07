@@ -10,13 +10,13 @@
     const start=new Date(operational);start.setHours(Math.floor(startMinutes/60),startMinutes%60,0,0);const end=new Date(operational);if(endMinutes>=1440){end.setDate(end.getDate()+1);end.setHours(Math.floor((endMinutes-1440)/60),(endMinutes-1440)%60,0,0)}else end.setHours(Math.floor(endMinutes/60),endMinutes%60,0,0);
     return{date:localDate(operational),shift,bounds:{start,end}};
   };
-  const checklistHref=(modelId,date,shift,productId)=>{const nested=/\/pages\/[^/]+\//.test(location.pathname),prefix=nested?"../":"./",params=new URLSearchParams({modelo:modelId,data:date,turno:shift});if(productId)params.set("produto",productId);return`${prefix}controle-processo/checklist.html?${params}`};
+  const checklistHref=(modelId,date,shift,productId)=>{const nested=/\/pages\/[^/]+\//.test(location.pathname),prefix=nested?"../":"./",params=new URLSearchParams({modelo:modelId,data:date,turno:shift});if(productId)params.set("produto",productId);if(document.querySelector("#shift-entry-form"))params.set("origem","apontamento");return`${prefix}controle-processo/checklist.html?${params}`};
   const request=async query=>{const response=await query;if(response.error)throw response.error;return response.data||[]};
   const intervalStatus=(bounds,interval,completed,now)=>window.LIDUTEC_TURNOS?.checklistIntervalStatus?.(bounds.start,bounds.end,interval,completed,now)||(()=>{const dueCount=Math.floor(Math.max(0,Math.min(now,bounds.end)-bounds.start)/60000/interval),missingCount=Math.max(0,dueCount-completed);return missingCount?{due:new Date(bounds.start.getTime()+(completed+1)*interval*60000),missingCount,late:missingCount>1}:null})();
   let sequence=0,cachedModels=[],modelsLoadedAt=0;
   async function checklistModels(){if(cachedModels.length&&Date.now()-modelsLoadedAt<5*60*1000)return cachedModels;cachedModels=await request(client.from("modelos_checklist").select("id,codigo,nome,frequencia_tipo,intervalo_minutos,areas_checklist!inner(codigo)").eq("ativo",true).in("frequencia_tipo",["INTERVALO","INICIO_TURNO"]).eq("areas_checklist.codigo","MOLDAGEM"));modelsLoadedAt=Date.now();return cachedModels}
   async function refresh(){
-    const currentSequence=++sequence,{data:date,shift,bounds}=context(),now=new Date();
+    const currentSequence=++sequence,{date,shift,bounds}=context(),now=new Date();
     if(now<bounds.start||now>bounds.end)return render([]);
     const {data:{user}}=await client.auth.getUser();if(!user)return render([]);
     const models=await checklistModels();
@@ -33,12 +33,13 @@
       if(model.frequencia_tipo==="INICIO_TURNO")return done.length?[]:[{model,level:"pending",due:bounds.start,message:"Obrigatório no início do turno"}];
       const interval=Number(model.intervalo_minutos),status=intervalStatus(bounds,interval,done.length,now);if(!status)return[];return Array.from({length:status.missingCount},(_,index)=>{const due=new Date(status.due.getTime()+index*interval*60000),late=now>=new Date(due.getTime()+interval*60000);return{model,level:late?"late":"pending",due,message:`${late?"Atrasado":"Pendente"} · check das ${due.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`}});
     }).map(alert=>({...alert,href:checklistHref(alert.model.id,date,shift,production.data?.produto_id)})).sort((left,right)=>left.due-right.due);
-    render(alerts);
+    render(alerts,date,shift);
   }
-  function render(alerts){
+  function render(alerts,date,shift){
     let holder=document.querySelector("#global-checklist-alerts");
     if(!alerts.length){holder?.remove();return}
     if(!holder){holder=document.createElement("aside");holder.id="global-checklist-alerts";holder.className="global-checklist-alerts";holder.setAttribute("aria-live","assertive");document.body.append(holder)}
+    holder.dataset.date=date;holder.dataset.turno=shift;
     holder.innerHTML=alerts.map(alert=>`<a class="global-checklist-alert ${alert.level}" href="${alert.href}" title="${escapeHtml(`${alert.model.nome} · ${alert.message}`)}"><strong>${escapeHtml(alert.model.codigo)}</strong><small>${alert.due.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</small></a>`).join("");
   }
   const safeRefresh=()=>refresh().catch(error=>console.error("Erro ao atualizar alertas globais de checklist:",error));

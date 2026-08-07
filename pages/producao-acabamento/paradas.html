@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Paradas de Acabamento | Metalsider</title>
+  <link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/producao-moldes.css"><link rel="stylesheet" href="../../assets/css/producao-acabamento.css">
+</head>
+<body class="app-page" data-production-page="stops">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+  <div class="app-shell">
+    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Paradas de Acabamento</h1><p>Consulta de interrupções da produção</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+    <main class="main-content">
+      <div id="production-loading" class="loading-state">Carregando...</div>
+      <section class="panel production-query-panel">
+        <div class="panel-header query-heading"><h2>Paradas</h2><a href="./index.html" class="button button-secondary">Voltar</a></div>
+        <form id="stop-query-filters" class="production-query-filters">
+          <label>Período inicial<input name="inicio" type="date"></label>
+          <label>Período final<input name="fim" type="date"></label>
+          <label>Turno<select name="turno"><option value="">Todos</option><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
+        </form>
+        <div class="table-wrapper"><table class="products-table production-query-table"><thead><tr><th>Data</th><th>Turno</th><th>Início</th><th>Fim</th><th>Tempo total</th><th>Setor de origem</th><th>Motivo</th><th>Observações</th></tr></thead><tbody id="stop-records"></tbody></table></div>
+        <p id="stop-records-empty" class="production-muted" hidden>Nenhuma parada encontrada.</p>
+      </section>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-acabamento-data.js"></script><script src="../../assets/js/producao-acabamento.js"></script>
+</body></html>
