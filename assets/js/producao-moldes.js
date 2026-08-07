@@ -39,10 +39,10 @@ function rowValues(row){return Object.fromEntries([...row.querySelectorAll("inpu
 function applyRowValues(row,values={}){for(const control of row.querySelectorAll("input,select")){if(Object.hasOwn(values,control.name))control.value=values[control.name]??""}}
 function syncRequiredFields(row,names,active=true,invalid=[]){for(const name of names){const control=row.querySelector(`[name="${name}"]`);if(!control)continue;const pending=active&&(!String(control.value).trim()||invalid.includes(name));control.classList.toggle("field-required",active);control.classList.toggle("field-pending",pending);control.setAttribute("aria-invalid",String(pending))}}
 function syncProductionEndTimes({onlyMissing=false,referenceTime=new Date()}={}){
-  if(productionState.editingClosed||(productionState.currentShift?.status==="FECHADO"&&!onlyMissing))return;
+  if(productionState.currentShift?.status==="FECHADO"&&!productionState.editingClosed&&!onlyMissing)return;
   const bounds=shiftDateTimeBounds(),rows=[...document.querySelectorAll(".shift-production-row")];if(!bounds||!rows.length)return;
-  const form=q("#shift-entry-form"),date=form.elements.data_operacional.value,shift=form.elements.turno.value;
-  rows.forEach((row,index)=>{const startInput=row.querySelector('[name="inicio"]'),endInput=row.querySelector('[name="fim"]'),nextValue=rows.slice(index+1).map(item=>item.querySelector('[name="inicio"]')?.value).find(value=>resolveShiftTime(value));if(!onlyMissing||!endInput.value)endInput.value=window.LIDUTEC_TURNOS.productionEndTime(date,shift,startInput.value,nextValue,referenceTime);endInput.title=nextValue?"Calculado como o início da próxima linha menos 1 minuto.":"Atualizado automaticamente, respeitando o limite do turno.";syncRequiredFields(row,["inicio","produto_id","moldes_vazados","moldes_quebrados"])});
+  const form=q("#shift-entry-form"),date=form.elements.data_operacional.value,shift=form.elements.turno.value,effectiveReference=productionState.editingClosed?bounds.end:referenceTime;
+  rows.forEach((row,index)=>{const startInput=row.querySelector('[name="inicio"]'),endInput=row.querySelector('[name="fim"]'),nextValue=rows.slice(index+1).map(item=>item.querySelector('[name="inicio"]')?.value).find(value=>resolveShiftTime(value));if(!onlyMissing||!endInput.value)endInput.value=window.LIDUTEC_TURNOS.productionEndTime(date,shift,startInput.value,nextValue,effectiveReference);endInput.title=nextValue?"Calculado como o início da próxima linha menos 1 minuto.":"Atualizado automaticamente, respeitando o limite do turno.";syncRequiredFields(row,["inicio","produto_id","moldes_vazados","moldes_quebrados"])});
   renderShiftTimeline();
 }
 function resolveShiftTime(value){
