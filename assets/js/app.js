@@ -353,3 +353,12 @@ if (window.location.pathname.endsWith("/administracao/codigos-parada.html")) {
   importScript.src = "../../assets/js/codigos-parada-import.js";
   document.head.append(importScript);
 }
+
+if (document.body?.classList.contains("app-page")) {
+  const globalChecklistScript = document.createElement("script");
+  globalChecklistScript.src = new URL(
+    "global-checklist-alerts.js",
+    document.currentScript.src
+  ).href;
+  document.head.append(globalChecklistScript);
+}
