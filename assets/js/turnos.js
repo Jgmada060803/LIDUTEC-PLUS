@@ -62,6 +62,22 @@
     if (date < bounds.start) date.setDate(date.getDate() + 1);
     return date >= bounds.start && date <= bounds.end ? date : null;
   }
+  function productionEndTime(operationalDate, shiftCode, startValue, nextStartValue, nowValue = new Date()) {
+    const bounds = shiftBounds(operationalDate, shiftCode);
+    const start = resolveShiftTime(operationalDate, shiftCode, startValue);
+    if (!start) return "";
+    const nextStart = nextStartValue
+      ? resolveShiftTime(operationalDate, shiftCode, nextStartValue)
+      : null;
+    const now = nowValue instanceof Date ? new Date(nowValue) : new Date(nowValue);
+    if (Number.isNaN(now.getTime())) return "";
+    let end = nextStart
+      ? new Date(nextStart.getTime() - 60000)
+      : new Date(Math.min(now.getTime(), bounds.end.getTime()));
+    end.setSeconds(0, 0);
+    if (end < start || end < bounds.start || end > bounds.end) return "";
+    return `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+  }
   function intervalWithinShift(operationalDate, shiftCode, startValue, endValue) {
     const bounds = shiftBounds(operationalDate, shiftCode);
     const start = new Date(startValue);
@@ -98,6 +114,7 @@
     determineShift,
     shiftBounds,
     resolveShiftTime,
+    productionEndTime,
     intervalWithinShift,
     isScheduledShiftDay,
     productionCalculation,

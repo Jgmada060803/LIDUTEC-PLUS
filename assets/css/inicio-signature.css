@@ -1,0 +1,61 @@
+.home-welcome,
+.home-welcome h2,
+.home-welcome p {
+  transition-duration: 1.6s;
+}
+
+.process-grid {
+  transition-delay: 1.05s, 0.95s;
+}
+
+.home-signature {
+  margin-top: 28px;
+  padding: 22px 4px 8px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid #d7dfe5;
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 650ms ease 850ms, transform 650ms ease 850ms;
+}
+
+.home-page.ready .home-signature {
+  opacity: 1;
+  transform: none;
+}
+
+.home-signature span {
+  color: #81909b;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.home-signature blockquote {
+  margin: 0;
+  color: #142d73;
+  font-family: Georgia, serif;
+  font-size: clamp(1rem, 1.7vw, 1.35rem);
+  font-style: italic;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .home-signature {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-welcome,
+  .home-welcome h2,
+  .home-welcome p,
+  .process-grid,
+  .home-signature {
+    transition: none;
+  }
+}

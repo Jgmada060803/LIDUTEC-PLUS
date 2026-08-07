@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Início | Metalsider</title>
+  <link rel="stylesheet" href="../assets/css/app.css">
+  <link rel="stylesheet" href="../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../assets/css/inicio.css">
+  <link rel="stylesheet" href="../assets/css/inicio-signature.css">
+</head>
+<body class="app-page home-page">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+  <div class="app-shell">
+    <header class="topbar"><button type="button" class="menu-button" id="menu-button">☰</button><div class="topbar-title"><h1>Visão geral</h1><p>Selecione uma área para acessar seus indicadores</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div class="user-avatar" id="user-avatar">U</div></div></header>
+    <main class="home-main">
+      <section class="home-welcome" aria-labelledby="home-welcome-title"><h2 id="home-welcome-title">Seja bem-vindo, Metalsider</h2><p>Engenharia, produção e qualidade em uma única visão.</p></section>
+      <section class="process-grid" aria-label="Dashboards por processo">
+        <a class="process-card engineering" href="./dashboard-processo.html?processo=engenharia"><span>01</span><div><small>Dashboard</small><h3>Engenharia</h3><p>Produtos, projetos e indicadores de engenharia.</p></div><b>Em construção</b></a>
+        <a class="process-card molding" href="./dashboard.html" data-permission="producao_moldes.visualizar"><span>02</span><div><small>Dashboard</small><h3>Processo de Moldagem e Vazamento</h3><p>Produção de moldes, paradas e desempenho operacional.</p></div><b>Acessar dashboard</b></a>
+        <a class="process-card fusion" href="./dashboard-processo.html?processo=fusao"><span>03</span><div><small>Dashboard</small><h3>Processo de Fusão</h3><p>Fornos, metal líquido, temperatura e produtividade.</p></div><b>Em construção</b></a>
+        <a class="process-card core" href="./dashboard-processo.html?processo=macharia"><span>04</span><div><small>Dashboard</small><h3>Processo de Macharia</h3><p>Produção de machos e controles do processo.</p></div><b>Em construção</b></a>
+        <a class="process-card finishing" href="./dashboard-processo.html?processo=acabamento"><span>05</span><div><small>Dashboard</small><h3>Processo de Acabamento</h3><p>Operações, qualidade e produtividade do acabamento.</p></div><b>Em construção</b></a>
+      </section>
+      <footer class="home-signature"><span>Metalsider</span><blockquote>“Transformando pedras em pães”</blockquote></footer>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../assets/js/config.js"></script><script src="../assets/js/supabase.js"></script><script src="../assets/js/app.js"></script><script src="../assets/js/inicio.js"></script>
+</body>
+</html>

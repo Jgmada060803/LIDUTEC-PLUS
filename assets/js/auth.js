@@ -36,7 +36,7 @@ async function redirectAuthenticatedUser() {
   }
 
   if (session) {
-    window.location.replace("./dashboard.html");
+    window.location.replace("./inicio.html");
   }
 }
 
@@ -109,7 +109,7 @@ loginForm.addEventListener("submit", async (event) => {
       "success"
     );
 
-    window.location.replace("./dashboard.html");
+    window.location.replace("./inicio.html");
   } catch (error) {
     console.error("Erro no login:", error);
 

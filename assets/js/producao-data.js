@@ -29,7 +29,7 @@
     },
     records: (filters = {}) => result(applyFilters(client()
       .from("registros_producao_moldes")
-      .select("*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome)")
+      .select("*,produtos(codigo,nome,clientes(nome)),linhas_maquinas_producao(codigo,nome)")
       .order("data_operacional", { ascending: false }), filters)),
     stops: (filters = {}) => result(applyFilters(client()
       .from("paradas_producao_moldes")

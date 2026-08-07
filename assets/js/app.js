@@ -198,7 +198,9 @@ function syncSidebarNavigation() {
 
   const pathname = window.location.pathname.replace(/\\/g, "/");
   const isDashboard = pathname.endsWith("/pages/dashboard.html");
-  const prefix = isDashboard ? "./" : "../";
+  const isHome = pathname.endsWith("/pages/inicio.html");
+  const isProcessDashboard = pathname.endsWith("/pages/dashboard-processo.html");
+  const prefix = isDashboard || isHome || isProcessDashboard ? "./" : "../";
   const isActive = (section, page = "") => {
     if (section === "dashboard") {
       return isDashboard;
@@ -211,6 +213,10 @@ function syncSidebarNavigation() {
     `nav-link${active ? " active" : ""}`;
 
   navigation.innerHTML = `
+    <a href="${prefix}inicio.html"
+       class="${activeClass(isHome)}">
+      Início
+    </a>
     <a href="${prefix}dashboard.html"
        class="${activeClass(isActive("dashboard"))}">
       Dashboard

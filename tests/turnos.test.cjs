@@ -44,6 +44,34 @@ assert.equal(
   14
 );
 assert.equal(shifts.resolveShiftTime("2026-07-24", "NOITE", "06:01"), null);
+assert.equal(
+  shifts.productionEndTime("2026-08-06", "MANHA", "08:15", "", "2026-08-06T08:15:42"),
+  "08:15"
+);
+assert.equal(
+  shifts.productionEndTime("2026-08-06", "MANHA", "08:15", "09:00", "2026-08-06T08:30:00"),
+  "08:59"
+);
+assert.equal(
+  shifts.productionEndTime("2026-08-06", "MANHA", "12:00", "", "2026-08-06T15:00:00"),
+  "13:20"
+);
+assert.equal(
+  shifts.productionEndTime("2026-08-06", "NOITE", "23:30", "", "2026-08-07T00:15:00"),
+  "00:15"
+);
+assert.equal(
+  shifts.productionEndTime("2026-08-06", "TARDE", "15:00", "", "2026-08-06T14:00:00"),
+  ""
+);
+assert.equal(
+  shifts.productionEndTime("2026-08-06", "TARDE", "13:20", "16:54", "2026-08-07T08:00:00"),
+  "16:53"
+);
+assert.equal(
+  shifts.productionEndTime("2026-08-06", "TARDE", "16:54", "", "2026-08-07T08:00:00"),
+  "21:30"
+);
 assert.equal(shifts.isScheduledShiftDay("2026-08-08", "MANHA"), true);
 assert.equal(shifts.isScheduledShiftDay("2026-08-09", "MANHA"), false);
 assert.equal(shifts.isScheduledShiftDay("2026-08-08", "TARDE"), false);
