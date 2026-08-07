@@ -39,7 +39,7 @@
     monthShifts: (from, to, shift) => result(client().from("turnos_producao_moldes").select("data_operacional,turno,status").gte("data_operacional", from).lte("data_operacional", to).eq("turno", shift).limit(40)),
     calendarEvents: (from, to, shift) => result(client().from("calendario_operacional").select("id,nome,tipo,escopo,data_inicio,data_fim,turno,observacao").eq("ativo",true).lte("data_inicio",to).gte("data_fim",from).or(`turno.eq.TODOS,turno.eq.${shift}`).order("data_inicio").limit(200)),
     previousProduction: (from, before) => result(client().from("registros_producao_moldes").select("produto_id,inicio").gte("inicio", from).lt("inicio", before).order("inicio", { ascending: false }).limit(1).maybeSingle(), null),
-    shiftProductions: (id) => result(client().from("registros_producao_moldes").select("produto_id,inicio,fim,moldes_vazados,moldes_quebrados,observacao").eq("turno_producao_id", id).order("inicio")),
+    shiftProductions: (id) => result(client().from("registros_producao_moldes").select("produto_id,inicio,fim,rastreabilidade,moldes_vazados,moldes_quebrados,observacao").eq("turno_producao_id", id).order("inicio")),
     shiftStops: (id) => result(client().from("paradas_producao_moldes").select("inicio,fim,setor_responsavel_id,categoria_id,observacao").eq("turno_producao_id", id).order("inicio")),
     history: async (id) => {
       const table = "historico_edicoes_turno_producao";
