@@ -45,6 +45,15 @@
       if (filters.status) query = query.eq("status", filters.status);
       return unwrap(query.limit(1000));
     },
+    execution: (id) => unwrap(client().from("execucoes_checklist").select(`
+      id,data_operacional,turno,equipamento,corrida,status,observacao,iniciado_em,concluido_em,
+      modelos_checklist(id,codigo,nome,descricao,areas_checklist(id,codigo,nome,cor)),
+      produtos(id,codigo,nome),usuarios!execucoes_checklist_operador_id_fkey(nome),
+      respostas_checklist(id,resultado,valor_numero,valor_texto,observacao,acao_imediata,respondido_em,
+        itens_checklist(id,codigo,secao,descricao,tipo_resposta,unidade,critico,ordem)),
+      liberacoes_checklist(decisao,justificativa,decidido_em,
+        usuarios!liberacoes_checklist_supervisor_id_fkey(nome))
+    `).eq("id", id).maybeSingle(), null),
     pendingApprovals: () => unwrap(client().from("execucoes_checklist").select(`
       id,data_operacional,turno,equipamento,corrida,status,iniciado_em,
       modelos_checklist(codigo,nome,areas_checklist(nome,cor)),
