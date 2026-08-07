@@ -1,5 +1,5 @@
 const productionPage = document.body.dataset.productionPage;
-const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], records:[], stops:[], currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
+const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], records:[], stops:[], materialByProduct:new Map(), currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
 const q = (selector) => document.querySelector(selector);
 const esc = (value="") => String(value).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const number = (value) => Number(value || 0);
@@ -194,7 +194,11 @@ async function loadProductionData(){
     const form=q("#stop-query-filters");form.elements.inicio.value=daysBefore(today,30);form.elements.fim.value=today;
     productionState.records=[];productionState.stops=await window.LIDUTEC_PRODUCAO_DATA.stops(productionFilters(form));return;
   }
-  const from=daysBefore(today,90);[productionState.records,productionState.stops]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.records({from,to:today,limit:5000}),window.LIDUTEC_PRODUCAO_DATA.stops({from,to:today,limit:5000})]);
+  const from=daysBefore(today,90);
+  if(productionPage==="charts"){
+    const[records,materials]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.records({from,to:today,limit:5000}),window.LIDUTEC_PRODUCAO_DATA.productMaterials()]);productionState.records=records;productionState.stops=[];productionState.materialByProduct=new Map(materials.map(item=>[String(item.produto_id),item.tipo_material]));return;
+  }
+  [productionState.records,productionState.stops]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.records({from,to:today,limit:5000}),window.LIDUTEC_PRODUCAO_DATA.stops({from,to:today,limit:5000})]);
 }
 function productionTotals(records=productionState.records,stops=productionState.stops){
   const poured=records.reduce((sum,x)=>sum+number(x.moldes_vazados),0),broken=records.reduce((sum,x)=>sum+number(x.moldes_quebrados),0),totalMolds=poured+broken,totalPieces=records.reduce((sum,x)=>sum+number(x.total_pecas),0),tons=records.reduce((sum,x)=>sum+number(x.toneladas_produzidas),0);
@@ -252,10 +256,13 @@ function renderStops(){
 }
 async function reloadStops(){const form=q("#stop-query-filters");productionState.stops=await window.LIDUTEC_PRODUCAO_DATA.stops(productionFilters(form));renderStops()}
 function updateStopSortHeaders(){for(const button of document.querySelectorAll(".stop-query-table .table-sort")){const active=button.dataset.sort===productionState.stopSort.key,direction=active?productionState.stopSort.direction:"";button.dataset.direction=direction;button.closest("th").setAttribute("aria-sort",direction==="asc"?"ascending":direction==="desc"?"descending":"none");button.title=active?`Classificação ${direction==="asc"?"crescente":"decrescente"}. Clique para inverter.`:"Clique para classificar em ordem crescente."}}
+function productionMaterial(record){const raw=String(productionState.materialByProduct.get(String(record.produto_id))||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();if(raw.includes("NODULAR"))return"Nodular";if(raw.includes("CINZENTO"))return"Cinzento";return"Não especificado"}
+function renderDonut(selector,valueFn,formatter){
+  const container=q(selector),labels=["Cinzento","Nodular","Não especificado"],colors={Cinzento:"#185abd",Nodular:"#218c4b","Não especificado":"#94a3b8"},values=new Map(labels.map(label=>[label,0]));for(const record of productionState.records){const material=productionMaterial(record);values.set(material,values.get(material)+number(valueFn(record)))}const total=[...values.values()].reduce((sum,value)=>sum+value,0);if(!total){container.innerHTML='<p class="production-muted">Sem dados no período.</p>';return}let offset=0;const segments=labels.map(label=>{const start=offset;offset+=values.get(label)/total*360;return`${colors[label]} ${start}deg ${offset}deg`});container.innerHTML=`<div class="production-donut" style="--donut-segments:${segments.join(",")}" role="img" aria-label="Distribuição por tipo de material"><div><strong>${formatter(total)}</strong><span>Total</span></div></div><div class="production-donut-legend">${labels.map(label=>`<div><i style="--legend-color:${colors[label]}"></i><span>${label}</span><strong>${formatter(values.get(label))}</strong><small>${(values.get(label)/total*100).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})}%</small></div>`).join("")}</div>`;
+}
 function renderCharts(){
-  renderBars(productionState.records,"#daily-chart",x=>x.data_operacional,x=>x.quantidade_produzida);
-  renderBars(productionState.records,"#product-chart",x=>x.produtos?.codigo||"—",x=>x.quantidade_produzida);
-  renderBars(productionState.stops,"#stop-chart",x=>x.categorias_parada_producao?.nome||"—",x=>x.duracao_minutos);
+  renderDonut("#material-tons-chart",record=>record.toneladas_produzidas,value=>`${value.toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3})} t`);
+  renderDonut("#material-molds-chart",record=>record.moldes_vazados,value=>value.toLocaleString("pt-BR"));
 }
 function applyCurrentShift(form){const shift=window.LIDUTEC_TURNOS.determineShift();form.querySelector('[name="data_operacional"]')?.setAttribute("value",shift.dataOperacional);const select=form.querySelector('[name="turno"]');if(select)select.value=shift.codigo}
 async function initializeProduction(){

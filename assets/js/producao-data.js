@@ -35,6 +35,7 @@
       .from("paradas_producao_moldes")
       .select("*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome),categorias_parada_producao(nome),setores_responsaveis_parada(nome)")
       .order("data_operacional", { ascending: false }), filters)),
+    productMaterials: () => result(client().rpc("materiais_produtos_producao")),
     shift: (date, shift) => result(client().from("turnos_producao_moldes").select("id,status").eq("data_operacional", date).eq("turno", shift).maybeSingle(), null),
     monthShifts: (from, to, shift) => result(client().from("turnos_producao_moldes").select("data_operacional,turno,status").gte("data_operacional", from).lte("data_operacional", to).eq("turno", shift).limit(40)),
     calendarEvents: (from, to, shift) => result(client().from("calendario_operacional").select("id,nome,tipo,escopo,data_inicio,data_fim,turno,observacao").eq("ativo",true).lte("data_inicio",to).gte("data_fim",from).or(`turno.eq.TODOS,turno.eq.${shift}`).order("data_inicio").limit(200)),
