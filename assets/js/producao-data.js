@@ -36,7 +36,7 @@
       .select("*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome),categorias_parada_producao(nome),setores_responsaveis_parada(nome)")
       .order("data_operacional", { ascending: false }), filters)),
     productMaterials: () => result(client().rpc("materiais_produtos_producao")),
-    shift: (date, shift) => result(client().from("turnos_producao_moldes").select("id,status").eq("data_operacional", date).eq("turno", shift).maybeSingle(), null),
+    shift: (date, shift) => result(client().from("turnos_producao_moldes").select("id,status,versao,rascunho_producoes,rascunho_paradas,atualizado_por,atualizado_em,usuarios!turnos_producao_moldes_atualizado_por_fkey(nome)").eq("data_operacional", date).eq("turno", shift).maybeSingle(), null),
     monthShifts: (from, to, shift) => result(client().from("turnos_producao_moldes").select("data_operacional,turno,status").gte("data_operacional", from).lte("data_operacional", to).eq("turno", shift).limit(40)),
     calendarEvents: (from, to, shift) => result(client().from("calendario_operacional").select("id,nome,tipo,escopo,data_inicio,data_fim,turno,observacao").eq("ativo",true).lte("data_inicio",to).gte("data_fim",from).or(`turno.eq.TODOS,turno.eq.${shift}`).order("data_inicio").limit(200)),
     previousProduction: (from, before) => result(client().from("registros_producao_moldes").select("produto_id,inicio").gte("inicio", from).lt("inicio", before).order("inicio", { ascending: false }).limit(1).maybeSingle(), null),
@@ -59,6 +59,7 @@
         .order("alterado_em", { ascending: false }));
     },
     closeShift: (payload) => result(client().rpc("fechar_turno_producao_moldes", payload)),
+    saveShiftDraft: (payload) => result(client().rpc("salvar_rascunho_turno_producao_moldes", payload), null),
     editShift: (payload) => result(client().rpc("editar_turno_producao_moldes", payload)),
     deleteShift: (id) => result(client().rpc("excluir_turno_producao_moldes", { p_turno_id: id }))
   };

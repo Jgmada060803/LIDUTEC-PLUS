@@ -12,12 +12,14 @@
   };
   const checklistHref=(modelId,date,shift,productId)=>{const nested=/\/pages\/[^/]+\//.test(location.pathname),prefix=nested?"../":"./",params=new URLSearchParams({modelo:modelId,data:date,turno:shift});if(productId)params.set("produto",productId);return`${prefix}controle-processo/checklist.html?${params}`};
   const request=async query=>{const response=await query;if(response.error)throw response.error;return response.data||[]};
-  let sequence=0;
+  const intervalStatus=(bounds,interval,completed,now)=>window.LIDUTEC_TURNOS?.checklistIntervalStatus?.(bounds.start,bounds.end,interval,completed,now)||(()=>{const dueCount=Math.floor(Math.max(0,Math.min(now,bounds.end)-bounds.start)/60000/interval),missingCount=Math.max(0,dueCount-completed);return missingCount?{due:new Date(bounds.start.getTime()+(completed+1)*interval*60000),missingCount,late:missingCount>1}:null})();
+  let sequence=0,cachedModels=[],modelsLoadedAt=0;
+  async function checklistModels(){if(cachedModels.length&&Date.now()-modelsLoadedAt<5*60*1000)return cachedModels;cachedModels=await request(client.from("modelos_checklist").select("id,codigo,nome,frequencia_tipo,intervalo_minutos,areas_checklist!inner(codigo)").eq("ativo",true).in("frequencia_tipo",["INTERVALO","INICIO_TURNO"]).eq("areas_checklist.codigo","MOLDAGEM"));modelsLoadedAt=Date.now();return cachedModels}
   async function refresh(){
     const currentSequence=++sequence,{data:date,shift,bounds}=context(),now=new Date();
     if(now<bounds.start||now>bounds.end)return render([]);
     const {data:{user}}=await client.auth.getUser();if(!user)return render([]);
-    const models=await request(client.from("modelos_checklist").select("id,nome,frequencia_tipo,intervalo_minutos,areas_checklist!inner(codigo)").eq("ativo",true).in("frequencia_tipo",["INTERVALO","INICIO_TURNO"]).eq("areas_checklist.codigo","MOLDAGEM"));
+    const models=await checklistModels();
     if(!models.length)return render([]);
     const [executions,production]=await Promise.all([
       request(client.from("execucoes_checklist").select("id,modelo_id,data_operacional,turno,iniciado_em,concluido_em,status").in("modelo_id",models.map(model=>model.id)).eq("data_operacional",date).eq("turno",shift).neq("status","EM_PREENCHIMENTO").order("concluido_em",{ascending:false}).limit(500)),
@@ -26,20 +28,22 @@
     let local=null;try{local=JSON.parse(sessionStorage.getItem("lidutec:checklists:ultima-conclusao")||"null")}catch{sessionStorage.removeItem("lidutec:checklists:ultima-conclusao")}
     if(local&&local.data_operacional===date&&local.turno===shift&&!executions.some(item=>String(item.id)===String(local.id)))executions.unshift(local);
     if(currentSequence!==sequence)return;
-    const alerts=models.map(model=>{
+    const alerts=models.flatMap(model=>{
       const done=executions.filter(item=>String(item.modelo_id)===String(model.id)&&new Date(item.concluido_em||item.iniciado_em)<=now);
-      if(model.frequencia_tipo==="INICIO_TURNO")return done.length?null:{model,level:"pending",message:"Obrigatório no início do turno"};
-      const reference=done.length?new Date(done[0].concluido_em||done[0].iniciado_em):bounds.start,due=new Date(reference.getTime()+Number(model.intervalo_minutos)*60000);if(now<due)return null;const late=now>=new Date(due.getTime()+Number(model.intervalo_minutos)*60000);return{model,level:late?"late":"pending",message:`${late?"Atrasado":"Pendente"} · previsto ${due.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`};
-    }).filter(Boolean).map(alert=>({...alert,href:checklistHref(alert.model.id,date,shift,production.data?.produto_id)}));
+      if(model.frequencia_tipo==="INICIO_TURNO")return done.length?[]:[{model,level:"pending",due:bounds.start,message:"Obrigatório no início do turno"}];
+      const interval=Number(model.intervalo_minutos),status=intervalStatus(bounds,interval,done.length,now);if(!status)return[];return Array.from({length:status.missingCount},(_,index)=>{const due=new Date(status.due.getTime()+index*interval*60000),late=now>=new Date(due.getTime()+interval*60000);return{model,level:late?"late":"pending",due,message:`${late?"Atrasado":"Pendente"} · check das ${due.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`}});
+    }).map(alert=>({...alert,href:checklistHref(alert.model.id,date,shift,production.data?.produto_id)})).sort((left,right)=>left.due-right.due);
     render(alerts);
   }
   function render(alerts){
     let holder=document.querySelector("#global-checklist-alerts");
     if(!alerts.length){holder?.remove();return}
     if(!holder){holder=document.createElement("aside");holder.id="global-checklist-alerts";holder.className="global-checklist-alerts";holder.setAttribute("aria-live","assertive");document.body.append(holder)}
-    holder.innerHTML=alerts.map(alert=>`<a class="global-checklist-alert ${alert.level}" href="${alert.href}"><i></i><span><strong>Checklist: ${escapeHtml(alert.model.nome)}</strong><small>${escapeHtml(alert.message)}</small></span><b>Preencher →</b></a>`).join("");
+    holder.innerHTML=alerts.map(alert=>`<a class="global-checklist-alert ${alert.level}" href="${alert.href}" title="${escapeHtml(`${alert.model.nome} · ${alert.message}`)}"><strong>${escapeHtml(alert.model.codigo)}</strong><small>${alert.due.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</small></a>`).join("");
   }
   const safeRefresh=()=>refresh().catch(error=>console.error("Erro ao atualizar alertas globais de checklist:",error));
+  function scheduleDeadlineRefresh(){const interval=30*60*1000,delay=interval-Date.now()%interval+250;setTimeout(()=>{safeRefresh();scheduleDeadlineRefresh()},delay)}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",safeRefresh,{once:true});else safeRefresh();
-  window.addEventListener("focus",safeRefresh);window.addEventListener("pageshow",safeRefresh);document.addEventListener("visibilitychange",()=>{if(!document.hidden)safeRefresh()});setInterval(()=>{if(!document.hidden)safeRefresh()},60000);
+  window.addEventListener("focus",safeRefresh);window.addEventListener("pageshow",safeRefresh);document.addEventListener("visibilitychange",()=>{document.documentElement.classList.toggle("checklist-alerts-paused",document.hidden);if(!document.hidden)safeRefresh()});setInterval(()=>{if(!document.hidden)safeRefresh()},120000);scheduleDeadlineRefresh();
+  client.channel("global-checklist-alerts").on("postgres_changes",{event:"*",schema:"public",table:"execucoes_checklist"},()=>{if(!document.hidden)safeRefresh()}).subscribe();
 })();

@@ -93,6 +93,17 @@
     if (shiftCode === "TARDE") return day >= 1 && day <= 5;
     return day >= 0 && day <= 5;
   }
+  function checklistIntervalStatus(startValue, endValue, intervalMinutes, completedCount, nowValue = new Date()) {
+    const start = new Date(startValue), end = new Date(endValue), now = new Date(nowValue), interval = Number(intervalMinutes);
+    if ([start,end,now].some(value => Number.isNaN(value.getTime())) || interval <= 0) return null;
+    const elapsedMinutes = Math.max(0, Math.min(now.getTime(), end.getTime()) - start.getTime()) / 60000;
+    const dueCount = Math.floor(elapsedMinutes / interval);
+    const completed = Math.max(0, Math.floor(Number(completedCount) || 0));
+    const missingCount = Math.max(0, dueCount - completed);
+    if (!missingCount) return null;
+    const due = new Date(start.getTime() + (completed + 1) * interval * 60000);
+    return { due, dueCount, completedCount: completed, missingCount, late: missingCount > 1 };
+  }
   function productionCalculation(moldesVazados, moldesQuebrados, pecasPorMolde, pesoPecaKg) {
     const poured = Math.max(0, Number(moldesVazados || 0));
     const broken = Math.max(0, Number(moldesQuebrados || 0));
@@ -117,6 +128,7 @@
     productionEndTime,
     intervalWithinShift,
     isScheduledShiftDay,
+    checklistIntervalStatus,
     productionCalculation,
     stopDurationMinutes,
     effectiveMinutes,

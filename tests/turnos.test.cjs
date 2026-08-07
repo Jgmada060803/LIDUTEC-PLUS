@@ -86,6 +86,18 @@ assert.equal(shifts.isScheduledShiftDay("2026-08-08", "TARDE"), false);
 assert.equal(shifts.isScheduledShiftDay("2026-08-07", "TARDE"), true);
 assert.equal(shifts.isScheduledShiftDay("2026-08-09", "NOITE"), true);
 assert.equal(shifts.isScheduledShiftDay("2026-08-08", "NOITE"), false);
+const checklistShiftStart = new Date(2026, 7, 7, 6, 0);
+const checklistShiftEnd = new Date(2026, 7, 7, 13, 20);
+assert.equal(shifts.checklistIntervalStatus(checklistShiftStart, checklistShiftEnd, 30, 0, new Date(2026, 7, 7, 6, 29)), null);
+assert.deepEqual(
+  shifts.checklistIntervalStatus(checklistShiftStart, checklistShiftEnd, 30, 0, new Date(2026, 7, 7, 7, 15)),
+  {due:new Date(2026,7,7,6,30),dueCount:2,completedCount:0,missingCount:2,late:true}
+);
+assert.deepEqual(
+  shifts.checklistIntervalStatus(checklistShiftStart, checklistShiftEnd, 30, 1, new Date(2026, 7, 7, 7, 15)),
+  {due:new Date(2026,7,7,7,0),dueCount:2,completedCount:1,missingCount:1,late:false}
+);
+assert.equal(shifts.checklistIntervalStatus(checklistShiftStart, checklistShiftEnd, 30, 2, new Date(2026, 7, 7, 7, 15)), null);
 assert.equal(
   shifts.intervalWithinShift(
     "2026-07-24", "NOITE",
