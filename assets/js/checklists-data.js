@@ -20,6 +20,12 @@
       .order("ordem")),
     products: () => unwrap(client().from("produtos")
       .select("id,codigo,nome").eq("status", "ATIVO").order("codigo")),
+    productionAt: (date, shift, moment = new Date()) => unwrap(client()
+      .from("registros_producao_moldes")
+      .select("produto_id,inicio,fim,produtos(id,codigo,nome)")
+      .eq("data_operacional", date).eq("turno", shift)
+      .lte("inicio", new Date(moment).toISOString())
+      .order("inicio", { ascending: false }).limit(1).maybeSingle(), null),
     save: (payload) => unwrap(client().rpc("salvar_execucao_checklist", payload), null),
     decide: (executionId, decision, justification) => unwrap(client().rpc(
       "decidir_execucao_checklist", {
