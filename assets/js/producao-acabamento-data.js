@@ -44,29 +44,33 @@
       if (error) throw error;
       return data;
     },
+    linha2Ativa: async (date, turno) => {
+      const { data, error } = await client().rpc("linha_2_ativa_acabamento", { p_data_operacional: date, p_turno: turno });
+      if (error) throw error;
+      return data;
+    },
     records: (filters = {}) => result(applyFilters(client()
       .from("registros_producao_acabamento")
-      .select("*,produtos(codigo,nome,clientes(nome))")
+      .select("*,produtos(codigo,nome,clientes(nome)),linhas_maquinas_producao(codigo,nome)")
       .order("data_operacional", { ascending: false }), filters)),
     stops: (filters = {}) => result(applyFilters(client()
       .from("paradas_producao_acabamento")
       .select("*,categorias_parada_producao(nome),setores_responsaveis_parada(nome),postos_equipamentos_acabamento(codigo,nome,tipo,linha_maquina_id)")
       .order("data_operacional", { ascending: false }), filters)),
-    shiftsOnDate: (date) => result(client().from("turnos_producao_acabamento")
-      .select("id,turno,linha_maquina_id,operadores_planejados,operadores_presentes,status")
-      .eq("data_operacional", date)),
-    shiftsInRange: (from, to) => result(client().from("turnos_producao_acabamento")
-      .select("id,turno,linha_maquina_id,operadores_planejados,operadores_presentes,status")
-      .gte("data_operacional", from).lte("data_operacional", to).eq("status", "FECHADO")),
-    shift: (date, turno, linhaId) => result(client().from("turnos_producao_acabamento")
-      .select("id,status,versao,linha_maquina_id,operadores_planejados,operadores_presentes,rascunho_producoes,rascunho_paradas,atualizado_por,atualizado_em,usuarios!turnos_producao_acabamento_atualizado_por_fkey(nome)")
-      .eq("data_operacional", date).eq("turno", turno).eq("linha_maquina_id", linhaId).maybeSingle(), null),
-    monthShifts: (from, to, turno, linhaId) => result(client().from("turnos_producao_acabamento")
-      .select("data_operacional,turno,status").gte("data_operacional", from).lte("data_operacional", to)
-      .eq("turno", turno).eq("linha_maquina_id", linhaId).limit(40)),
+    shiftsOnDate: (date) => result(client().from("turnos_acabamento_linhas")
+      .select("turno_producao_id,linha_maquina_id,operadores_planejados,operadores_presentes,turnos_producao_acabamento!inner(turno,status,data_operacional)")
+      .eq("turnos_producao_acabamento.data_operacional", date)),
+    shiftsInRange: (from, to) => result(client().from("turnos_acabamento_linhas")
+      .select("turno_producao_id,linha_maquina_id,operadores_planejados,operadores_presentes,turnos_producao_acabamento!inner(turno,status,data_operacional)")
+      .gte("turnos_producao_acabamento.data_operacional", from)
+      .lte("turnos_producao_acabamento.data_operacional", to)
+      .eq("turnos_producao_acabamento.status", "FECHADO")),
+    shift: (date, turno) => result(client().from("turnos_producao_acabamento")
+      .select("id,status,versao,rascunho_producoes,rascunho_paradas,rascunho_linhas,atualizado_por,atualizado_em,usuarios!turnos_producao_acabamento_atualizado_por_fkey(nome),turnos_acabamento_linhas(linha_maquina_id,operadores_planejados,operadores_presentes)")
+      .eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
     shiftProductions: (id) => result(client().from("registros_producao_acabamento")
-      .select("produto_id,quantidade_liberada,quantidade_rejeitada,quantidade_retrabalhada,quantidade_refugada")
-      .eq("turno_producao_id", id).order("produto_id")),
+      .select("linha_maquina_id,produto_id,quantidade_liberada,quantidade_rejeitada,quantidade_retrabalhada,quantidade_refugada")
+      .eq("turno_producao_id", id).order("linha_maquina_id").order("produto_id")),
     shiftStops: (id) => result(client().from("paradas_producao_acabamento")
       .select("inicio,fim,setor_origem_id,categoria_id,posto_equipamento_id,observacao").eq("turno_producao_id", id).order("inicio")),
     history: async (id) => result(client().from("historico_edicoes_turno_acabamento")

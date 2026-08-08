@@ -16,19 +16,34 @@
         <section class="panel shift-header-grid acabamento-shift-header">
           <label>Turno<select name="turno" required><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
           <label>Data<input name="data_operacional" type="date" required></label>
-          <label>Linha de produção<select name="linha_maquina_id" data-lines required><option value="">Selecione</option></select></label>
-          <label>Operadores presentes<input name="operadores_presentes" type="number" min="0" step="1" required><small id="operadores-planejados-hint" class="production-muted"></small></label>
           <div class="shift-status"><span>Status</span><strong id="shift-status">Em apontamento</strong></div>
         </section>
 
-        <section class="panel shift-table-panel">
-          <div class="shift-section-heading"><div><h2>Produção</h2></div></div>
-          <div class="table-wrapper"><table class="products-table shift-entry-table"><thead><tr><th>Produto</th><th>Liberada</th><th>Rejeitada</th><th>Retrabalhada</th><th>Refugada</th><th></th></tr></thead><tbody id="production-entry-rows"></tbody></table></div>
-          <button id="add-production-row" type="button" class="row-add-button" aria-label="Adicionar produto" title="Adicionar produto">+</button>
+        <section class="panel shift-table-panel" id="linha1-section">
+          <div class="shift-section-heading">
+            <div><h2>Produção — Linha 1</h2></div>
+            <label class="acabamento-operadores-field">Operadores presentes<input name="operadores_presentes_l1" type="number" min="0" step="1" required><small id="operadores-planejados-hint-l1" class="production-muted"></small></label>
+          </div>
+          <div class="acabamento-postos-dots" id="postos-dots-l1"></div>
+          <div class="acabamento-absenteeism-box" id="absenteeism-box-l1" hidden></div>
+          <div class="table-wrapper"><table class="products-table shift-entry-table"><thead><tr><th>Produto</th><th>Liberada</th><th>Rejeitada</th><th>Retrabalhada</th><th>Refugada</th><th></th></tr></thead><tbody id="production-entry-rows-l1"></tbody></table></div>
+          <button id="add-production-row-l1" type="button" class="row-add-button" aria-label="Adicionar produto" title="Adicionar produto">+</button>
+        </section>
+
+        <section class="panel shift-table-panel" id="linha2-section">
+          <div class="shift-section-heading">
+            <div><h2 id="linha2-title">Linha 2</h2></div>
+            <label class="acabamento-operadores-field" id="operadores-presentes-l2-field">Operadores presentes<input name="operadores_presentes_l2" type="number" min="0" step="1" required><small id="operadores-planejados-hint-l2" class="production-muted"></small></label>
+          </div>
+          <div class="acabamento-postos-dots" id="postos-dots-l2"></div>
+          <div class="acabamento-absenteeism-box" id="absenteeism-box-l2" hidden></div>
+          <div class="table-wrapper"><table class="products-table shift-entry-table"><thead><tr><th>Produto</th><th>Liberada</th><th>Rejeitada</th><th>Retrabalhada</th><th>Refugada</th><th></th></tr></thead><tbody id="production-entry-rows-l2"></tbody></table></div>
+          <button id="add-production-row-l2" type="button" class="row-add-button" aria-label="Adicionar produto" title="Adicionar produto">+</button>
         </section>
 
         <section class="panel shift-table-panel">
           <div class="shift-section-heading"><div><h2>Parada</h2></div></div>
+          <div class="acabamento-equip-timelines" id="equipamentos-timelines"></div>
           <div class="table-wrapper"><table class="products-table shift-entry-table stop-entry-table"><thead><tr><th>Hora início</th><th>Hora fim</th><th>Tempo total</th><th>Posto/Equipamento</th><th>Setor de origem</th><th>Motivo da parada</th><th>Observações</th><th></th></tr></thead><tbody id="stop-entry-rows"></tbody></table></div>
           <button id="add-stop-row" type="button" class="row-add-button" aria-label="Adicionar parada" title="Adicionar parada">+</button>
         </section>

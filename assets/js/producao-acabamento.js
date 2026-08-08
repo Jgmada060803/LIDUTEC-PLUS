@@ -11,6 +11,8 @@ const acabamentoState = {
   records: [],
   stops: [],
   currentShift: null,
+  linha2Ativa: true,
+  planned: { l1: null, l2: null },
   editingClosed: false,
   originalShiftData: null,
   statusRequestId: 0,
@@ -47,6 +49,11 @@ function acabamentoClearMessage(source) {
 function cycleTimeFor(productId) {
   return acabamentoState.cycleTimeByProduct.get(String(productId)) || null;
 }
+function linhaIdByCodigo(codigo) {
+  return acabamentoState.lines.find((linha) => linha.codigo === codigo)?.id ?? null;
+}
+function linha1Id() { return linhaIdByCodigo("ACABAMENTO_L1"); }
+function linha2Id() { return linhaIdByCodigo("ACABAMENTO_L2"); }
 
 async function loadAcabamentoSupport() {
   const { products, lines, categories, sectors, postos } = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.support();
@@ -57,12 +64,6 @@ async function loadAcabamentoSupport() {
   acabamentoState.postos = postos;
   const cycleTimes = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.cycleTimes(products.map((p) => p.id));
   acabamentoState.cycleTimeByProduct = new Map(cycleTimes.map((item) => [String(item.produto_id), item.tempo_ciclo_segundos]));
-  for (const select of document.querySelectorAll("[data-products]")) {
-    select.insertAdjacentHTML("beforeend", products.map((p) => `<option value="${p.id}">${aesc(p.codigo)} — ${aesc(p.nome)}</option>`).join(""));
-  }
-  for (const select of document.querySelectorAll("[data-lines]")) {
-    select.insertAdjacentHTML("beforeend", lines.map((l) => `<option value="${l.id}">${aesc(l.nome)}</option>`).join(""));
-  }
   for (const select of document.querySelectorAll("[data-categories]")) {
     select.insertAdjacentHTML("beforeend", categories.map((c) => `<option value="${c.id}">${aesc(c.nome)}</option>`).join(""));
   }
@@ -72,21 +73,8 @@ async function loadAcabamentoSupport() {
 }
 
 // ---------------------------------------------------------------------------
-// Apontamento do turno (tela "entry")
+// Apontamento do turno (tela "entry") — 1 turno cobre as duas linhas
 // ---------------------------------------------------------------------------
-function productionRow() {
-  const row = document.createElement("tr");
-  row.className = "shift-production-row";
-  const productOptions = acabamentoState.products.map((p) => `<option value="${p.id}">${aesc(p.codigo)} — ${aesc(p.nome)}</option>`).join("");
-  row.innerHTML = `
-    <td><select name="produto_id"><option value="">Selecione</option>${productOptions}</select></td>
-    <td><input name="quantidade_liberada" type="number" min="0" step="1" value="0"></td>
-    <td><input name="quantidade_rejeitada" type="number" min="0" step="1" value="0"></td>
-    <td><input name="quantidade_retrabalhada" type="number" min="0" step="1" value="0"></td>
-    <td><input name="quantidade_refugada" type="number" min="0" step="1" value="0"></td>
-    <td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
-  return row;
-}
 function postoOptionsHtml() {
   const linhaNomeById = new Map(acabamentoState.lines.map((linha) => [linha.id, linha.nome]));
   const postosPorLinha = new Map();
@@ -108,6 +96,19 @@ function postoOptionsHtml() {
     html += `<optgroup label="Equipamentos">${avulsos.map((posto) => `<option value="${posto.id}">${aesc(posto.nome)}</option>`).join("")}</optgroup>`;
   }
   return html;
+}
+function productionRow() {
+  const row = document.createElement("tr");
+  row.className = "shift-production-row";
+  const productOptions = acabamentoState.products.map((p) => `<option value="${p.id}">${aesc(p.codigo)} — ${aesc(p.nome)}</option>`).join("");
+  row.innerHTML = `
+    <td><select name="produto_id"><option value="">Selecione</option>${productOptions}</select></td>
+    <td><input name="quantidade_liberada" type="number" min="0" step="1" value="0"></td>
+    <td><input name="quantidade_rejeitada" type="number" min="0" step="1" value="0"></td>
+    <td><input name="quantidade_retrabalhada" type="number" min="0" step="1" value="0"></td>
+    <td><input name="quantidade_refugada" type="number" min="0" step="1" value="0"></td>
+    <td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
+  return row;
 }
 function stopRow() {
   const row = document.createElement("tr");
@@ -137,6 +138,71 @@ function resolveShiftTime(value) {
   const form = aq("#shift-entry-form");
   return window.LIDUTEC_TURNOS.resolveShiftTime(form?.elements.data_operacional.value, form?.elements.turno.value, value);
 }
+
+// ---------------------------------------------------------------------------
+// Ilustrações compactas: bolinhas de posto (proporção parado/funcionando) e
+// mini linha do tempo dos equipamentos avulsos. Só lê o que já está na tela
+// (linhas de parada), sem nenhuma consulta nova ao banco.
+// ---------------------------------------------------------------------------
+function turnoBoundsOrNull() {
+  const form = aq("#shift-entry-form");
+  const date = form?.elements.data_operacional.value;
+  const turno = form?.elements.turno.value;
+  if (!date || !turno) return null;
+  try { return window.LIDUTEC_TURNOS.shiftBounds(date, turno); } catch { return null; }
+}
+function stoppedOverlapsForPosto(postoId, bounds) {
+  const overlaps = [];
+  for (const row of document.querySelectorAll(".shift-stop-row")) {
+    if (String(row.querySelector('[name="posto_id"]').value) !== String(postoId)) continue;
+    const start = resolveShiftTime(row.querySelector('[name="inicio"]').value);
+    const end = resolveShiftTime(row.querySelector('[name="fim"]').value);
+    if (!start || !end || end <= start) continue;
+    const overlapStart = Math.max(start.getTime(), bounds.start.getTime());
+    const overlapEnd = Math.min(end.getTime(), bounds.end.getTime());
+    if (overlapEnd > overlapStart) overlaps.push([overlapStart, overlapEnd]);
+  }
+  return overlaps;
+}
+function renderPostoDots(containerId, linhaId, bounds) {
+  const container = aq(containerId);
+  if (!container) return;
+  const totalMs = bounds.end.getTime() - bounds.start.getTime();
+  const postos = acabamentoState.postos.filter((posto) => posto.tipo === "POSTO_LINHA" && posto.linha_maquina_id === linhaId);
+  container.innerHTML = postos.map((posto) => {
+    const stoppedMs = totalMs > 0 ? stoppedOverlapsForPosto(posto.id, bounds).reduce((sum, [s, e]) => sum + (e - s), 0) : 0;
+    const percent = totalMs > 0 ? Math.min(100, (stoppedMs / totalMs) * 100) : 0;
+    const title = `${aesc(posto.nome)} · ${(100 - percent).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}% em operação`;
+    return `<span class="acabamento-posto-dot" style="--parado:${percent}%" title="${title}" aria-label="${title}"></span>`;
+  }).join("");
+}
+function equipmentSegmentsHtml(postoId, bounds) {
+  const totalMs = bounds.end.getTime() - bounds.start.getTime();
+  if (totalMs <= 0) return "";
+  return stoppedOverlapsForPosto(postoId, bounds).map(([overlapStart, overlapEnd]) => {
+    const left = ((overlapStart - bounds.start.getTime()) / totalMs) * 100;
+    const width = ((overlapEnd - overlapStart) / totalMs) * 100;
+    return `<span class="acabamento-equip-stop" style="left:${left}%;width:${width}%"></span>`;
+  }).join("");
+}
+function renderEquipmentTimelines(bounds) {
+  const container = aq("#equipamentos-timelines");
+  if (!container) return;
+  const equipamentos = acabamentoState.postos.filter((posto) => posto.tipo === "EQUIPAMENTO_AVULSO");
+  container.innerHTML = equipamentos.map((equipamento) => `
+    <div class="acabamento-equip-row">
+      <span class="acabamento-equip-label">${aesc(equipamento.nome)}</span>
+      <div class="acabamento-equip-track">${equipmentSegmentsHtml(equipamento.id, bounds)}</div>
+    </div>`).join("");
+}
+function renderAcabamentoIllustrations() {
+  const bounds = turnoBoundsOrNull();
+  if (!bounds) return;
+  renderPostoDots("#postos-dots-l1", linha1Id(), bounds);
+  const dotsL2 = aq("#postos-dots-l2");
+  if (dotsL2) { if (acabamentoState.linha2Ativa) renderPostoDots("#postos-dots-l2", linha2Id(), bounds); else dotsL2.innerHTML = ""; }
+  renderEquipmentTimelines(bounds);
+}
 function updateStopRow(row) {
   const start = row.querySelector('[name="inicio"]').value;
   const end = row.querySelector('[name="fim"]').value;
@@ -155,36 +221,56 @@ function appendEntryRow(target, row) {
   aq(target).append(row);
 }
 function resetShiftEntryRows() {
-  aq("#production-entry-rows").replaceChildren(productionRow());
+  aq("#production-entry-rows-l1").replaceChildren(productionRow());
+  aq("#production-entry-rows-l2").replaceChildren(productionRow());
   aq("#stop-entry-rows").replaceChildren(stopRow());
 }
 function shiftDraftKey() {
   const form = aq("#shift-entry-form");
   const date = form?.elements.data_operacional.value || "sem-data";
   const shift = form?.elements.turno.value || "sem-turno";
-  const linha = form?.elements.linha_maquina_id.value || "sem-linha";
-  return `lidutec:producao-acabamento:rascunho:${acabamentoState.user?.id || "anonimo"}:${date}:${shift}:${linha}`;
+  return `lidutec:producao-acabamento:rascunho:${acabamentoState.user?.id || "anonimo"}:${date}:${shift}`;
 }
-function populateShiftRows(productions, stops) {
-  aq("#production-entry-rows").replaceChildren();
-  aq("#stop-entry-rows").replaceChildren();
-  for (const item of productions.length ? productions : [{}]) {
-    const row = productionRow();
-    applyRowValues(row, {
-      produto_id: item.produto_id ?? "",
-      quantidade_liberada: item.quantidade_liberada ?? 0,
-      quantidade_rejeitada: item.quantidade_rejeitada ?? 0,
-      quantidade_retrabalhada: item.quantidade_retrabalhada ?? 0,
-      quantidade_refugada: item.quantidade_refugada ?? 0
-    });
-    appendEntryRow("#production-entry-rows", row);
-  }
+function populateShiftRows(productions, stops, linhas) {
+  const rowsL1 = productions.filter((item) => String(item.linha_id ?? item.linha_maquina_id) === String(linha1Id()));
+  const rowsL2 = productions.filter((item) => String(item.linha_id ?? item.linha_maquina_id) === String(linha2Id()));
+  aq("#production-entry-rows-l1").replaceChildren();
+  aq("#production-entry-rows-l2").replaceChildren();
+  const fillProductions = (target, items) => {
+    for (const item of items.length ? items : [{}]) {
+      const row = productionRow();
+      applyRowValues(row, {
+        produto_id: item.produto_id ?? "",
+        quantidade_liberada: item.quantidade_liberada ?? 0,
+        quantidade_rejeitada: item.quantidade_rejeitada ?? 0,
+        quantidade_retrabalhada: item.quantidade_retrabalhada ?? 0,
+        quantidade_refugada: item.quantidade_refugada ?? 0
+      });
+      appendEntryRow(target, row);
+    }
+  };
+  fillProductions("#production-entry-rows-l1", rowsL1);
+  fillProductions("#production-entry-rows-l2", rowsL2);
+
+  const form = aq("#shift-entry-form");
+  const linhaL1 = (linhas || []).find((item) => String(item.linha_id ?? item.linha_maquina_id) === String(linha1Id()));
+  const linhaL2 = (linhas || []).find((item) => String(item.linha_id ?? item.linha_maquina_id) === String(linha2Id()));
+  form.elements.operadores_presentes_l1.value = linhaL1?.operadores_presentes ?? "";
+  form.elements.operadores_presentes_l2.value = linhaL2?.operadores_presentes ?? "";
+
   const toTimeInput = (value) => {
     if (!value) return "";
+    // Rascunhos (local ou compartilhado) já guardam "HH:MM" cru, do próprio
+    // input; só timestamps completos (turno fechado, vindos do banco) precisam
+    // ser convertidos. Tratar os dois como data quebrava o valor (NaN:NaN),
+    // esvaziando o campo ao recarregar a página.
+    if (/^\d{2}:\d{2}$/.test(value)) return value;
     const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
     const pad = (n) => String(n).padStart(2, "0");
     return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   };
+  aq("#stop-entry-rows").replaceChildren();
   for (const item of stops.length ? stops : [{}]) {
     const row = stopRow();
     applyRowValues(row, {
@@ -199,19 +285,31 @@ function populateShiftRows(productions, stops) {
     try { updateStopRow(row); } catch { /* horário incompleto no carregamento inicial */ }
   }
 }
-function serializeShift() {
-  const productions = [...document.querySelectorAll(".shift-production-row")]
+function serializeProductionSection(target, linhaId) {
+  return [...document.querySelectorAll(`${target} .shift-production-row`)]
     .filter((row) => row.querySelector('[name="produto_id"]').value)
     .map((row) => ({
+      linha_id: linhaId,
       produto_id: anumber(row.querySelector('[name="produto_id"]').value),
       quantidade_liberada: anumber(row.querySelector('[name="quantidade_liberada"]').value),
       quantidade_rejeitada: anumber(row.querySelector('[name="quantidade_rejeitada"]').value),
       quantidade_retrabalhada: anumber(row.querySelector('[name="quantidade_retrabalhada"]').value),
       quantidade_refugada: anumber(row.querySelector('[name="quantidade_refugada"]').value)
     }));
+}
+function serializeShift() {
+  const form = aq("#shift-entry-form");
+  const productions = [
+    ...serializeProductionSection("#production-entry-rows-l1", linha1Id()),
+    ...serializeProductionSection("#production-entry-rows-l2", linha2Id())
+  ];
   if (!productions.length) throw new Error("Informe ao menos um produto.");
 
-  const form = aq("#shift-entry-form");
+  const linhas = [{ linha_id: linha1Id(), operadores_presentes: anumber(form.elements.operadores_presentes_l1.value) }];
+  if (acabamentoState.linha2Ativa || form.elements.operadores_presentes_l2.value) {
+    linhas.push({ linha_id: linha2Id(), operadores_presentes: anumber(form.elements.operadores_presentes_l2.value) });
+  }
+
   const stops = [...document.querySelectorAll(".shift-stop-row")]
     .filter((row) => ["inicio", "fim", "posto_id", "setor_id", "categoria_id"].some((name) => row.querySelector(`[name="${name}"]`)?.value))
     .map((row) => {
@@ -227,7 +325,7 @@ function serializeShift() {
       }
       return { inicio: start.toISOString(), fim: end.toISOString(), posto_id: anumber(value("posto_id")), setor_id: anumber(value("setor_id")), categoria_id: anumber(value("categoria_id")), observacao: value("observacao") };
     });
-  return { productions, stops };
+  return { productions, linhas, stops };
 }
 
 function saveShiftDraft() {
@@ -237,9 +335,10 @@ function saveShiftDraft() {
     savedAt: Date.now(),
     data_operacional: form.elements.data_operacional.value,
     turno: form.elements.turno.value,
-    linha_maquina_id: form.elements.linha_maquina_id.value,
-    operadores_presentes: form.elements.operadores_presentes.value,
-    productions: [...document.querySelectorAll(".shift-production-row")].map(rowValues),
+    operadores_presentes_l1: form.elements.operadores_presentes_l1.value,
+    operadores_presentes_l2: form.elements.operadores_presentes_l2.value,
+    productionsL1: [...document.querySelectorAll("#production-entry-rows-l1 .shift-production-row")].map(rowValues),
+    productionsL2: [...document.querySelectorAll("#production-entry-rows-l2 .shift-production-row")].map(rowValues),
     stops: [...document.querySelectorAll(".shift-stop-row")].map(rowValues)
   };
   localStorage.setItem(shiftDraftKey(), JSON.stringify(draft));
@@ -250,12 +349,19 @@ async function persistSharedShiftDraft(draft) {
   if (acabamentoState.currentShift?.status === "FECHADO" || acabamentoState.editingClosed || acabamentoState.draftSaveInFlight) return;
   acabamentoState.draftSaveInFlight = true;
   try {
+    const linhas = [{ linha_id: linha1Id(), operadores_presentes: draft.operadores_presentes_l1 ? anumber(draft.operadores_presentes_l1) : null }];
+    if (acabamentoState.linha2Ativa || draft.operadores_presentes_l2) {
+      linhas.push({ linha_id: linha2Id(), operadores_presentes: draft.operadores_presentes_l2 ? anumber(draft.operadores_presentes_l2) : null });
+    }
+    const producoes = [
+      ...draft.productionsL1.filter((item) => item.produto_id).map((item) => ({ ...item, linha_id: linha1Id() })),
+      ...draft.productionsL2.filter((item) => item.produto_id).map((item) => ({ ...item, linha_id: linha2Id() }))
+    ];
     const saved = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.saveShiftDraft({
       p_data_operacional: draft.data_operacional,
       p_turno: draft.turno,
-      p_linha_maquina_id: anumber(draft.linha_maquina_id),
-      p_operadores_presentes: draft.operadores_presentes ? anumber(draft.operadores_presentes) : null,
-      p_producoes: draft.productions,
+      p_linhas: linhas,
+      p_producoes: producoes,
       p_paradas: draft.stops,
       p_versao: acabamentoState.currentShift?.versao ?? null
     });
@@ -278,28 +384,127 @@ function restoreShiftDraft() {
   try { draft = JSON.parse(localStorage.getItem(shiftDraftKey()) || "null"); } catch { localStorage.removeItem(shiftDraftKey()); }
   if (!draft || !draft.savedAt || Date.now() - draft.savedAt > 24 * 60 * 60 * 1000) { localStorage.removeItem(shiftDraftKey()); return false; }
   const form = aq("#shift-entry-form");
-  if (draft.operadores_presentes) form.elements.operadores_presentes.value = draft.operadores_presentes;
-  populateShiftRows(draft.productions || [], draft.stops || []);
+  form.elements.operadores_presentes_l1.value = draft.operadores_presentes_l1 || "";
+  form.elements.operadores_presentes_l2.value = draft.operadores_presentes_l2 || "";
+  populateShiftRows(
+    [
+      ...draft.productionsL1.map((item) => ({ ...item, linha_id: linha1Id() })),
+      ...draft.productionsL2.map((item) => ({ ...item, linha_id: linha2Id() }))
+    ],
+    draft.stops || [],
+    []
+  );
   return true;
-}
-function populateSharedDraft(productions = [], stops = [], operadoresPresentes = null) {
-  const form = aq("#shift-entry-form");
-  if (operadoresPresentes != null) form.elements.operadores_presentes.value = operadoresPresentes;
-  populateShiftRows(productions, stops);
 }
 
 async function updatePlannedOperators() {
   const form = aq("#shift-entry-form");
   const date = form.elements.data_operacional.value;
   const turno = form.elements.turno.value;
-  const linhaId = form.elements.linha_maquina_id.value;
-  const hint = aq("#operadores-planejados-hint");
-  if (!date || !turno || !linhaId) { hint.textContent = ""; return; }
-  try {
-    const planned = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.plannedOperators(anumber(linhaId), turno, date);
-    hint.textContent = planned != null ? `Planejado: ${planned} operadores` : "Sem meta cadastrada para este turno/linha.";
-  } catch (error) {
-    hint.textContent = "";
+  if (!date || !turno) return;
+  const [plannedL1, plannedL2] = await Promise.all([
+    window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.plannedOperators(linha1Id(), turno, date),
+    acabamentoState.linha2Ativa ? window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.plannedOperators(linha2Id(), turno, date) : Promise.resolve(null)
+  ]);
+  aq("#operadores-planejados-hint-l1").textContent = plannedL1 != null ? `Planejado: ${plannedL1} operadores` : "Sem meta cadastrada para este turno.";
+  aq("#operadores-planejados-hint-l2").textContent = acabamentoState.linha2Ativa
+    ? (plannedL2 != null ? `Planejado: ${plannedL2} operadores` : "Sem meta cadastrada para este turno.")
+    : "";
+  acabamentoState.planned = { l1: plannedL1, l2: plannedL2 };
+  updateAbsenteeismBoxes();
+}
+
+// ---------------------------------------------------------------------------
+// Caixa de postos parados por absenteísmo: quando o operador informa menos
+// gente presente do que o planejado, mostra os postos da linha para marcar
+// quem ficou parado — o clique já lança a parada (Setor ADM / Motivo
+// Absenteísmo) e pinta a bolinha do posto, sem digitar nada.
+// ---------------------------------------------------------------------------
+function absenteismoCategoriaId() {
+  return acabamentoState.categories.find((c) => c.codigo === "ABSENTEISMO")?.id ?? null;
+}
+function admSetorId() {
+  return acabamentoState.sectors.find((s) => s.codigo === "ADM")?.id ?? null;
+}
+function findAbsenteeismRowForPosto(postoId) {
+  const categoriaId = absenteismoCategoriaId();
+  if (!categoriaId) return null;
+  return [...document.querySelectorAll(".shift-stop-row")].find((row) =>
+    anumber(row.querySelector('[name="posto_id"]').value) === Number(postoId) &&
+    anumber(row.querySelector('[name="categoria_id"]').value) === categoriaId);
+}
+function toggleAbsenteeismStop(postoId) {
+  const existing = findAbsenteeismRowForPosto(postoId);
+  if (existing) {
+    const body = existing.parentElement;
+    if (body.children.length === 1) {
+      for (const control of existing.querySelectorAll("input,select")) control.value = control.type === "number" ? "0" : "";
+    } else {
+      existing.remove();
+    }
+  } else {
+    const bounds = turnoBoundsOrNull();
+    const form = aq("#shift-entry-form");
+    const shiftInfo = window.LIDUTEC_TURNOS.shifts[form.elements.turno.value];
+    const categoriaId = absenteismoCategoriaId();
+    const setorId = admSetorId();
+    if (!bounds || !shiftInfo || !categoriaId || !setorId) return;
+    const row = stopRow();
+    applyRowValues(row, {
+      inicio: shiftInfo.inicio,
+      fim: shiftInfo.fim,
+      posto_id: postoId,
+      setor_id: setorId,
+      categoria_id: categoriaId,
+      observacao: ""
+    });
+    appendEntryRow("#stop-entry-rows", row);
+    try { updateStopRow(row); } catch { /* ignorado: horário do turno já é válido */ }
+  }
+  saveShiftDraft();
+  renderAcabamentoIllustrations();
+  updateAbsenteeismBoxes();
+}
+function renderAbsenteeismBox(containerId, linhaId) {
+  const container = aq(containerId);
+  if (!container) return;
+  const postos = acabamentoState.postos.filter((posto) => posto.tipo === "POSTO_LINHA" && posto.linha_maquina_id === linhaId);
+  container.innerHTML = `<p class="acabamento-absenteeism-hint">Operadores presentes abaixo do planejado — marque os postos que ficarão parados:</p>
+    <div class="acabamento-absenteeism-postos">${postos.map((posto) => {
+      const active = !!findAbsenteeismRowForPosto(posto.id);
+      return `<button type="button" class="acabamento-absenteeism-posto${active ? " active" : ""}" data-posto-id="${posto.id}">${aesc(posto.nome)}</button>`;
+    }).join("")}</div>`;
+}
+function updateAbsenteeismBoxes() {
+  const form = aq("#shift-entry-form");
+  const boxL1 = aq("#absenteeism-box-l1");
+  const boxL2 = aq("#absenteeism-box-l2");
+  const closed = acabamentoState.currentShift?.status === "FECHADO" && !acabamentoState.editingClosed;
+  if (boxL1) {
+    const presentesTexto = form.elements.operadores_presentes_l1.value;
+    const showL1 = !closed && acabamentoState.planned.l1 != null && presentesTexto !== "" && anumber(presentesTexto) < acabamentoState.planned.l1;
+    boxL1.hidden = !showL1;
+    if (showL1) renderAbsenteeismBox("#absenteeism-box-l1", linha1Id());
+  }
+  if (boxL2) {
+    const presentesTexto = form.elements.operadores_presentes_l2.value;
+    const showL2 = !closed && acabamentoState.linha2Ativa && acabamentoState.planned.l2 != null && presentesTexto !== "" && anumber(presentesTexto) < acabamentoState.planned.l2;
+    boxL2.hidden = !showL2;
+    if (showL2) renderAbsenteeismBox("#absenteeism-box-l2", linha2Id());
+  }
+}
+
+function applyLinha2Visibility() {
+  const section = aq("#linha2-section");
+  const label = aq("#linha2-title");
+  const operatorsField = aq("#operadores-presentes-l2-field");
+  if (!section) return;
+  if (acabamentoState.linha2Ativa) {
+    label.textContent = "Linha 2";
+    operatorsField.hidden = false;
+  } else {
+    label.textContent = "Linha 2 — Produção extraordinária (opcional)";
+    operatorsField.hidden = true;
   }
 }
 
@@ -307,14 +512,16 @@ async function checkShiftStatus() {
   const form = aq("#shift-entry-form");
   const date = form.elements.data_operacional.value;
   const turno = form.elements.turno.value;
-  const linhaId = form.elements.linha_maquina_id.value;
-  if (!date || !turno || !linhaId) return;
+  if (!date || !turno) return;
   const requestId = ++acabamentoState.statusRequestId;
+  acabamentoState.linha2Ativa = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.linha2Ativa(date, turno);
+  if (requestId !== acabamentoState.statusRequestId) return;
+  applyLinha2Visibility();
   await updatePlannedOperators();
-  const data = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shift(date, turno, anumber(linhaId));
+  const data = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shift(date, turno);
   if (requestId !== acabamentoState.statusRequestId) return;
   const previousVersion = acabamentoState.currentShift?.versao ?? -1;
-  const previousKey = acabamentoState.currentShift ? `${acabamentoState.currentShift.data_operacional}|${acabamentoState.currentShift.turno}|${acabamentoState.currentShift.linha_maquina_id}` : "";
+  const previousKey = acabamentoState.currentShift ? `${acabamentoState.currentShift.data_operacional}|${acabamentoState.currentShift.turno}` : "";
   acabamentoState.currentShift = data ? { ...data, data_operacional: date, turno } : null;
   acabamentoState.editingClosed = false;
   const closed = data?.status === "FECHADO";
@@ -325,15 +532,14 @@ async function checkShiftStatus() {
       window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shiftStops(data.id)
     ]);
     if (requestId !== acabamentoState.statusRequestId) return;
-    acabamentoState.originalShiftData = { productions, stops, operadores_presentes: data.operadores_presentes };
-    populateShiftRows(productions, stops);
-    form.elements.operadores_presentes.value = data.operadores_presentes ?? "";
+    acabamentoState.originalShiftData = { productions, stops, linhas: data.turnos_acabamento_linhas };
+    populateShiftRows(productions, stops, data.turnos_acabamento_linhas);
   } else {
     acabamentoState.originalShiftData = null;
-    const key = `${date}|${turno}|${linhaId}`;
+    const key = `${date}|${turno}`;
     const hasNewSharedDraft = data && (previousKey !== key || Number(data.versao) > Number(previousVersion));
     if (hasNewSharedDraft && !acabamentoState.draftSaveInFlight) {
-      populateSharedDraft(data.rascunho_producoes || [], data.rascunho_paradas || [], data.operadores_presentes);
+      populateShiftRows(data.rascunho_producoes || [], data.rascunho_paradas || [], data.rascunho_linhas || []);
     } else if (!data) {
       if (!restoreShiftDraft()) resetShiftEntryRows();
     }
@@ -351,10 +557,12 @@ async function checkShiftStatus() {
   aq("#edit-shift-button").hidden = !canEdit;
   aq("#delete-shift-button").hidden = !canDelete;
   aq("#delete-shift-button").disabled = false;
-  for (const control of form.querySelectorAll("tbody input,tbody select,tbody button,#add-production-row,#add-stop-row,[name=\"operadores_presentes\"]")) {
+  for (const control of form.querySelectorAll("tbody input,tbody select,tbody button,.row-add-button,[name^=\"operadores_presentes\"]")) {
     control.disabled = closed;
   }
   if (data?.id && closed) await loadShiftHistory(data.id); else aq("#shift-edit-history").hidden = true;
+  renderAcabamentoIllustrations();
+  updateAbsenteeismBoxes();
 }
 
 async function loadShiftHistory(turnId) {
@@ -370,13 +578,14 @@ async function editClosedShift() {
   if (!turnId) return;
   acabamentoState.editingClosed = true;
   const form = aq("#shift-entry-form");
-  for (const control of form.querySelectorAll("tbody input,tbody select,tbody button,#add-production-row,#add-stop-row,[name=\"operadores_presentes\"]")) control.disabled = false;
+  for (const control of form.querySelectorAll("tbody input,tbody select,tbody button,.row-add-button,[name^=\"operadores_presentes\"]")) control.disabled = false;
   aq("#edit-shift-button").hidden = true;
   aq("#delete-shift-button").hidden = true;
   aq("#close-shift-button").hidden = false;
   aq("#close-shift-button").disabled = false;
   aq("#close-shift-button").textContent = "Salvar alterações";
   aq("#shift-status").textContent = "Editando turno fechado";
+  updateAbsenteeismBoxes();
 }
 async function deleteClosedShift() {
   const turnId = acabamentoState.currentShift?.id;
@@ -398,16 +607,14 @@ async function deleteClosedShift() {
 }
 async function closeShift(event) {
   event.preventDefault();
-  const form = event.currentTarget;
   const button = aq("#close-shift-button");
   button.disabled = true;
   try {
-    const { productions, stops } = serializeShift();
-    const operadoresPresentes = anumber(form.elements.operadores_presentes.value);
+    const { productions, linhas, stops } = serializeShift();
     if (acabamentoState.editingClosed) {
       await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.editShift({
         p_turno_id: acabamentoState.currentShift.id,
-        p_operadores_presentes: operadoresPresentes,
+        p_linhas: linhas,
         p_producoes: productions,
         p_paradas: stops
       });
@@ -417,11 +624,11 @@ async function closeShift(event) {
       await checkShiftStatus();
       return;
     }
+    const form = aq("#shift-entry-form");
     await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.closeShift({
       p_data_operacional: form.elements.data_operacional.value,
       p_turno: form.elements.turno.value,
-      p_linha_maquina_id: anumber(form.elements.linha_maquina_id.value),
-      p_operadores_presentes: operadoresPresentes,
+      p_linhas: linhas,
       p_producoes: productions,
       p_paradas: stops,
       p_versao: acabamentoState.currentShift?.versao ?? null
@@ -445,19 +652,23 @@ function applyCurrentShiftDefaults(form) {
 async function initializeShiftEntry() {
   const form = aq("#shift-entry-form");
   applyCurrentShiftDefaults(form);
-  if (!restoreShiftDraft()) resetShiftEntryRows();
+  resetShiftEntryRows();
 
-  aq("#add-production-row").addEventListener("click", () => { appendEntryRow("#production-entry-rows", productionRow()); saveShiftDraft(); });
-  aq("#add-stop-row").addEventListener("click", () => { appendEntryRow("#stop-entry-rows", stopRow()); saveShiftDraft(); });
+  aq("#add-production-row-l1").addEventListener("click", () => { appendEntryRow("#production-entry-rows-l1", productionRow()); saveShiftDraft(); });
+  aq("#add-production-row-l2").addEventListener("click", () => { appendEntryRow("#production-entry-rows-l2", productionRow()); saveShiftDraft(); });
+  aq("#add-stop-row").addEventListener("click", () => { appendEntryRow("#stop-entry-rows", stopRow()); saveShiftDraft(); renderAcabamentoIllustrations(); });
   form.addEventListener("input", (event) => {
     const stop = event.target.closest(".shift-stop-row");
     if (stop) {
       try { updateStopRow(stop); acabamentoClearMessage("stop-time"); }
       catch (error) { acabamentoMessage(error.message, "error", "stop-time"); }
+      renderAcabamentoIllustrations();
     }
     saveShiftDraft();
   });
   form.addEventListener("click", (event) => {
+    const absenteeismButton = event.target.closest(".acabamento-absenteeism-posto");
+    if (absenteeismButton) { toggleAbsenteeismStop(anumber(absenteeismButton.dataset.postoId)); return; }
     const button = event.target.closest(".row-remove");
     if (!button) return;
     const row = button.closest("tr");
@@ -468,20 +679,22 @@ async function initializeShiftEntry() {
       row.remove();
     }
     saveShiftDraft();
+    if (row.matches(".shift-stop-row")) { renderAcabamentoIllustrations(); updateAbsenteeismBoxes(); }
   });
   const refreshContext = () => checkShiftStatus().catch((error) => acabamentoMessage(error.message, "error"));
   form.elements.data_operacional.addEventListener("change", refreshContext);
   form.elements.turno.addEventListener("change", refreshContext);
-  form.elements.linha_maquina_id.addEventListener("change", refreshContext);
-  form.elements.operadores_presentes.addEventListener("input", saveShiftDraft);
+  form.elements.operadores_presentes_l1.addEventListener("input", () => { saveShiftDraft(); updateAbsenteeismBoxes(); });
+  form.elements.operadores_presentes_l2.addEventListener("input", () => { saveShiftDraft(); updateAbsenteeismBoxes(); });
   form.addEventListener("submit", closeShift);
+  if (!restoreShiftDraft()) { /* checkShiftStatus abaixo decide entre rascunho compartilhado e formulário em branco */ }
   await checkShiftStatus();
   form.hidden = false;
 
   window.supabaseClient.channel("shared-production-shift-acabamento").on("postgres_changes", { event: "*", schema: "public", table: "turnos_producao_acabamento" }, (payload) => {
     const row = payload.new;
     if (!document.hidden && row && row.data_operacional === form.elements.data_operacional.value && row.turno === form.elements.turno.value &&
-      String(row.linha_maquina_id) === form.elements.linha_maquina_id.value && String(row.atualizado_por) !== String(acabamentoState.user?.id)) {
+      String(row.atualizado_por) !== String(acabamentoState.user?.id)) {
       refreshContext();
     }
   }).subscribe();
@@ -513,7 +726,7 @@ async function loadAcabamentoData() {
     ]);
     acabamentoState.records = records;
     acabamentoState.stops = stops;
-    acabamentoState.todayShifts = shifts;
+    acabamentoState.periodShifts = shifts;
     return;
   }
   if (acabamentoPage === "stops") {
@@ -533,7 +746,7 @@ async function loadAcabamentoData() {
     ]);
     acabamentoState.records = records;
     acabamentoState.stops = stops;
-    acabamentoState.todayShifts = shifts;
+    acabamentoState.periodShifts = shifts;
   }
 }
 
@@ -552,7 +765,7 @@ function renderAcabamentoDashboard() {
   const stops = acabamentoState.stops.filter((x) => x.data_operacional === today);
   const totals = productionTotals(records);
   const stopMinutes = stops.reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
-  const shifts = acabamentoState.todayShifts || [];
+  const shifts = acabamentoState.periodShifts || [];
   const planejados = shifts.reduce((sum, s) => sum + anumber(s.operadores_planejados), 0);
   const presentes = shifts.reduce((sum, s) => sum + anumber(s.operadores_presentes), 0);
   const absenteismo = planejados > 0 ? Math.max(0, 1 - presentes / planejados) : 0;
@@ -579,6 +792,7 @@ function renderAcabamentoRecordsTable() {
   body.innerHTML = rows.map((item) => `<tr>
       <td>${aDisplayDate(item.data_operacional)}</td>
       <td>${aesc(item.turno)}</td>
+      <td>${aesc(item.linhas_maquinas_producao?.nome || "—")}</td>
       <td><strong>${aesc(item.produtos?.codigo || "—")}</strong> — ${aesc(item.produtos?.nome || "")}</td>
       <td>${anumber(item.quantidade_liberada)}</td>
       <td>${anumber(item.quantidade_rejeitada)}</td>
@@ -633,12 +847,13 @@ function postoTipoById() {
 
 function renderAcabamentoCharts() {
   const totals = productionTotals(acabamentoState.records);
-  const shifts = acabamentoState.todayShifts || [];
+  // shiftsInRange devolve 1 linha por (turno, linha ativa) — já exclui
+  // automaticamente a Linha 2 nas noites de sexta/domingo, porque nesses
+  // turnos não existe registro de turnos_acabamento_linhas para ela.
+  const shifts = acabamentoState.periodShifts || [];
   const postoPorLinha = postoCountByLinha();
   const postoById = postoTipoById();
 
-  // Só paradas de posto de linha entram na disponibilidade; equipamentos avulsos
-  // são calculados à parte, mais abaixo.
   const stopsPorTurno = new Map();
   const stopsPorEquipamento = new Map();
   for (const stop of acabamentoState.stops) {
@@ -655,17 +870,14 @@ function renderAcabamentoCharts() {
     }
   }
 
-  // Disponibilidade é calculada turno a turno (cada linha tem seu próprio número
-  // de postos) e depois ponderada pela duração de cada turno, em vez de somar
-  // tudo junto — uma parada de 1 posto na Linha 1 (7 postos) não pode pesar como
-  // se fosse uma parada da Linha 2 inteira (11 postos).
   let totalMinutosTurno = 0;
   let totalDisponibilidadePonderada = 0;
   for (const shift of shifts) {
-    const minutosTurno = window.LIDUTEC_TURNOS.shifts[shift.turno]?.minutos || 0;
+    const turno = shift.turnos_producao_acabamento?.turno;
+    const minutosTurno = window.LIDUTEC_TURNOS.shifts[turno]?.minutos || 0;
     if (!minutosTurno) continue;
     const numeroPostos = postoPorLinha.get(shift.linha_maquina_id) || 1;
-    const minutosParada = (stopsPorTurno.get(shift.id) || []).reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
+    const minutosParada = (stopsPorTurno.get(shift.turno_producao_id) || []).reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
     const disponibilidadeTurno = window.LIDUTEC_TURNOS.calcularDisponibilidade({
       minutosTurno, numeroPostos,
       operadoresPlanejados: shift.operadores_planejados, operadoresPresentes: shift.operadores_presentes,
@@ -675,8 +887,6 @@ function renderAcabamentoCharts() {
     totalDisponibilidadePonderada += disponibilidadeTurno * minutosTurno;
   }
   const disponibilidade = totalMinutosTurno > 0 ? totalDisponibilidadePonderada / totalMinutosTurno : 0;
-  // "Tempo disponível" equivalente em minutos de linha (não minutos-posto), para
-  // ficar na mesma unidade do tempo teórico calculado a partir da produção total.
   const tempoDisponivelLinha = totalDisponibilidadePonderada;
 
   const tempoCicloMedio = acabamentoState.records.length
