@@ -643,10 +643,14 @@ async function checkShiftStatus() {
   const date = form.elements.data_operacional.value;
   const turno = form.elements.turno.value;
   if (!date || !turno) return;
+  const requestId = ++acabamentoState.statusRequestId;
+  const blockingShift = await findBlockingOpenShift(turno, date);
+  if (requestId !== acabamentoState.statusRequestId) return;
+  if (blockingShift) { showShiftBlocked(blockingShift.data_operacional, turno); return; }
+  hideShiftBlocked();
   acabamentoState.absenteeismCollapsed = { l1: false, l2: false };
   cancelAbsenteeismAutoHide("l1");
   cancelAbsenteeismAutoHide("l2");
-  const requestId = ++acabamentoState.statusRequestId;
   acabamentoState.linha2Ativa = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.linha2Ativa(date, turno);
   if (requestId !== acabamentoState.statusRequestId) return;
   applyLinha2Visibility();
@@ -779,9 +783,45 @@ async function closeShift(event) {
 }
 
 function applyCurrentShiftDefaults(form) {
+  const params = new URLSearchParams(location.search);
+  const paramDate = params.get("data");
+  const paramTurno = params.get("turno");
+  if (paramDate && /^\d{4}-\d{2}-\d{2}$/.test(paramDate) && window.LIDUTEC_TURNOS.shifts[paramTurno]) {
+    form.elements.data_operacional.value = paramDate;
+    form.elements.turno.value = paramTurno;
+    return;
+  }
   const shift = window.LIDUTEC_TURNOS.determineShift();
   form.elements.data_operacional.value = shift.dataOperacional;
   form.elements.turno.value = shift.codigo;
+}
+// Um turno só conta como "aberto com dados" se o rascunho realmente tiver algo
+// preenchido — abrir e apagar tudo sem fechar não deve travar o turno seguinte.
+function shiftDraftHasData(row) {
+  return (row.rascunho_producoes || []).some((item) => item.produto_id) ||
+    (row.rascunho_paradas || []).some((item) => item.categoria_id || item.setor_id) ||
+    (row.rascunho_linhas || []).some((item) => item.operadores_presentes != null && item.operadores_presentes !== "");
+}
+async function findBlockingOpenShift(turno, date) {
+  const rows = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.openShiftsBefore(turno, date);
+  return rows.find(shiftDraftHasData) || null;
+}
+function showShiftBlocked(openDate, turno) {
+  const form = aq("#shift-entry-form");
+  const panel = aq("#shift-blocked-message");
+  if (!panel) return;
+  form.hidden = true;
+  const label = window.LIDUTEC_TURNOS.shifts[turno]?.nome || turno;
+  const displayDate = new Date(`${openDate}T12:00:00`).toLocaleDateString("pt-BR");
+  aq("#shift-blocked-text").textContent = `Existe um turno de ${label} em aberto no dia ${displayDate}. Feche-o antes de abrir um novo turno de ${label}.`;
+  aq("#shift-blocked-link").href = `lancamento.html?data=${openDate}&turno=${turno}`;
+  panel.hidden = false;
+}
+function hideShiftBlocked() {
+  const panel = aq("#shift-blocked-message");
+  if (panel) panel.hidden = true;
+  const form = aq("#shift-entry-form");
+  if (form) form.hidden = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -945,7 +985,6 @@ async function initializeShiftEntry() {
   form.addEventListener("submit", closeShift);
   if (!restoreShiftDraft()) { /* checkShiftStatus abaixo decide entre rascunho compartilhado e formulário em branco */ }
   await checkShiftStatus();
-  form.hidden = false;
 
   window.supabaseClient.channel("shared-production-shift-acabamento").on("postgres_changes", { event: "*", schema: "public", table: "turnos_producao_acabamento" }, (payload) => {
     const row = payload.new;

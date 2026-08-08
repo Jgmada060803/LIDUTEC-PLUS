@@ -52,6 +52,10 @@
     },
     shift: (date, shift) => result(client().from("turnos_producao_moldes").select("id,status,versao,rascunho_producoes,rascunho_paradas,atualizado_por,atualizado_em,usuarios!turnos_producao_moldes_atualizado_por_fkey(nome)").eq("data_operacional", date).eq("turno", shift).maybeSingle(), null),
     monthShifts: (from, to, shift) => result(client().from("turnos_producao_moldes").select("data_operacional,turno,status").gte("data_operacional", from).lte("data_operacional", to).eq("turno", shift).limit(40)),
+    openShiftsBefore: (turno, date) => result(client().from("turnos_producao_moldes")
+      .select("data_operacional,rascunho_producoes,rascunho_paradas")
+      .eq("turno", turno).eq("status", "ABERTO").lt("data_operacional", date)
+      .order("data_operacional", { ascending: true }).limit(60)),
     calendarEvents: (from, to, shift) => result(client().from("calendario_operacional").select("id,nome,tipo,escopo,data_inicio,data_fim,turno,observacao").eq("ativo",true).lte("data_inicio",to).gte("data_fim",from).or(`turno.eq.TODOS,turno.eq.${shift}`).order("data_inicio").limit(200)),
     previousProduction: (from, before) => result(client().from("registros_producao_moldes").select("produto_id,inicio").gte("inicio", from).lt("inicio", before).order("inicio", { ascending: false }).limit(1).maybeSingle(), null),
     shiftProductions: (id) => result(client().from("registros_producao_moldes").select("produto_id,inicio,fim,rastreabilidade,moldes_vazados,moldes_quebrados,observacao").eq("turno_producao_id", id).order("inicio")),

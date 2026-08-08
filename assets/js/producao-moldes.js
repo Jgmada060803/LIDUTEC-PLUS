@@ -170,6 +170,10 @@ function changeDescriptions(original,current){
 async function checkShiftStatus(){
   const form=q("#shift-entry-form"),date=form.elements.data_operacional.value,shift=form.elements.turno.value;if(!date||!shift)return;
   const requestId=++productionState.statusRequestId;
+  const blockingShift=await findBlockingOpenShift(shift,date);
+  if(requestId!==productionState.statusRequestId)return;
+  if(blockingShift){showShiftBlocked(blockingShift.data_operacional,shift);return}
+  hideShiftBlocked();
   const bounds=window.LIDUTEC_TURNOS.shiftBounds(date,shift),previousMoment=new Date(bounds.start.getTime()-60000),previousShift=window.LIDUTEC_TURNOS.determineShift(previousMoment),previousBounds=window.LIDUTEC_TURNOS.shiftBounds(previousShift.dataOperacional,previousShift.codigo),[data,previous]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.shift(date,shift),window.LIDUTEC_PRODUCAO_DATA.previousProduction(previousBounds.start.toISOString(),previousBounds.end.toISOString())]);
   if(requestId!==productionState.statusRequestId)return;
   const previousVersion=productionState.currentShift?.versao??-1,previousKey=productionState.currentShift?`${productionState.currentShift.data_operacional||date}|${productionState.currentShift.turno||shift}`:"";productionState.currentShift=data?{...data,data_operacional:date,turno:shift}:null;productionState.previousProductId=previous?.produto_id??null;productionState.editingClosed=false;const closed=data?.status==="FECHADO";
@@ -199,7 +203,7 @@ async function initializeShiftEntry(){
   q("#add-production-row").addEventListener("click",()=>{const row=productionRow();appendEntryRow("#production-entry-rows",row);updateProductionRow(row);syncProductionEndTimes();saveShiftDraft()});q("#add-stop-row").addEventListener("click",()=>{appendEntryRow("#stop-entry-rows",stopRow());saveShiftDraft()});
   form.addEventListener("input",event=>{const production=event.target.closest(".shift-production-row"),stop=event.target.closest(".shift-stop-row");if(production){updateProductionRow(production);syncProductionEndTimes()}if(stop)try{updateStopRow(stop);clearMessage("stop-time")}catch(error){message(error.message,"error","stop-time")}saveShiftDraft()});
   form.addEventListener("click",event=>{const button=event.target.closest(".row-remove");if(!button)return;const row=button.closest("tr"),body=row.parentElement;if(body.children.length===1){for(const control of row.querySelectorAll("input,select"))control.value=control.type==="number"?"0":"";row.matches(".shift-production-row")?updateProductionRow(row):updateStopRow(row)}else row.remove();for(const production of document.querySelectorAll(".shift-production-row"))updateProductionRow(production);syncProductionEndTimes();renderShiftTimeline();saveShiftDraft()});
-  form.elements.data_operacional.addEventListener("change",()=>{applyShiftDateTimeLimits();syncProductionEndTimes();renderShiftTimeline();checkShiftStatus().catch(error=>message(error.message,"error"))});form.elements.turno.addEventListener("change",()=>{applyShiftDateTimeLimits();syncProductionEndTimes();renderShiftTimeline();checkShiftStatus().catch(error=>message(error.message,"error"))});form.addEventListener("submit",closeShift);applyShiftDateTimeLimits();syncProductionEndTimes();renderShiftTimeline();await checkShiftStatus();form.hidden=false;setInterval(()=>{if(!document.hidden)syncProductionEndTimes()},60000);
+  form.elements.data_operacional.addEventListener("change",()=>{applyShiftDateTimeLimits();syncProductionEndTimes();renderShiftTimeline();checkShiftStatus().catch(error=>message(error.message,"error"))});form.elements.turno.addEventListener("change",()=>{applyShiftDateTimeLimits();syncProductionEndTimes();renderShiftTimeline();checkShiftStatus().catch(error=>message(error.message,"error"))});form.addEventListener("submit",closeShift);applyShiftDateTimeLimits();syncProductionEndTimes();renderShiftTimeline();await checkShiftStatus();setInterval(()=>{if(!document.hidden)syncProductionEndTimes()},60000);
   window.supabaseClient.channel("shared-production-shift").on("postgres_changes",{event:"*",schema:"public",table:"turnos_producao_moldes"},payload=>{const form=q("#shift-entry-form"),row=payload.new;if(!document.hidden&&row&&row.data_operacional===form.elements.data_operacional.value&&row.turno===form.elements.turno.value&&String(row.atualizado_por)!==String(productionState.user?.id))checkShiftStatus().catch(error=>message(error.message,"error"))}).subscribe();
   q("#edit-shift-button").addEventListener("click",()=>editClosedShift().catch(error=>message(error.message,"error")));
   q("#delete-shift-button").addEventListener("click",deleteClosedShift);
@@ -287,7 +291,41 @@ function renderCharts(){
   renderDonut("#material-tons-chart",record=>record.toneladas_produzidas,value=>`${value.toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3})} t`);
   renderDonut("#material-molds-chart",record=>record.moldes_vazados,value=>value.toLocaleString("pt-BR"));
 }
-function applyCurrentShift(form){const shift=window.LIDUTEC_TURNOS.determineShift();form.querySelector('[name="data_operacional"]')?.setAttribute("value",shift.dataOperacional);const select=form.querySelector('[name="turno"]');if(select)select.value=shift.codigo}
+function applyCurrentShift(form){
+  const params=new URLSearchParams(location.search),paramDate=params.get("data"),paramTurno=params.get("turno");
+  if(paramDate&&/^\d{4}-\d{2}-\d{2}$/.test(paramDate)&&window.LIDUTEC_TURNOS.shifts[paramTurno]){
+    form.querySelector('[name="data_operacional"]')?.setAttribute("value",paramDate);
+    const select=form.querySelector('[name="turno"]');if(select)select.value=paramTurno;
+    return;
+  }
+  const shift=window.LIDUTEC_TURNOS.determineShift();form.querySelector('[name="data_operacional"]')?.setAttribute("value",shift.dataOperacional);const select=form.querySelector('[name="turno"]');if(select)select.value=shift.codigo
+}
+// Um turno só conta como "aberto com dados" se o rascunho realmente tiver algo
+// preenchido — abrir e apagar tudo sem fechar não deve travar o turno seguinte.
+function shiftDraftHasData(row){
+  return (row.rascunho_producoes||[]).some(item=>item.produto_id)||
+    (row.rascunho_paradas||[]).some(item=>item.categoria_id||item.setor_id);
+}
+async function findBlockingOpenShift(turno,date){
+  const rows=await window.LIDUTEC_PRODUCAO_DATA.openShiftsBefore(turno,date);
+  return rows.find(shiftDraftHasData)||null;
+}
+function showShiftBlocked(openDate,turno){
+  const form=q("#shift-entry-form"),panel=q("#shift-blocked-message");
+  if(!panel)return;
+  form.hidden=true;
+  const label=window.LIDUTEC_TURNOS.shifts[turno]?.nome||turno,displayDate=new Date(`${openDate}T12:00:00`).toLocaleDateString("pt-BR");
+  const link=`lancamento.html?data=${openDate}&turno=${turno}`;
+  q("#shift-blocked-text").textContent=`Existe um turno de ${label} em aberto no dia ${displayDate}. Feche-o antes de abrir um novo turno de ${label}.`;
+  q("#shift-blocked-link").href=link;
+  panel.hidden=false;
+}
+function hideShiftBlocked(){
+  const panel=q("#shift-blocked-message");
+  if(panel)panel.hidden=true;
+  const form=q("#shift-entry-form");
+  if(form)form.hidden=false;
+}
 async function initializeProduction(){
   const user=await window.LIDUTEC_APP.requireAuthenticatedUser();if(!user)return;
   const[profile,permissions]=await Promise.all([window.LIDUTEC_APP.getCurrentUserProfile(user.id),window.LIDUTEC_APP.getUserPermissions(user.id)]);

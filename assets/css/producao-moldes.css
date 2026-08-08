@@ -1,4 +1,5 @@
 .production-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}.production-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.shift-blocked-message{padding:26px;border-color:#f1c40f;text-align:center}.shift-blocked-message h2{margin:0 0 8px;color:#92400e}.shift-blocked-message p{margin:0 0 16px;color:var(--color-text-muted)}
 .production-action{display:flex;flex-direction:column;gap:8px;padding:16px;border-color:var(--action-border);color:#fff;background:var(--action-color);text-decoration:none;transition:background .18s ease,box-shadow .18s ease,transform .18s ease}
 .production-action:is(:hover,:focus-visible){background:var(--action-hover);box-shadow:0 8px 20px rgb(15 23 42 / 18%);transform:translateY(-2px)}
 .production-action:focus-visible{outline:3px solid color-mix(in srgb,var(--action-color),white 55%);outline-offset:2px}

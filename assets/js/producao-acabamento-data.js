@@ -36,6 +36,10 @@
       return result(client().from("tempos_ciclo_padrao").select("produto_id,identificador,tempo_ciclo_segundos")
         .eq("area_id", await areaId()).in("produto_id", productIds));
     },
+    openShiftsBefore: (turno, date) => result(client().from("turnos_producao_acabamento")
+      .select("data_operacional,rascunho_producoes,rascunho_paradas,rascunho_linhas")
+      .eq("turno", turno).eq("status", "ABERTO").lt("data_operacional", date)
+      .order("data_operacional", { ascending: true }).limit(60)),
     plannedOperators: async (linhaId, turno, date) => {
       const { data, error } = await client().rpc("meta_vigente", {
         p_area_id: await areaId(), p_linha_maquina_id: linhaId, p_turno: turno,
