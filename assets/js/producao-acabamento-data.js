@@ -71,6 +71,8 @@
       .from("paradas_producao_acabamento")
       .select("*,categorias_parada_producao(nome),setores_responsaveis_parada(nome),postos_equipamentos_acabamento(codigo,nome,tipo,linha_maquina_id)")
       .order("data_operacional", { ascending: false }), filters)),
+    monthShifts: (from, to, shift) => result(client().from("turnos_producao_acabamento").select("data_operacional,turno,status").gte("data_operacional", from).lte("data_operacional", to).eq("turno", shift).limit(40)),
+    calendarEvents: (from, to, shift) => result(client().from("calendario_operacional").select("id,nome,tipo,escopo,data_inicio,data_fim,turno,observacao").eq("ativo", true).lte("data_inicio", to).gte("data_fim", from).or(`turno.eq.TODOS,turno.eq.${shift}`).order("data_inicio").limit(200)),
     shiftsOnDate: (date) => result(client().from("turnos_acabamento_linhas")
       .select("turno_producao_id,linha_maquina_id,operadores_planejados,operadores_presentes,turnos_producao_acabamento!inner(turno,status,data_operacional)")
       .eq("turnos_producao_acabamento.data_operacional", date)),

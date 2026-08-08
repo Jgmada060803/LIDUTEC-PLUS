@@ -784,9 +784,116 @@ function applyCurrentShiftDefaults(form) {
   form.elements.turno.value = shift.codigo;
 }
 
+// ---------------------------------------------------------------------------
+// Calendário de seleção de data — mesmas regras/cores da Moldagem: verde
+// (trabalhado), laranja (feriado trabalhado), amarelo (feriado), roxo
+// (férias), vermelho (previsto sem apontamento), cinza (futuro/folga),
+// contorno vermelho (aberto, falta finalizar).
+// ---------------------------------------------------------------------------
+const shiftCalendarState = { month: null, turns: new Map(), events: [] };
+const calendarDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+function updateShiftDateButton() {
+  const input = aq('#shift-entry-form [name="data_operacional"]');
+  const button = aq("#shift-date-button");
+  if (!input || !button) return;
+  const parts = input.value.split("-");
+  button.textContent = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : "Selecionar data";
+}
+function calendarDayState(value, shift) {
+  const turn = shiftCalendarState.turns.get(value);
+  const bounds = window.LIDUTEC_TURNOS.shiftBounds(value, shift);
+  const now = new Date();
+  const events = shiftCalendarState.events.filter((event) => event.data_inicio <= value && event.data_fim >= value);
+  const work = events.find((event) => event.tipo === "TRABALHO_EXCEPCIONAL");
+  const holiday = events.find((event) => event.tipo === "FERIADO");
+  const ferias = events.find((event) => event.tipo === "FERIAS_COLETIVAS");
+  const folga = events.find((event) => event.tipo === "FOLGA_PROGRAMADA");
+  if (turn?.status === "FECHADO") {
+    if (holiday) return { type: "worked-holiday", label: `Trabalhado (feriado) · ${holiday.nome}` };
+    return { type: "worked", label: `Trabalhado${events.length ? ` · ${events.map((event) => event.nome).join(" · ")}` : ""}` };
+  }
+  if (turn?.status === "ABERTO") return { type: "incomplete", label: "Turno com dados faltando finalizar" };
+  if (bounds.end > now) return { type: "off", label: "Futuro" };
+  if (work) return { type: "missing", label: `Trabalho excepcional sem apontamento · ${work.nome}` };
+  if (holiday) return { type: "holiday", label: holiday.nome };
+  if (ferias) return { type: "vacation", label: ferias.nome };
+  if (folga) return { type: "off", label: folga.nome };
+  if (!window.LIDUTEC_TURNOS.isScheduledShiftDay(value, shift)) return { type: "off", label: "Folga" };
+  return { type: "missing", label: "Turno previsto sem apontamento" };
+}
+function renderShiftCalendar() {
+  const form = aq("#shift-entry-form");
+  const month = shiftCalendarState.month;
+  const holder = aq("#shift-calendar-days");
+  if (!form || !month || !holder) return;
+  const shift = form.elements.turno.value;
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const first = new Date(year, monthIndex, 1);
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  const selected = form.elements.data_operacional.value;
+  const cells = [];
+  aq("#shift-calendar-title").textContent = month.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  for (let index = 0; index < first.getDay(); index++) cells.push('<span class="shift-calendar-day outside"></span>');
+  for (let day = 1; day <= lastDay; day++) {
+    const date = new Date(year, monthIndex, day);
+    const value = calendarDate(date);
+    const state = calendarDayState(value, shift);
+    cells.push(`<button type="button" class="shift-calendar-day ${state.type}${value === selected ? " selected" : ""}" data-calendar-date="${value}" title="${aesc(state.label)}">${day}</button>`);
+  }
+  holder.innerHTML = cells.join("");
+}
+async function loadShiftCalendar() {
+  const form = aq("#shift-entry-form");
+  const month = shiftCalendarState.month;
+  if (!form || !month) return;
+  const from = calendarDate(new Date(month.getFullYear(), month.getMonth(), 1));
+  const to = calendarDate(new Date(month.getFullYear(), month.getMonth() + 1, 0));
+  const shift = form.elements.turno.value;
+  const [turns, events] = await Promise.all([
+    window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.monthShifts(from, to, shift),
+    window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.calendarEvents(from, to, shift)
+  ]);
+  shiftCalendarState.turns = new Map(turns.map((row) => [row.data_operacional, row]));
+  shiftCalendarState.events = events;
+  renderShiftCalendar();
+}
+function initializeShiftCalendar() {
+  const form = aq("#shift-entry-form");
+  const dialog = aq("#shift-calendar");
+  const button = aq("#shift-date-button");
+  updateShiftDateButton();
+  button.addEventListener("click", () => {
+    const selected = new Date(`${form.elements.data_operacional.value}T12:00:00`);
+    shiftCalendarState.month = Number.isNaN(selected.getTime()) ? new Date() : new Date(selected.getFullYear(), selected.getMonth(), 1);
+    dialog.showModal();
+    loadShiftCalendar().catch((error) => acabamentoMessage(error.message, "error"));
+  });
+  dialog.addEventListener("click", (event) => {
+    const dateButton = event.target.closest("[data-calendar-date]");
+    if (dateButton) {
+      form.elements.data_operacional.value = dateButton.dataset.calendarDate;
+      updateShiftDateButton();
+      form.elements.data_operacional.dispatchEvent(new Event("change", { bubbles: true }));
+      dialog.close();
+      return;
+    }
+    if (event.target.closest("[data-calendar-close]")) { dialog.close(); return; }
+    const direction = event.target.closest("[data-calendar-previous]") ? -1 : event.target.closest("[data-calendar-next]") ? 1 : 0;
+    if (direction) {
+      shiftCalendarState.month.setMonth(shiftCalendarState.month.getMonth() + direction);
+      loadShiftCalendar().catch((error) => acabamentoMessage(error.message, "error"));
+    }
+  });
+  form.elements.turno.addEventListener("change", () => {
+    if (dialog.open) loadShiftCalendar().catch((error) => acabamentoMessage(error.message, "error"));
+  });
+}
+
 async function initializeShiftEntry() {
   const form = aq("#shift-entry-form");
   applyCurrentShiftDefaults(form);
+  initializeShiftCalendar();
   resetShiftEntryRows();
 
   aq("#add-production-row-l1").addEventListener("click", () => { appendEntryRow("#production-entry-rows-l1", productionRow()); saveShiftDraft(); });

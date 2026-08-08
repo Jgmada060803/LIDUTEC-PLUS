@@ -15,9 +15,11 @@
         <div id="production-message" class="form-message" hidden role="status"></div>
         <section class="panel shift-header-grid acabamento-shift-header">
           <label>Turno<select name="turno" required><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
-          <label>Data<input name="data_operacional" type="date" required></label>
+          <label>Data<input name="data_operacional" type="hidden" required><button id="shift-date-button" class="shift-date-button" type="button" aria-haspopup="dialog">Selecionar data</button></label>
           <div class="shift-status"><span>Status</span><strong id="shift-status">Em apontamento</strong></div>
         </section>
+
+        <dialog id="shift-calendar" class="shift-calendar"><div class="shift-calendar-header"><button type="button" data-calendar-previous aria-label="Mês anterior">‹</button><strong id="shift-calendar-title"></strong><button type="button" data-calendar-next aria-label="Próximo mês">›</button><button type="button" data-calendar-close aria-label="Fechar calendário">×</button></div><div class="shift-calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div><div id="shift-calendar-days" class="shift-calendar-days"></div><div class="shift-calendar-legend"><span><i class="worked"></i>Trabalhado</span><span><i class="worked-holiday"></i>Feriado trabalhado</span><span><i class="holiday"></i>Feriado</span><span><i class="vacation"></i>Férias</span><span><i class="missing"></i>Não trabalhado</span><span><i class="off"></i>Futuro/folga</span><span><i class="incomplete"></i>Falta finalizar</span></div></dialog>
 
         <section class="panel shift-table-panel" id="linha1-section">
           <div class="shift-section-heading">
