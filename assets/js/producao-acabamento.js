@@ -182,33 +182,33 @@ function renderPostoDots(containerId, linhaId, bounds) {
     return `<span class="acabamento-posto-dot" style="--parado:${percent}%" title="${title}" aria-label="${title}"></span>`;
   }).join("");
 }
+function plannedWindowIntervals(bounds, { turno, dataOperacional, linhaId = null, equipamentoCodigo = null }) {
+  return window.LIDUTEC_PARADAS_PROGRAMADAS.overlapIntervals({
+    janelas: acabamentoState.scheduledStops || [], turnoInicio: bounds.start,
+    paradaInicio: bounds.start, paradaFim: bounds.end,
+    turno, dataOperacional, linhaId, equipamentoCodigo
+  });
+}
 function equipmentSegmentsHtml(posto, bounds) {
   const totalMs = bounds.end.getTime() - bounds.start.getTime();
   if (totalMs <= 0) return "";
   const form = aq("#shift-entry-form");
   const turno = form?.elements.turno.value;
   const dataOperacional = form?.elements.data_operacional.value;
-  const spanFor = (interval, className) => {
+  const spanFor = (interval, className, title = "") => {
     const left = ((interval.start.getTime() - bounds.start.getTime()) / totalMs) * 100;
     const width = ((interval.end.getTime() - interval.start.getTime()) / totalMs) * 100;
-    return `<span class="${className}" style="left:${left}%;width:${width}%"></span>`;
+    return `<span class="${className}" style="left:${left}%;width:${width}%"${title ? ` title="${title}"` : ""}></span>`;
   };
-  return stoppedOverlapsForPosto(posto.id, bounds).flatMap(([overlapStart, overlapEnd]) => {
-    // A fração da parada que cai numa janela programada (refeição, manutenção
-    // preventiva etc.) aparece em amarelo; o restante, na cor normal de parada.
-    const planejados = window.LIDUTEC_PARADAS_PROGRAMADAS.overlapIntervals({
-      janelas: acabamentoState.scheduledStops || [], turnoInicio: bounds.start,
-      paradaInicio: new Date(overlapStart), paradaFim: new Date(overlapEnd),
-      turno, dataOperacional, equipamentoCodigo: posto.codigo
-    });
-    const restante = window.LIDUTEC_PARADAS_PROGRAMADAS.subtractIntervals(
-      { start: new Date(overlapStart), end: new Date(overlapEnd) }, planejados
-    );
-    return [
-      ...planejados.map((interval) => spanFor(interval, "acabamento-equip-stop planned")),
-      ...restante.map((interval) => spanFor(interval, "acabamento-equip-stop"))
-    ];
-  }).join("");
+  // Janela de parada programada (refeição, manutenção preventiva etc.) sempre
+  // aparece em amarelo, tenha ou não parada real lançada nesse horário; as
+  // paradas realmente registradas ficam em vermelho, por cima.
+  const planejados = plannedWindowIntervals(bounds, { turno, dataOperacional, equipamentoCodigo: posto.codigo });
+  const paradas = stoppedOverlapsForPosto(posto.id, bounds).map(([start, end]) => ({ start: new Date(start), end: new Date(end) }));
+  return [
+    ...planejados.map((interval) => spanFor(interval, "acabamento-equip-planned", "Parada programada")),
+    ...paradas.map((interval) => spanFor(interval, "acabamento-equip-stop"))
+  ].join("");
 }
 function renderEquipmentTimelines(bounds) {
   const container = aq("#equipamentos-timelines");

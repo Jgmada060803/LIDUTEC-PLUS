@@ -97,6 +97,18 @@ function renderShiftTimeline(){
   const start=new Date(`${date}T${shift.inicio}`),end=new Date(`${date}T${shift.fim}`);if(end<=start)end.setDate(end.getDate()+1);
   q("#timeline-start").textContent=shift.inicio;q("#timeline-end").textContent=`${shift.fim}${end.getDate()!==start.getDate()?" (+1 dia)":""}`;
   const duration=end-start,productionSegments=[],segments=[];
+  const spanFor=(interval,className,title="")=>{
+    const left=(interval.start.getTime()-start.getTime())/duration*100,width=(interval.end.getTime()-interval.start.getTime())/duration*100;
+    return `<span class="${className}" style="left:${left}%;width:${width}%"${title?` title="${title}"`:""}></span>`;
+  };
+  // Janela de parada programada (refeição, manutenção preventiva etc.) sempre
+  // aparece em amarelo, tenha ou não parada real lançada nesse horário; as
+  // paradas realmente registradas ficam em vermelho, por cima.
+  const planejados=window.LIDUTEC_PARADAS_PROGRAMADAS.overlapIntervals({
+    janelas:productionState.scheduledStops||[],turnoInicio:start,
+    paradaInicio:start,paradaFim:end,turno:form.elements.turno.value,dataOperacional:date
+  });
+  segments.push(...planejados.map(interval=>spanFor(interval,"shift-planned-segment","Parada programada")));
   for(const row of document.querySelectorAll(".shift-production-row")){
     const startValue=row.querySelector('[name="inicio"]').value,endValue=row.querySelector('[name="fim"]').value,productId=row.querySelector('[name="produto_id"]').value;if(!startValue||!endValue||!productId)continue;
     const productionStart=resolveShiftTime(startValue),productionEnd=resolveShiftTime(endValue);if(!productionStart||!productionEnd||productionEnd<=productionStart)continue;
@@ -111,20 +123,7 @@ function renderShiftTimeline(){
     const visibleStart=Math.max(start.getTime(),stopStart.getTime()),visibleEnd=Math.min(end.getTime(),stopEnd.getTime());if(visibleEnd<=visibleStart)continue;
     const sector=row.querySelector('[name="setor_id"] option:checked')?.textContent||"Parada",reason=row.querySelector('[name="categoria_id"] option:checked')?.textContent||"Motivo não informado";
     const title=`${esc(sector)} — ${esc(reason)} — ${formatMinutes(Math.round((visibleEnd-visibleStart)/60000))}`;
-    // Fração da parada que cai numa janela programada (refeição, manutenção
-    // preventiva etc.) aparece em amarelo; o restante, na cor normal de parada.
-    const planejados=window.LIDUTEC_PARADAS_PROGRAMADAS.overlapIntervals({
-      janelas:productionState.scheduledStops||[],turnoInicio:start,
-      paradaInicio:new Date(visibleStart),paradaFim:new Date(visibleEnd),
-      turno:form.elements.turno.value,dataOperacional:date
-    });
-    const restante=window.LIDUTEC_PARADAS_PROGRAMADAS.subtractIntervals({start:new Date(visibleStart),end:new Date(visibleEnd)},planejados);
-    const spanFor=(interval,className)=>{
-      const left=(interval.start.getTime()-start.getTime())/duration*100,width=(interval.end.getTime()-interval.start.getTime())/duration*100;
-      return `<span class="${className}" style="left:${left}%;width:${width}%" title="${title}"></span>`;
-    };
-    segments.push(...planejados.map(interval=>spanFor(interval,"shift-stop-segment planned")));
-    segments.push(...restante.map(interval=>spanFor(interval,"shift-stop-segment")));
+    segments.push(spanFor({start:new Date(visibleStart),end:new Date(visibleEnd)},"shift-stop-segment",title));
   }
   productionContainer.innerHTML=productionSegments.join("");container.innerHTML=segments.join("");
 }
