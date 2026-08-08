@@ -916,7 +916,12 @@ function renderAcabamentoDashboard() {
   const stops = acabamentoState.stops.filter((x) => x.data_operacional === today);
   const totals = productionTotals(records);
   const stopMinutes = stops.reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
-  const shifts = acabamentoState.periodShifts || [];
+  // Absenteísmo é do turno atual, não do dia inteiro: turnos_acabamento_linhas
+  // guarda linhas de qualquer turno com apontamento iniciado nessa data, então
+  // sem filtrar por turno o cálculo misturaria manhã/tarde/noite entre si (e
+  // mostraria algo mesmo quando o turno atual ainda nem foi apontado).
+  const currentTurno = window.LIDUTEC_TURNOS.determineShift().codigo;
+  const shifts = (acabamentoState.periodShifts || []).filter((s) => s.turnos_producao_acabamento?.turno === currentTurno);
   const planejados = shifts.reduce((sum, s) => sum + anumber(s.operadores_planejados), 0);
   const presentes = shifts.reduce((sum, s) => sum + anumber(s.operadores_presentes), 0);
   const absenteismo = planejados > 0 ? Math.max(0, 1 - presentes / planejados) : 0;
