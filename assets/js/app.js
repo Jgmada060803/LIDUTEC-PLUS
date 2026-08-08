@@ -441,7 +441,11 @@ if (window.location.pathname.endsWith("/administracao/codigos-parada.html")) {
   document.head.append(importScript);
 }
 
-if (document.body?.classList.contains("app-page")) {
+const isChecklistAlertPage = /\/pages\/(producao-moldes|producao-acabamento|controle-processo)\//.test(
+  window.location.pathname.replace(/\\/g, "/")
+);
+
+if (document.body?.classList.contains("app-page") && isChecklistAlertPage) {
   const globalChecklistScript = document.createElement("script");
   globalChecklistScript.src = new URL(
     "global-checklist-alerts.js",
