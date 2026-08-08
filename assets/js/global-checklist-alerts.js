@@ -19,6 +19,16 @@
     const currentSequence=++sequence,{date,shift,bounds}=context(),now=new Date();
     if(now<bounds.start||now>bounds.end)return render([]);
     const {data:{user}}=await client.auth.getUser();if(!user)return render([]);
+    // Turno não programado (ex.: sábado à tarde) só gera alerta se alguém
+    // realmente estiver apontando produção extraordinária nele; e, existindo
+    // um turno (programado ou não), o alerta só aparece para quem é
+    // responsável por ele — nunca para todo mundo logado.
+    const scheduled=window.LIDUTEC_TURNOS?.isScheduledShiftDay?.(date,shift)??true;
+    const {data:turno,error:turnoError}=await client.from("turnos_producao_moldes").select("criado_por,fechado_por").eq("data_operacional",date).eq("turno",shift).maybeSingle();
+    if(turnoError)throw turnoError;
+    if(!scheduled&&!turno)return render([]);
+    if(turno&&user.id!==turno.criado_por&&user.id!==turno.fechado_por)return render([]);
+    if(currentSequence!==sequence)return;
     const models=await checklistModels();
     if(!models.length)return render([]);
     const [executions,production]=await Promise.all([

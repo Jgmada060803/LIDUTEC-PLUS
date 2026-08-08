@@ -212,6 +212,19 @@ function syncSidebarNavigation() {
   };
   const activeClass = (active) =>
     `nav-link${active ? " active" : ""}`;
+  const slugify = (text) =>
+    text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  const navSection = (title, linksHtml) => {
+    const slug = slugify(title);
+    return `
+    <div class="nav-section" data-section="${slug}">
+      <button type="button" class="nav-title nav-section-toggle" data-section-toggle="${slug}" aria-expanded="false">
+        <span>${title}</span><span class="nav-section-icon" aria-hidden="true">›</span>
+      </button>
+      <div class="nav-section-links" data-section-links="${slug}" hidden>${linksHtml}</div>
+    </div>`;
+  };
 
   navigation.innerHTML = `
     <a href="${prefix}inicio.html"
@@ -223,8 +236,7 @@ function syncSidebarNavigation() {
       Dashboard
     </a>
 
-    <div class="nav-section">
-      <span class="nav-title">Engenharia</span>
+    ${navSection("Engenharia", `
       <a href="${prefix}produtos/lista.html"
          class="${activeClass(
            isActive("produtos") &&
@@ -251,19 +263,17 @@ function syncSidebarNavigation() {
          data-permission="ficha.importar,ficha.conferir_importacao,ficha.validar_importacao">
         Importar PDF
       </a>
-    </div>
+    `)}
 
-    <div class="nav-section">
-      <span class="nav-title">Controle de Processo</span>
+    ${navSection("Controle de Processo", `
       <a href="${prefix}controle-processo/lista.html"
          class="${activeClass(isActive("controle-processo"))}"
          data-permission="controle_processo.visualizar,checklist.visualizar,it.visualizar">
         Controle de Processo
       </a>
-    </div>
+    `)}
 
-    <div class="nav-section">
-      <span class="nav-title">Produção</span>
+    ${navSection("Produção", `
       <a href="${prefix}producao-moldes/index.html"
          class="${activeClass(isActive("producao-moldes") && !isActive("producao-moldes", "paradas.html"))}"
          data-permission="producao_moldes.visualizar">
@@ -284,19 +294,17 @@ function syncSidebarNavigation() {
          data-permission="producao_acabamento.visualizar">
         Paradas de Acabamento
       </a>
-    </div>
+    `)}
 
-    <div class="nav-section">
-      <span class="nav-title">Manutenção</span>
+    ${navSection("Manutenção", `
       <a href="${prefix}reclamacoes/index.html"
          class="${activeClass(isActive("reclamacoes"))}"
          data-permission="reclamacao.visualizar">
         Solicitações de Manutenção
       </a>
-    </div>
+    `)}
 
-    <div class="nav-section">
-      <span class="nav-title">Administração</span>
+    ${navSection("Administração", `
       <a href="${prefix}administracao/usuarios.html"
          class="${activeClass(isActive("administracao"))}"
          data-permission="usuarios.visualizar">
@@ -322,8 +330,57 @@ function syncSidebarNavigation() {
          data-permission="calendario_operacional.gerenciar">
         Calendário operacional
       </a>
-    </div>
+    `)}
   `;
+
+  applySidebarSectionState(navigation);
+}
+
+function sidebarOpenSectionsKey() {
+  return "lidutec:sidebar:open-sections";
+}
+
+function applySidebarSectionState(navigation) {
+  let openSections;
+  try {
+    openSections = new Set(JSON.parse(localStorage.getItem(sidebarOpenSectionsKey()) || "null"));
+  } catch {
+    openSections = new Set();
+  }
+
+  const activeLink = navigation.querySelector(".nav-link.active");
+  const activeSection = activeLink?.closest(".nav-section")?.dataset.section;
+  if (activeSection && !openSections.has(activeSection)) {
+    openSections.add(activeSection);
+    localStorage.setItem(sidebarOpenSectionsKey(), JSON.stringify([...openSections]));
+  }
+
+  for (const section of navigation.querySelectorAll(".nav-section")) {
+    const slug = section.dataset.section;
+    const toggle = section.querySelector(".nav-section-toggle");
+    const links = section.querySelector(".nav-section-links");
+    const open = openSections.has(slug);
+    links.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.querySelector(".nav-section-icon").textContent = open ? "⌄" : "›";
+  }
+
+  if (navigation.dataset.sectionToggleBound) return;
+  navigation.dataset.sectionToggleBound = "1";
+  navigation.addEventListener("click", (event) => {
+    const toggle = event.target.closest(".nav-section-toggle");
+    if (!toggle) return;
+    const slug = toggle.dataset.sectionToggle;
+    const links = toggle.nextElementSibling;
+    const open = links.hidden;
+    links.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.querySelector(".nav-section-icon").textContent = open ? "⌄" : "›";
+    let stored;
+    try { stored = new Set(JSON.parse(localStorage.getItem(sidebarOpenSectionsKey()) || "null")); } catch { stored = new Set(); }
+    if (open) stored.add(slug); else stored.delete(slug);
+    localStorage.setItem(sidebarOpenSectionsKey(), JSON.stringify([...stored]));
+  });
 }
 
 function applyPermissionVisibility(userPermissions) {
