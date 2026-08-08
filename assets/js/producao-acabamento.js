@@ -813,7 +813,7 @@ function showShiftBlocked(openDate, turno) {
   form.hidden = true;
   const label = window.LIDUTEC_TURNOS.shifts[turno]?.nome || turno;
   const displayDate = new Date(`${openDate}T12:00:00`).toLocaleDateString("pt-BR");
-  aq("#shift-blocked-text").textContent = `Existe um turno de ${label} em aberto no dia ${displayDate}. Feche-o antes de abrir um novo turno de ${label}.`;
+  aq("#shift-blocked-text").textContent = `Existe um turno de ${label} em aberto no dia ${displayDate}. Feche-o ou remova os lançamentos incompletos antes de abrir um novo turno de ${label} — avalie com atenção antes de remover, pois os dados já digitados serão perdidos.`;
   aq("#shift-blocked-link").href = `lancamento.html?data=${openDate}&turno=${turno}`;
   panel.hidden = false;
 }
