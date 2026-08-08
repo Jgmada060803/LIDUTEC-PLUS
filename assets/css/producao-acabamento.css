@@ -3,5 +3,11 @@
 
 .production-gauge{grid-template-columns:1fr;justify-items:center}
 
+.equipamentos-avulsos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.equipamento-avulso-card{display:grid;gap:4px;padding:14px;border:1px solid var(--color-border);border-radius:10px;background:#fff;text-align:center}
+.equipamento-avulso-card strong{font-size:.78rem;color:var(--color-text-muted)}
+.equipamento-avulso-card span{font-size:1.4rem;font-weight:900;color:var(--color-primary)}
+.equipamento-avulso-card small{color:var(--color-text-muted);font-size:.68rem}
+
 @media(max-width:900px){.acabamento-shift-header{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.acabamento-shift-header{grid-template-columns:1fr}}

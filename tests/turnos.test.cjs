@@ -147,4 +147,27 @@ assert.equal(
 );
 assert.equal(shifts.calcularOEE({ disponibilidade: 0, eficiencia: 0.9, qualidade: 0.9 }), 0);
 
+// Disponibilidade por posto (Acabamento) — numeroPostos=1 deve se comportar
+// exatamente como antes (compatibilidade retroativa).
+assert.equal(
+  shifts.calcularDisponibilidade({ minutosTurno: 440, operadoresPlanejados: 10, operadoresPresentes: 10, minutosParada: 44 }),
+  0.9
+);
+// Linha com 7 postos: 1 posto parado 70 min não derruba a linha inteira —
+// a perda é só a fatia desse posto dentro da capacidade total (440*7=3080).
+assert.equal(
+  shifts.calcularDisponibilidade({ minutosTurno: 440, numeroPostos: 7, operadoresPlanejados: 7, operadoresPresentes: 7, minutosParada: 70 }),
+  (3080 - 70) / 3080
+);
+assert.equal(
+  shifts.minutosDisponiveisProducao({ minutosTurno: 440, numeroPostos: 7, operadoresPlanejados: 7, operadoresPresentes: 7, minutosParada: 0 }),
+  3080
+);
+assert.equal(shifts.calcularDisponibilidade({ minutosTurno: 0, numeroPostos: 7, operadoresPlanejados: 7, operadoresPresentes: 7, minutosParada: 0 }), 0);
+
+// Taxa de equipamento avulso
+assert.equal(shifts.calcularTaxaEquipamento({ minutosPeriodo: 1000, minutosParada: 100 }), 0.9);
+assert.equal(shifts.calcularTaxaEquipamento({ minutosPeriodo: 0, minutosParada: 0 }), 0);
+assert.equal(shifts.calcularTaxaEquipamento({ minutosPeriodo: 1000, minutosParada: 0 }), 1);
+
 console.log("Testes de turnos e indicadores: OK");

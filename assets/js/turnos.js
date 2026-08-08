@@ -121,21 +121,38 @@
   const percentage = (part, total) =>
     Number(total) > 0 ? Number(((Number(part || 0) / Number(total)) * 100).toFixed(2)) : 0;
 
-  function minutosDisponiveisProducao({ minutosTurno, operadoresPlanejados, operadoresPresentes, minutosParada }) {
+  function minutosDisponiveisProducao({ minutosTurno, numeroPostos, operadoresPlanejados, operadoresPresentes, minutosParada }) {
     const turno = Math.max(0, Number(minutosTurno) || 0);
+    const postos = Math.max(1, Number(numeroPostos) || 1);
+    const capacidadeTotal = turno * postos;
     const planejados = Math.max(0, Number(operadoresPlanejados) || 0);
     const presentes = Math.max(0, Number(operadoresPresentes) || 0);
     const paradas = Math.max(0, Number(minutosParada) || 0);
     const faltaProporcional = planejados > 0 ? Math.max(0, 1 - presentes / planejados) : 0;
-    const perdaAbsenteismo = turno * faltaProporcional;
-    return Math.max(0, turno - perdaAbsenteismo - paradas);
+    const perdaAbsenteismo = capacidadeTotal * faltaProporcional;
+    return Math.max(0, capacidadeTotal - perdaAbsenteismo - paradas);
   }
 
-  function calcularDisponibilidade({ minutosTurno, operadoresPlanejados, operadoresPresentes, minutosParada }) {
+  // numeroPostos > 1 modela uma linha com várias estações independentes (ex.: os
+  // postos do Acabamento): a parada de um posto não derruba a linha inteira, só
+  // reduz a fatia de capacidade daquele posto dentro do total (turno × postos).
+  // Com numeroPostos=1 (padrão) o comportamento é idêntico ao de uma linha única.
+  function calcularDisponibilidade({ minutosTurno, numeroPostos, operadoresPlanejados, operadoresPresentes, minutosParada }) {
     const turno = Math.max(0, Number(minutosTurno) || 0);
-    if (turno <= 0) return 0;
-    const disponivel = minutosDisponiveisProducao({ minutosTurno, operadoresPlanejados, operadoresPresentes, minutosParada });
-    return disponivel / turno;
+    const postos = Math.max(1, Number(numeroPostos) || 1);
+    const capacidadeTotal = turno * postos;
+    if (capacidadeTotal <= 0) return 0;
+    const disponivel = minutosDisponiveisProducao({ minutosTurno, numeroPostos, operadoresPlanejados, operadoresPresentes, minutosParada });
+    return disponivel / capacidadeTotal;
+  }
+
+  // Taxa de utilização independente para equipamentos avulsos (não ligados a uma
+  // linha/posto e que não entram na disponibilidade da linha).
+  function calcularTaxaEquipamento({ minutosPeriodo, minutosParada }) {
+    const periodo = Math.max(0, Number(minutosPeriodo) || 0);
+    if (periodo <= 0) return 0;
+    const parada = Math.max(0, Number(minutosParada) || 0);
+    return Math.max(0, (periodo - parada) / periodo);
   }
 
   function calcularTempoTeorico({ pecasLiberadas, pecasRefugadas, tempoCicloSegundos }) {
@@ -183,6 +200,7 @@
     calcularTempoTeorico,
     calcularEficiencia,
     calcularQualidade,
-    calcularOEE
+    calcularOEE,
+    calcularTaxaEquipamento
   };
 });

@@ -17,6 +17,10 @@
         <article class="panel production-donut-panel"><h3>Qualidade</h3><p>Liberadas ÷ (liberadas + refugadas)</p><div id="gauge-qualidade" class="production-donut-chart production-gauge"></div></article>
         <article class="panel production-donut-panel"><h3>OEE</h3><p>Disponibilidade × Eficiência × Qualidade</p><div id="gauge-oee" class="production-donut-chart production-gauge"></div></article>
       </section>
+      <section class="panel">
+        <div class="panel-header"><h3>Equipamentos avulsos</h3><p class="production-muted">Não entram na disponibilidade da linha — taxa própria de utilização no período.</p></div>
+        <div id="equipamentos-avulsos-rows" class="equipamentos-avulsos-grid"></div>
+      </section>
     </main>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-acabamento-data.js"></script><script src="../../assets/js/producao-acabamento.js"></script>

@@ -22,13 +22,14 @@
   }
   root.LIDUTEC_PRODUCAO_ACABAMENTO_DATA = {
     support: async () => {
-      const [products, lines, categories, sectors] = await Promise.all([
+      const [products, lines, categories, sectors, postos] = await Promise.all([
         result(client().from("produtos").select("id,codigo,nome").eq("status", "ATIVO").order("codigo")),
         result(client().from("linhas_maquinas_producao").select("id,codigo,nome,areas_checklist!inner(codigo)").eq("areas_checklist.codigo", "ACABAMENTO").eq("ativo", true).order("codigo")),
         result(client().from("categorias_parada_producao").select("id,codigo,nome").eq("ativo", true).order("nome")),
-        result(client().from("setores_responsaveis_parada").select("id,codigo,nome").eq("ativo", true).order("nome"))
+        result(client().from("setores_responsaveis_parada").select("id,codigo,nome").eq("ativo", true).order("nome")),
+        result(client().from("postos_equipamentos_acabamento").select("id,codigo,nome,tipo,linha_maquina_id").eq("ativo", true).order("ordem"))
       ]);
-      return { products, lines, categories, sectors };
+      return { products, lines, categories, sectors, postos };
     },
     cycleTimes: async (productIds) => {
       if (!productIds?.length) return [];
@@ -49,7 +50,7 @@
       .order("data_operacional", { ascending: false }), filters)),
     stops: (filters = {}) => result(applyFilters(client()
       .from("paradas_producao_acabamento")
-      .select("*,categorias_parada_producao(nome),setores_responsaveis_parada(nome)")
+      .select("*,categorias_parada_producao(nome),setores_responsaveis_parada(nome),postos_equipamentos_acabamento(codigo,nome,tipo,linha_maquina_id)")
       .order("data_operacional", { ascending: false }), filters)),
     shiftsOnDate: (date) => result(client().from("turnos_producao_acabamento")
       .select("id,turno,linha_maquina_id,operadores_planejados,operadores_presentes,status")
@@ -67,7 +68,7 @@
       .select("produto_id,quantidade_liberada,quantidade_rejeitada,quantidade_retrabalhada,quantidade_refugada")
       .eq("turno_producao_id", id).order("produto_id")),
     shiftStops: (id) => result(client().from("paradas_producao_acabamento")
-      .select("inicio,fim,setor_origem_id,categoria_id,observacao").eq("turno_producao_id", id).order("inicio")),
+      .select("inicio,fim,setor_origem_id,categoria_id,posto_equipamento_id,observacao").eq("turno_producao_id", id).order("inicio")),
     history: async (id) => result(client().from("historico_edicoes_turno_acabamento")
       .select("alterado_em,descricao,dados_anteriores,dados_novos,usuarios(nome)")
       .eq("turno_producao_id", id).order("alterado_em", { ascending: false })),

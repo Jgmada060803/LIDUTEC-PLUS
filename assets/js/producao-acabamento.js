@@ -6,6 +6,7 @@ const acabamentoState = {
   lines: [],
   categories: [],
   sectors: [],
+  postos: [],
   cycleTimeByProduct: new Map(),
   records: [],
   stops: [],
@@ -48,11 +49,12 @@ function cycleTimeFor(productId) {
 }
 
 async function loadAcabamentoSupport() {
-  const { products, lines, categories, sectors } = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.support();
+  const { products, lines, categories, sectors, postos } = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.support();
   acabamentoState.products = products;
   acabamentoState.lines = lines;
   acabamentoState.categories = categories;
   acabamentoState.sectors = sectors;
+  acabamentoState.postos = postos;
   const cycleTimes = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.cycleTimes(products.map((p) => p.id));
   acabamentoState.cycleTimeByProduct = new Map(cycleTimes.map((item) => [String(item.produto_id), item.tempo_ciclo_segundos]));
   for (const select of document.querySelectorAll("[data-products]")) {
@@ -85,6 +87,28 @@ function productionRow() {
     <td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
   return row;
 }
+function postoOptionsHtml() {
+  const linhaNomeById = new Map(acabamentoState.lines.map((linha) => [linha.id, linha.nome]));
+  const postosPorLinha = new Map();
+  const avulsos = [];
+  for (const posto of acabamentoState.postos) {
+    if (posto.tipo === "POSTO_LINHA") {
+      const nomeLinha = linhaNomeById.get(posto.linha_maquina_id) || "Linha";
+      if (!postosPorLinha.has(nomeLinha)) postosPorLinha.set(nomeLinha, []);
+      postosPorLinha.get(nomeLinha).push(posto);
+    } else {
+      avulsos.push(posto);
+    }
+  }
+  let html = "";
+  for (const [nomeLinha, postos] of postosPorLinha) {
+    html += `<optgroup label="${aesc(nomeLinha)}">${postos.map((posto) => `<option value="${posto.id}">${aesc(posto.nome)}</option>`).join("")}</optgroup>`;
+  }
+  if (avulsos.length) {
+    html += `<optgroup label="Equipamentos">${avulsos.map((posto) => `<option value="${posto.id}">${aesc(posto.nome)}</option>`).join("")}</optgroup>`;
+  }
+  return html;
+}
 function stopRow() {
   const row = document.createElement("tr");
   row.className = "shift-stop-row";
@@ -94,6 +118,7 @@ function stopRow() {
     <td><input name="inicio" type="time" step="60"></td>
     <td><input name="fim" type="time" step="60"></td>
     <td><output data-duration>0h 00min</output></td>
+    <td><select name="posto_id"><option value="">Selecione</option>${postoOptionsHtml()}</select></td>
     <td><select name="setor_id"><option value="">Selecione</option>${sectorOptions}</select></td>
     <td><select name="categoria_id"><option value="">Selecione</option>${categoryOptions}</select></td>
     <td><input name="observacao" type="text" maxlength="500"></td>
@@ -165,6 +190,7 @@ function populateShiftRows(productions, stops) {
     applyRowValues(row, {
       inicio: toTimeInput(item.inicio),
       fim: toTimeInput(item.fim),
+      posto_id: item.posto_equipamento_id ?? item.posto_id ?? "",
       setor_id: item.setor_origem_id ?? item.setor_id ?? "",
       categoria_id: item.categoria_id ?? "",
       observacao: item.observacao ?? ""
@@ -187,11 +213,11 @@ function serializeShift() {
 
   const form = aq("#shift-entry-form");
   const stops = [...document.querySelectorAll(".shift-stop-row")]
-    .filter((row) => ["inicio", "fim", "setor_id", "categoria_id"].some((name) => row.querySelector(`[name="${name}"]`)?.value))
+    .filter((row) => ["inicio", "fim", "posto_id", "setor_id", "categoria_id"].some((name) => row.querySelector(`[name="${name}"]`)?.value))
     .map((row) => {
       const value = (name) => row.querySelector(`[name="${name}"]`).value;
-      if (!value("inicio") || !value("fim") || !value("setor_id") || !value("categoria_id")) {
-        throw new Error("Preencha início, fim, setor e motivo em todas as paradas.");
+      if (!value("inicio") || !value("fim") || !value("posto_id") || !value("setor_id") || !value("categoria_id")) {
+        throw new Error("Preencha início, fim, posto/equipamento, setor e motivo em todas as paradas.");
       }
       const start = resolveShiftTime(value("inicio"));
       const end = resolveShiftTime(value("fim"));
@@ -199,7 +225,7 @@ function serializeShift() {
       if (!window.LIDUTEC_TURNOS.intervalWithinShift(form.elements.data_operacional.value, form.elements.turno.value, start.toISOString(), end.toISOString())) {
         throw new Error("A parada deve estar dentro do turno selecionado.");
       }
-      return { inicio: start.toISOString(), fim: end.toISOString(), setor_id: anumber(value("setor_id")), categoria_id: anumber(value("categoria_id")), observacao: value("observacao") };
+      return { inicio: start.toISOString(), fim: end.toISOString(), posto_id: anumber(value("posto_id")), setor_id: anumber(value("setor_id")), categoria_id: anumber(value("categoria_id")), observacao: value("observacao") };
     });
   return { productions, stops };
 }
@@ -572,6 +598,7 @@ function renderAcabamentoStops() {
       <td>${aFormatDateTime(x.inicio)}</td>
       <td>${aFormatDateTime(x.fim)}</td>
       <td>${aFormatMinutes(x.duracao_minutos)}</td>
+      <td>${aesc(x.postos_equipamentos_acabamento?.nome || "—")}</td>
       <td>${aesc(x.setores_responsaveis_parada?.nome || "—")}</td>
       <td>${aesc(x.categorias_parada_producao?.nome || "—")}</td>
       <td>${aesc(x.observacao || "—")}</td>
@@ -591,30 +618,74 @@ function renderGauge(selector, fraction, label) {
     </div>`;
 }
 
+function postoCountByLinha() {
+  const map = new Map();
+  for (const posto of acabamentoState.postos) {
+    if (posto.tipo === "POSTO_LINHA") {
+      map.set(posto.linha_maquina_id, (map.get(posto.linha_maquina_id) || 0) + 1);
+    }
+  }
+  return map;
+}
+function postoTipoById() {
+  return new Map(acabamentoState.postos.map((posto) => [posto.id, posto]));
+}
+
 function renderAcabamentoCharts() {
   const totals = productionTotals(acabamentoState.records);
-  const stopMinutes = acabamentoState.stops.reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
   const shifts = acabamentoState.todayShifts || [];
-  const planejados = shifts.reduce((sum, s) => sum + anumber(s.operadores_planejados), 0);
-  const presentes = shifts.reduce((sum, s) => sum + anumber(s.operadores_presentes), 0);
-  const minutosTurno = shifts.reduce((sum, s) => sum + (window.LIDUTEC_TURNOS.shifts[s.turno]?.minutos || 0), 0);
+  const postoPorLinha = postoCountByLinha();
+  const postoById = postoTipoById();
 
-  const disponibilidade = window.LIDUTEC_TURNOS.calcularDisponibilidade({
-    minutosTurno,
-    operadoresPlanejados: planejados,
-    operadoresPresentes: presentes,
-    minutosParada: stopMinutes
-  });
+  // Só paradas de posto de linha entram na disponibilidade; equipamentos avulsos
+  // são calculados à parte, mais abaixo.
+  const stopsPorTurno = new Map();
+  const stopsPorEquipamento = new Map();
+  for (const stop of acabamentoState.stops) {
+    const posto = postoById.get(stop.posto_equipamento_id);
+    if (!posto) continue;
+    if (posto.tipo === "POSTO_LINHA") {
+      const lista = stopsPorTurno.get(stop.turno_producao_id) || [];
+      lista.push(stop);
+      stopsPorTurno.set(stop.turno_producao_id, lista);
+    } else {
+      const lista = stopsPorEquipamento.get(posto.id) || [];
+      lista.push(stop);
+      stopsPorEquipamento.set(posto.id, lista);
+    }
+  }
+
+  // Disponibilidade é calculada turno a turno (cada linha tem seu próprio número
+  // de postos) e depois ponderada pela duração de cada turno, em vez de somar
+  // tudo junto — uma parada de 1 posto na Linha 1 (7 postos) não pode pesar como
+  // se fosse uma parada da Linha 2 inteira (11 postos).
+  let totalMinutosTurno = 0;
+  let totalDisponibilidadePonderada = 0;
+  for (const shift of shifts) {
+    const minutosTurno = window.LIDUTEC_TURNOS.shifts[shift.turno]?.minutos || 0;
+    if (!minutosTurno) continue;
+    const numeroPostos = postoPorLinha.get(shift.linha_maquina_id) || 1;
+    const minutosParada = (stopsPorTurno.get(shift.id) || []).reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
+    const disponibilidadeTurno = window.LIDUTEC_TURNOS.calcularDisponibilidade({
+      minutosTurno, numeroPostos,
+      operadoresPlanejados: shift.operadores_planejados, operadoresPresentes: shift.operadores_presentes,
+      minutosParada
+    });
+    totalMinutosTurno += minutosTurno;
+    totalDisponibilidadePonderada += disponibilidadeTurno * minutosTurno;
+  }
+  const disponibilidade = totalMinutosTurno > 0 ? totalDisponibilidadePonderada / totalMinutosTurno : 0;
+  // "Tempo disponível" equivalente em minutos de linha (não minutos-posto), para
+  // ficar na mesma unidade do tempo teórico calculado a partir da produção total.
+  const tempoDisponivelLinha = totalDisponibilidadePonderada;
+
   const tempoCicloMedio = acabamentoState.records.length
     ? acabamentoState.records.reduce((sum, item) => sum + (cycleTimeFor(item.produto_id) || 0), 0) / acabamentoState.records.length
     : 0;
   const tempoTeorico = window.LIDUTEC_TURNOS.calcularTempoTeorico({
     pecasLiberadas: totals.liberadas, pecasRefugadas: totals.refugadas, tempoCicloSegundos: tempoCicloMedio
   });
-  const tempoDisponivel = window.LIDUTEC_TURNOS.minutosDisponiveisProducao({
-    minutosTurno, operadoresPlanejados: planejados, operadoresPresentes: presentes, minutosParada: stopMinutes
-  });
-  const eficiencia = window.LIDUTEC_TURNOS.calcularEficiencia({ tempoTeoricoMinutos: tempoTeorico, tempoDisponivelMinutos: tempoDisponivel });
+  const eficiencia = window.LIDUTEC_TURNOS.calcularEficiencia({ tempoTeoricoMinutos: tempoTeorico, tempoDisponivelMinutos: tempoDisponivelLinha });
   const qualidade = window.LIDUTEC_TURNOS.calcularQualidade({ pecasLiberadas: totals.liberadas, pecasRefugadas: totals.refugadas });
   const oee = window.LIDUTEC_TURNOS.calcularOEE({ disponibilidade, eficiencia, qualidade });
 
@@ -622,6 +693,16 @@ function renderAcabamentoCharts() {
   renderGauge("#gauge-eficiencia", eficiencia, "Eficiência");
   renderGauge("#gauge-qualidade", qualidade, "Qualidade");
   renderGauge("#gauge-oee", oee, "OEE");
+
+  const equipamentosAvulsos = acabamentoState.postos.filter((posto) => posto.tipo === "EQUIPAMENTO_AVULSO");
+  const container = aq("#equipamentos-avulsos-rows");
+  if (container) {
+    container.innerHTML = equipamentosAvulsos.map((equipamento) => {
+      const minutosParada = (stopsPorEquipamento.get(equipamento.id) || []).reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
+      const taxa = window.LIDUTEC_TURNOS.calcularTaxaEquipamento({ minutosPeriodo: totalMinutosTurno, minutosParada });
+      return `<div class="equipamento-avulso-card"><strong>${aesc(equipamento.nome)}</strong><span>${(taxa * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span><small>${aFormatMinutes(minutosParada)} parado</small></div>`;
+    }).join("");
+  }
 }
 
 async function initializeAcabamentoProduction() {
