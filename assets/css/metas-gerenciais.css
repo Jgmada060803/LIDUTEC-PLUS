@@ -4,3 +4,8 @@
 .meta-form-actions{grid-column:1/-1;display:flex;justify-content:flex-end}
 @media(max-width:900px){.meta-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.meta-form{grid-template-columns:1fr}}
+
+.pp-dias-semana{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:0;padding:10px 12px;border:1px solid var(--color-border);border-radius:8px}
+.pp-dias-semana legend{padding:0 6px;font-size:.76rem;font-weight:800}
+.pp-dias-semana label{display:flex;flex-direction:row;align-items:center;gap:5px;font-size:.76rem;font-weight:600}
+.pp-dias-semana input{width:auto;min-height:0}

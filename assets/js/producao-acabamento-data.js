@@ -49,6 +49,14 @@
       if (error) throw error;
       return data;
     },
+    scheduledStops: async (from, to) => {
+      const rows = await result(client().from("paradas_programadas")
+        .select("linha_maquina_id,turno,tipo_parada_codigo,horario_inicial,horario_final,dias_semana,vigencia_inicio,vigencia_fim,equipamentos_planejamento(codigo)")
+        .eq("area_id", await areaId())
+        .lte("vigencia_inicio", to)
+        .or(`vigencia_fim.is.null,vigencia_fim.gte.${from}`));
+      return rows.map((row) => ({ ...row, equipamento_codigo: row.equipamentos_planejamento?.codigo ?? null }));
+    },
     records: (filters = {}) => result(applyFilters(client()
       .from("registros_producao_acabamento")
       .select("*,produtos(codigo,nome,clientes(nome)),linhas_maquinas_producao(codigo,nome)")

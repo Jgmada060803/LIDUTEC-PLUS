@@ -146,6 +146,30 @@
     return disponivel / capacidadeTotal;
   }
 
+  // Minutos de uma parada real que caem dentro de uma janela de parada
+  // programada (refeição, hidratação, manutenção preventiva etc.) — usado para
+  // não descontar da disponibilidade um tempo que já era esperado/planejado.
+  // horarioInicial/horarioFinal ("HH:MM") são ancorados a partir de turnoInicio
+  // (o início do turno), com suporte a janelas que atravessam a meia-noite.
+  function minutosParadaProgramadaSobreposta({ turnoInicio, paradaInicio, paradaFim, horarioInicial, horarioFinal }) {
+    const inicioTurno = new Date(turnoInicio);
+    const anchor = (hhmm) => {
+      const [hours, minutes] = String(hhmm).split(":").map(Number);
+      const date = new Date(inicioTurno);
+      date.setHours(hours, minutes, 0, 0);
+      if (date < inicioTurno) date.setDate(date.getDate() + 1);
+      return date;
+    };
+    const janelaInicio = anchor(horarioInicial);
+    let janelaFim = anchor(horarioFinal);
+    if (janelaFim <= janelaInicio) janelaFim = new Date(janelaFim.getTime() + 24 * 60 * 60 * 1000);
+    const paradaInicioMs = new Date(paradaInicio).getTime();
+    const paradaFimMs = new Date(paradaFim).getTime();
+    const overlapStart = Math.max(paradaInicioMs, janelaInicio.getTime());
+    const overlapEnd = Math.min(paradaFimMs, janelaFim.getTime());
+    return Math.max(0, Math.round((overlapEnd - overlapStart) / 60000));
+  }
+
   // Taxa de utilização independente para equipamentos avulsos (não ligados a uma
   // linha/posto e que não entram na disponibilidade da linha).
   function calcularTaxaEquipamento({ minutosPeriodo, minutosParada }) {
@@ -201,6 +225,7 @@
     calcularEficiencia,
     calcularQualidade,
     calcularOEE,
-    calcularTaxaEquipamento
+    calcularTaxaEquipamento,
+    minutosParadaProgramadaSobreposta
   };
 });

@@ -170,4 +170,38 @@ assert.equal(shifts.calcularTaxaEquipamento({ minutosPeriodo: 1000, minutosParad
 assert.equal(shifts.calcularTaxaEquipamento({ minutosPeriodo: 0, minutosParada: 0 }), 0);
 assert.equal(shifts.calcularTaxaEquipamento({ minutosPeriodo: 1000, minutosParada: 0 }), 1);
 
+// Sobreposição de parada real com janela de parada programada (refeição/manutenção)
+// Turno MANHA começa 06:00; parada cobre o almoço 11:00-11:30 por inteiro (30min).
+assert.equal(
+  shifts.minutosParadaProgramadaSobreposta({
+    turnoInicio: "2026-07-24T06:00:00", paradaInicio: "2026-07-24T10:50:00", paradaFim: "2026-07-24T11:40:00",
+    horarioInicial: "11:00", horarioFinal: "11:30"
+  }),
+  30
+);
+// Parada parcialmente dentro da janela: só a fração sobreposta conta.
+assert.equal(
+  shifts.minutosParadaProgramadaSobreposta({
+    turnoInicio: "2026-07-24T06:00:00", paradaInicio: "2026-07-24T11:15:00", paradaFim: "2026-07-24T12:00:00",
+    horarioInicial: "11:00", horarioFinal: "11:30"
+  }),
+  15
+);
+// Parada totalmente fora da janela: nenhuma sobreposição.
+assert.equal(
+  shifts.minutosParadaProgramadaSobreposta({
+    turnoInicio: "2026-07-24T06:00:00", paradaInicio: "2026-07-24T08:00:00", paradaFim: "2026-07-24T08:30:00",
+    horarioInicial: "11:00", horarioFinal: "11:30"
+  }),
+  0
+);
+// Janela atravessando a meia-noite (turno NOITE): 23:45 até 00:15 do dia seguinte.
+assert.equal(
+  shifts.minutosParadaProgramadaSobreposta({
+    turnoInicio: "2026-07-24T21:30:00", paradaInicio: "2026-07-24T23:50:00", paradaFim: "2026-07-25T00:10:00",
+    horarioInicial: "23:45", horarioFinal: "00:15"
+  }),
+  20
+);
+
 console.log("Testes de turnos e indicadores: OK");

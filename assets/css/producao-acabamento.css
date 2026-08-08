@@ -1,5 +1,11 @@
 .acabamento-shift-header{grid-template-columns:repeat(2,minmax(200px,1fr)) minmax(220px,1fr)}
 
+/* Fonte maior nas tabelas de produção e paradas do apontamento de Acabamento */
+.shift-entry-table th{font-size:.86rem}
+.shift-entry-table td{height:36px}
+.shift-entry-table input,.shift-entry-table select,.shift-entry-table output{min-height:36px;height:36px;font-size:1rem}
+.shift-entry-table input[type="number"]{text-align:left}
+
 .acabamento-operadores-field{display:flex;align-items:center;gap:8px;font-size:.72rem;font-weight:800;white-space:nowrap}
 .acabamento-operadores-field input{width:64px;min-height:30px;padding:4px 8px;border:1px solid var(--color-border);border-radius:6px;background:#fff;font-weight:400}
 .acabamento-operadores-field small{font-weight:600;color:var(--color-text-muted);white-space:normal}
@@ -10,8 +16,9 @@
 .acabamento-postos-dots{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
 .acabamento-posto-dot{display:inline-block;width:13px;height:13px;border-radius:50%;background:conic-gradient(#c0392b 0% var(--parado,0%),#27ae60 var(--parado,0%) 100%);box-shadow:inset 0 0 0 1px rgb(0 0 0 / 12%)}
 
-/* Mini linha do tempo dos equipamentos avulsos: bem baixa, uma por linha */
-.acabamento-equip-timelines{display:grid;gap:1px;margin-bottom:10px}
+/* Mini linha do tempo dos equipamentos avulsos: bem baixa, uma por linha.
+   Fica após a tabela de paradas (abaixo de todas as tabelas do apontamento). */
+.acabamento-equip-timelines{display:grid;gap:1px;margin-top:12px}
 .acabamento-equip-row{display:grid;grid-template-columns:130px 1fr;align-items:center;gap:8px}
 .acabamento-equip-label{font-size:.66rem;font-weight:800;color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .acabamento-equip-track{position:relative;height:8px;border-radius:4px;background:#27ae60;overflow:hidden}
@@ -20,11 +27,20 @@
 @media(max-width:600px){.acabamento-equip-row{grid-template-columns:90px 1fr}}
 
 /* Caixa de postos parados por absenteísmo (aparece quando faltam operadores) */
-.acabamento-absenteeism-box{margin-bottom:10px;padding:8px 10px;border:1px solid #f1c40f;border-radius:8px;background:#fffbea}
+.acabamento-absenteeism-box{margin-bottom:10px}
+.acabamento-absenteeism-box.is-expanded{padding:8px 10px;border:1px solid #f1c40f;border-radius:8px;background:#fffbea}
+.acabamento-absenteeism-header{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .acabamento-absenteeism-hint{margin:0 0 6px;font-size:.68rem;font-weight:700;color:#8a6d00}
+.acabamento-absenteeism-hide{flex-shrink:0;padding:0;border:none;background:none;font-size:.64rem;font-weight:700;color:#8a6d00;text-decoration:underline;cursor:pointer}
+.acabamento-absenteeism-review{display:inline-block;padding:3px 10px;border:1px dashed #d8bd4a;border-radius:14px;background:none;font-size:.64rem;font-weight:700;color:#8a6d00;cursor:pointer}
 .acabamento-absenteeism-postos{display:flex;flex-wrap:wrap;gap:6px}
 .acabamento-absenteeism-posto{padding:4px 10px;border:1px solid var(--color-border);border-radius:16px;background:#fff;font-size:.68rem;font-weight:800;color:var(--color-text-muted);cursor:pointer}
 .acabamento-absenteeism-posto.active{background:#c0392b;border-color:#c0392b;color:#fff}
+.acabamento-absenteeism-posto:disabled{opacity:.4;cursor:not-allowed}
+
+/* Parada lançada automaticamente pela caixa de absenteísmo: só observações fica editável */
+.shift-stop-row input:disabled,.shift-stop-row select:disabled{background:#f1f2f4;color:var(--color-text-muted);cursor:not-allowed}
+.shift-stop-row button.row-remove:disabled{opacity:.35;cursor:not-allowed}
 
 .equipamentos-avulsos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
 .equipamento-avulso-card{display:grid;gap:4px;padding:14px;border:1px solid var(--color-border);border-radius:10px;background:#fff;text-align:center}

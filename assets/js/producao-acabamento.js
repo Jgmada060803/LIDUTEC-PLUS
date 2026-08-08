@@ -10,9 +10,14 @@ const acabamentoState = {
   cycleTimeByProduct: new Map(),
   records: [],
   stops: [],
+  scheduledStops: [],
   currentShift: null,
   linha2Ativa: true,
   planned: { l1: null, l2: null },
+  absenteeismCollapsed: { l1: false, l2: false },
+  absenteeismHovering: { l1: false, l2: false },
+  absenteeismAutoHideTimers: { l1: null, l2: null },
+  lastPresentes: { l1: null, l2: null },
   editingClosed: false,
   originalShiftData: null,
   statusRequestId: 0,
@@ -257,6 +262,8 @@ function populateShiftRows(productions, stops, linhas) {
   const linhaL2 = (linhas || []).find((item) => String(item.linha_id ?? item.linha_maquina_id) === String(linha2Id()));
   form.elements.operadores_presentes_l1.value = linhaL1?.operadores_presentes ?? "";
   form.elements.operadores_presentes_l2.value = linhaL2?.operadores_presentes ?? "";
+  acabamentoState.lastPresentes.l1 = form.elements.operadores_presentes_l1.value === "" ? null : anumber(form.elements.operadores_presentes_l1.value);
+  acabamentoState.lastPresentes.l2 = form.elements.operadores_presentes_l2.value === "" ? null : anumber(form.elements.operadores_presentes_l2.value);
 
   const toTimeInput = (value) => {
     if (!value) return "";
@@ -284,6 +291,7 @@ function populateShiftRows(productions, stops, linhas) {
     appendEntryRow("#stop-entry-rows", row);
     try { updateStopRow(row); } catch { /* horário incompleto no carregamento inicial */ }
   }
+  lockAutoAbsenteeismoRows();
 }
 function serializeProductionSection(target, linhaId) {
   return [...document.querySelectorAll(`${target} .shift-production-row`)]
@@ -308,6 +316,12 @@ function serializeShift() {
   const linhas = [{ linha_id: linha1Id(), operadores_presentes: anumber(form.elements.operadores_presentes_l1.value) }];
   if (acabamentoState.linha2Ativa || form.elements.operadores_presentes_l2.value) {
     linhas.push({ linha_id: linha2Id(), operadores_presentes: anumber(form.elements.operadores_presentes_l2.value) });
+  }
+  for (const linha of linhas) {
+    const limit = absenteeismLimit(linha.linha_id);
+    if (limit > 0 && absenteeismActiveCount(linha.linha_id) < limit) {
+      throw new Error("Marque na caixa de absenteísmo quais postos ficarão parados antes de continuar.");
+    }
   }
 
   const stops = [...document.querySelectorAll(".shift-stop-row")]
@@ -426,23 +440,90 @@ function absenteismoCategoriaId() {
 function admSetorId() {
   return acabamentoState.sectors.find((s) => s.codigo === "ADM")?.id ?? null;
 }
-function findAbsenteeismRowForPosto(postoId) {
+function isAbsenteeismoRow(row) {
   const categoriaId = absenteismoCategoriaId();
-  if (!categoriaId) return null;
+  const setorId = admSetorId();
+  if (!categoriaId || !setorId) return false;
+  return anumber(row.querySelector('[name="categoria_id"]').value) === categoriaId &&
+    anumber(row.querySelector('[name="setor_id"]').value) === setorId;
+}
+function isAbsenteeismoStopRecord(stop) {
+  const categoriaId = absenteismoCategoriaId();
+  const setorId = admSetorId();
+  if (!categoriaId || !setorId) return false;
+  return anumber(stop.categoria_id) === categoriaId && anumber(stop.setor_origem_id) === setorId;
+}
+function findAbsenteeismRowForPosto(postoId) {
   return [...document.querySelectorAll(".shift-stop-row")].find((row) =>
-    anumber(row.querySelector('[name="posto_id"]').value) === Number(postoId) &&
-    anumber(row.querySelector('[name="categoria_id"]').value) === categoriaId);
+    anumber(row.querySelector('[name="posto_id"]').value) === Number(postoId) && isAbsenteeismoRow(row));
+}
+function lockAutoAbsenteeismoRows() {
+  for (const row of document.querySelectorAll(".shift-stop-row")) {
+    if (!isAbsenteeismoRow(row)) continue;
+    for (const name of ["inicio", "fim", "posto_id", "setor_id", "categoria_id"]) {
+      const control = row.querySelector(`[name="${name}"]`);
+      if (control) control.disabled = true;
+    }
+    const removeButton = row.querySelector(".row-remove");
+    if (removeButton) { removeButton.disabled = true; removeButton.title = "Remova marcando/desmarcando o posto na caixa de absenteísmo acima."; }
+  }
+}
+function insertAbsenteeismRow(row) {
+  const tbody = aq("#stop-entry-rows");
+  const autoRows = [...tbody.querySelectorAll(".shift-stop-row")].filter(isAbsenteeismoRow);
+  if (autoRows.length) autoRows[autoRows.length - 1].insertAdjacentElement("afterend", row);
+  else tbody.prepend(row);
+}
+function clearAbsenteeismStopsForLinha(linhaId) {
+  const postoIds = new Set(acabamentoState.postos.filter((p) => p.tipo === "POSTO_LINHA" && p.linha_maquina_id === linhaId).map((p) => p.id));
+  for (const row of [...document.querySelectorAll(".shift-stop-row")]) {
+    if (!isAbsenteeismoRow(row) || !postoIds.has(anumber(row.querySelector('[name="posto_id"]').value))) continue;
+    const body = row.parentElement;
+    if (body.children.length === 1) {
+      for (const control of row.querySelectorAll("input,select,button")) { control.disabled = false; control.value = control.type === "number" ? "0" : ""; }
+    } else {
+      row.remove();
+    }
+  }
+}
+function handlePresentesInput(key) {
+  const form = aq("#shift-entry-form");
+  const input = key === "l1" ? form.elements.operadores_presentes_l1 : form.elements.operadores_presentes_l2;
+  const value = input.value === "" ? null : anumber(input.value);
+  const previous = acabamentoState.lastPresentes[key];
+  if (previous != null && value != null && value > previous) {
+    clearAbsenteeismStopsForLinha(key === "l1" ? linha1Id() : linha2Id());
+    renderAcabamentoIllustrations();
+  }
+  acabamentoState.lastPresentes[key] = value;
+  saveShiftDraft();
+  updateAbsenteeismBoxes();
+}
+function absenteeismLimit(linhaId) {
+  const form = aq("#shift-entry-form");
+  const isL1 = String(linhaId) === String(linha1Id());
+  const planned = isL1 ? acabamentoState.planned.l1 : acabamentoState.planned.l2;
+  const presentesTexto = isL1 ? form.elements.operadores_presentes_l1.value : form.elements.operadores_presentes_l2.value;
+  if (planned == null || presentesTexto === "") return 0;
+  return Math.max(0, planned - anumber(presentesTexto));
+}
+function absenteeismActiveCount(linhaId) {
+  return acabamentoState.postos.filter((posto) => posto.tipo === "POSTO_LINHA" && posto.linha_maquina_id === linhaId && findAbsenteeismRowForPosto(posto.id)).length;
 }
 function toggleAbsenteeismStop(postoId) {
+  const posto = acabamentoState.postos.find((p) => p.id === Number(postoId));
   const existing = findAbsenteeismRowForPosto(postoId);
   if (existing) {
     const body = existing.parentElement;
     if (body.children.length === 1) {
-      for (const control of existing.querySelectorAll("input,select")) control.value = control.type === "number" ? "0" : "";
+      for (const control of existing.querySelectorAll("input,select,button")) { control.disabled = false; control.value = control.type === "number" ? "0" : ""; }
     } else {
       existing.remove();
     }
   } else {
+    const limit = posto ? absenteeismLimit(posto.linha_maquina_id) : 0;
+    const activeCount = posto ? absenteeismActiveCount(posto.linha_maquina_id) : 0;
+    if (activeCount >= limit) return;
     const bounds = turnoBoundsOrNull();
     const form = aq("#shift-entry-form");
     const shiftInfo = window.LIDUTEC_TURNOS.shifts[form.elements.turno.value];
@@ -458,22 +539,51 @@ function toggleAbsenteeismStop(postoId) {
       categoria_id: categoriaId,
       observacao: ""
     });
-    appendEntryRow("#stop-entry-rows", row);
+    insertAbsenteeismRow(row);
     try { updateStopRow(row); } catch { /* ignorado: horário do turno já é válido */ }
   }
+  lockAutoAbsenteeismoRows();
   saveShiftDraft();
   renderAcabamentoIllustrations();
   updateAbsenteeismBoxes();
 }
-function renderAbsenteeismBox(containerId, linhaId) {
+function cancelAbsenteeismAutoHide(key) {
+  clearTimeout(acabamentoState.absenteeismAutoHideTimers[key]);
+  acabamentoState.absenteeismAutoHideTimers[key] = null;
+}
+function scheduleAbsenteeismAutoHide(key) {
+  cancelAbsenteeismAutoHide(key);
+  acabamentoState.absenteeismAutoHideTimers[key] = setTimeout(() => {
+    acabamentoState.absenteeismCollapsed[key] = true;
+    updateAbsenteeismBoxes();
+  }, 10000);
+}
+function renderAbsenteeismBox(containerId, linhaId, key) {
   const container = aq(containerId);
   if (!container) return;
   const postos = acabamentoState.postos.filter((posto) => posto.tipo === "POSTO_LINHA" && posto.linha_maquina_id === linhaId);
-  container.innerHTML = `<p class="acabamento-absenteeism-hint">Operadores presentes abaixo do planejado — marque os postos que ficarão parados:</p>
+  const limit = absenteeismLimit(linhaId);
+  const activeCount = absenteeismActiveCount(linhaId);
+  const satisfeito = activeCount >= limit;
+  if (acabamentoState.absenteeismCollapsed[key] && satisfeito) {
+    cancelAbsenteeismAutoHide(key);
+    container.classList.remove("is-expanded");
+    container.innerHTML = `<button type="button" class="acabamento-absenteeism-review" data-linha-key="${key}">Postos parados por absenteísmo (${activeCount}/${limit}) · revisar</button>`;
+    return;
+  }
+  container.classList.add("is-expanded");
+  container.innerHTML = `
+    <div class="acabamento-absenteeism-header">
+      <p class="acabamento-absenteeism-hint">Faltam ${limit} operador(es) frente ao planejado — marque ${limit} posto(s) parado(s) (${activeCount}/${limit} marcados):</p>
+      ${satisfeito ? `<button type="button" class="acabamento-absenteeism-hide" data-linha-key="${key}">Ocultar</button>` : ""}
+    </div>
     <div class="acabamento-absenteeism-postos">${postos.map((posto) => {
       const active = !!findAbsenteeismRowForPosto(posto.id);
-      return `<button type="button" class="acabamento-absenteeism-posto${active ? " active" : ""}" data-posto-id="${posto.id}">${aesc(posto.nome)}</button>`;
+      const blocked = !active && activeCount >= limit;
+      return `<button type="button" class="acabamento-absenteeism-posto${active ? " active" : ""}" data-posto-id="${posto.id}"${blocked ? " disabled" : ""}>${aesc(posto.nome)}</button>`;
     }).join("")}</div>`;
+  if (satisfeito && !acabamentoState.absenteeismHovering[key]) scheduleAbsenteeismAutoHide(key);
+  else cancelAbsenteeismAutoHide(key);
 }
 function updateAbsenteeismBoxes() {
   const form = aq("#shift-entry-form");
@@ -484,13 +594,13 @@ function updateAbsenteeismBoxes() {
     const presentesTexto = form.elements.operadores_presentes_l1.value;
     const showL1 = !closed && acabamentoState.planned.l1 != null && presentesTexto !== "" && anumber(presentesTexto) < acabamentoState.planned.l1;
     boxL1.hidden = !showL1;
-    if (showL1) renderAbsenteeismBox("#absenteeism-box-l1", linha1Id());
+    if (showL1) renderAbsenteeismBox("#absenteeism-box-l1", linha1Id(), "l1"); else cancelAbsenteeismAutoHide("l1");
   }
   if (boxL2) {
     const presentesTexto = form.elements.operadores_presentes_l2.value;
     const showL2 = !closed && acabamentoState.linha2Ativa && acabamentoState.planned.l2 != null && presentesTexto !== "" && anumber(presentesTexto) < acabamentoState.planned.l2;
     boxL2.hidden = !showL2;
-    if (showL2) renderAbsenteeismBox("#absenteeism-box-l2", linha2Id());
+    if (showL2) renderAbsenteeismBox("#absenteeism-box-l2", linha2Id(), "l2"); else cancelAbsenteeismAutoHide("l2");
   }
 }
 
@@ -513,6 +623,9 @@ async function checkShiftStatus() {
   const date = form.elements.data_operacional.value;
   const turno = form.elements.turno.value;
   if (!date || !turno) return;
+  acabamentoState.absenteeismCollapsed = { l1: false, l2: false };
+  cancelAbsenteeismAutoHide("l1");
+  cancelAbsenteeismAutoHide("l2");
   const requestId = ++acabamentoState.statusRequestId;
   acabamentoState.linha2Ativa = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.linha2Ativa(date, turno);
   if (requestId !== acabamentoState.statusRequestId) return;
@@ -560,6 +673,7 @@ async function checkShiftStatus() {
   for (const control of form.querySelectorAll("tbody input,tbody select,tbody button,.row-add-button,[name^=\"operadores_presentes\"]")) {
     control.disabled = closed;
   }
+  lockAutoAbsenteeismoRows();
   if (data?.id && closed) await loadShiftHistory(data.id); else aq("#shift-edit-history").hidden = true;
   renderAcabamentoIllustrations();
   updateAbsenteeismBoxes();
@@ -579,6 +693,7 @@ async function editClosedShift() {
   acabamentoState.editingClosed = true;
   const form = aq("#shift-entry-form");
   for (const control of form.querySelectorAll("tbody input,tbody select,tbody button,.row-add-button,[name^=\"operadores_presentes\"]")) control.disabled = false;
+  lockAutoAbsenteeismoRows();
   aq("#edit-shift-button").hidden = true;
   aq("#delete-shift-button").hidden = true;
   aq("#close-shift-button").hidden = false;
@@ -657,6 +772,16 @@ async function initializeShiftEntry() {
   aq("#add-production-row-l1").addEventListener("click", () => { appendEntryRow("#production-entry-rows-l1", productionRow()); saveShiftDraft(); });
   aq("#add-production-row-l2").addEventListener("click", () => { appendEntryRow("#production-entry-rows-l2", productionRow()); saveShiftDraft(); });
   aq("#add-stop-row").addEventListener("click", () => { appendEntryRow("#stop-entry-rows", stopRow()); saveShiftDraft(); renderAcabamentoIllustrations(); });
+  for (const key of ["l1", "l2"]) {
+    const box = aq(`#absenteeism-box-${key}`);
+    if (!box) continue;
+    box.addEventListener("mouseenter", () => { acabamentoState.absenteeismHovering[key] = true; cancelAbsenteeismAutoHide(key); });
+    box.addEventListener("mouseleave", () => {
+      acabamentoState.absenteeismHovering[key] = false;
+      const linhaId = key === "l1" ? linha1Id() : linha2Id();
+      if (!acabamentoState.absenteeismCollapsed[key] && absenteeismActiveCount(linhaId) >= absenteeismLimit(linhaId)) scheduleAbsenteeismAutoHide(key);
+    });
+  }
   form.addEventListener("input", (event) => {
     const stop = event.target.closest(".shift-stop-row");
     if (stop) {
@@ -667,6 +792,10 @@ async function initializeShiftEntry() {
     saveShiftDraft();
   });
   form.addEventListener("click", (event) => {
+    const hideButton = event.target.closest(".acabamento-absenteeism-hide");
+    if (hideButton) { acabamentoState.absenteeismCollapsed[hideButton.dataset.linhaKey] = true; updateAbsenteeismBoxes(); return; }
+    const reviewButton = event.target.closest(".acabamento-absenteeism-review");
+    if (reviewButton) { acabamentoState.absenteeismCollapsed[reviewButton.dataset.linhaKey] = false; updateAbsenteeismBoxes(); return; }
     const absenteeismButton = event.target.closest(".acabamento-absenteeism-posto");
     if (absenteeismButton) { toggleAbsenteeismStop(anumber(absenteeismButton.dataset.postoId)); return; }
     const button = event.target.closest(".row-remove");
@@ -684,8 +813,8 @@ async function initializeShiftEntry() {
   const refreshContext = () => checkShiftStatus().catch((error) => acabamentoMessage(error.message, "error"));
   form.elements.data_operacional.addEventListener("change", refreshContext);
   form.elements.turno.addEventListener("change", refreshContext);
-  form.elements.operadores_presentes_l1.addEventListener("input", () => { saveShiftDraft(); updateAbsenteeismBoxes(); });
-  form.elements.operadores_presentes_l2.addEventListener("input", () => { saveShiftDraft(); updateAbsenteeismBoxes(); });
+  form.elements.operadores_presentes_l1.addEventListener("input", () => handlePresentesInput("l1"));
+  form.elements.operadores_presentes_l2.addEventListener("input", () => handlePresentesInput("l2"));
   form.addEventListener("submit", closeShift);
   if (!restoreShiftDraft()) { /* checkShiftStatus abaixo decide entre rascunho compartilhado e formulário em branco */ }
   await checkShiftStatus();
@@ -739,14 +868,16 @@ async function loadAcabamentoData() {
   }
   if (acabamentoPage === "charts") {
     const from = aDaysBefore(today, 30);
-    const [records, stops, shifts] = await Promise.all([
+    const [records, stops, shifts, scheduledStops] = await Promise.all([
       window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.records({ from, to: today, limit: 5000 }),
       window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.stops({ from, to: today, limit: 5000 }),
-      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shiftsInRange(from, today)
+      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shiftsInRange(from, today),
+      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.scheduledStops(from, today)
     ]);
     acabamentoState.records = records;
     acabamentoState.stops = stops;
     acabamentoState.periodShifts = shifts;
+    acabamentoState.scheduledStops = scheduledStops;
   }
 }
 
@@ -845,6 +976,29 @@ function postoTipoById() {
   return new Map(acabamentoState.postos.map((posto) => [posto.id, posto]));
 }
 
+function paradaProgramadaOverlapMinutos(stop, { linhaId = null, equipamentoCodigo = null } = {}) {
+  let bounds;
+  try { bounds = window.LIDUTEC_TURNOS.shiftBounds(stop.data_operacional, stop.turno); } catch { return 0; }
+  const diaSemana = new Date(`${stop.data_operacional}T12:00:00`).getDay();
+  const aplicaveis = (acabamentoState.scheduledStops || []).filter((janela) => {
+    if (linhaId != null) {
+      if (janela.equipamento_codigo != null) return false;
+      if (janela.linha_maquina_id != null && janela.linha_maquina_id !== linhaId) return false;
+    } else if (equipamentoCodigo != null) {
+      if (janela.linha_maquina_id != null) return false;
+      if (janela.equipamento_codigo != null && janela.equipamento_codigo !== equipamentoCodigo) return false;
+    }
+    return (janela.turno == null || janela.turno === stop.turno) &&
+      janela.dias_semana.includes(diaSemana) &&
+      janela.vigencia_inicio <= stop.data_operacional &&
+      (!janela.vigencia_fim || janela.vigencia_fim >= stop.data_operacional);
+  });
+  const overlap = aplicaveis.reduce((sum, janela) => sum + window.LIDUTEC_TURNOS.minutosParadaProgramadaSobreposta({
+    turnoInicio: bounds.start, paradaInicio: stop.inicio, paradaFim: stop.fim,
+    horarioInicial: janela.horario_inicial, horarioFinal: janela.horario_final
+  }), 0);
+  return Math.min(overlap, anumber(stop.duracao_minutos));
+}
 function renderAcabamentoCharts() {
   const totals = productionTotals(acabamentoState.records);
   // shiftsInRange devolve 1 linha por (turno, linha ativa) — já exclui
@@ -854,18 +1008,32 @@ function renderAcabamentoCharts() {
   const postoPorLinha = postoCountByLinha();
   const postoById = postoTipoById();
 
-  const stopsPorTurno = new Map();
+  // Agrupado por (turno, linha) — não só por turno: como 1 turno cobre as duas
+  // linhas, agrupar só por turno faria a parada de um posto da Linha 1 também
+  // ser contada na disponibilidade da Linha 2 (e vice-versa).
+  const stopsPorTurnoLinha = new Map();
   const stopsPorEquipamento = new Map();
   for (const stop of acabamentoState.stops) {
     const posto = postoById.get(stop.posto_equipamento_id);
     if (!posto) continue;
     if (posto.tipo === "POSTO_LINHA") {
-      const lista = stopsPorTurno.get(stop.turno_producao_id) || [];
-      lista.push(stop);
-      stopsPorTurno.set(stop.turno_producao_id, lista);
+      // Paradas de Absenteísmo (Setor ADM) já são contabilizadas na disponibilidade
+      // pela proporção operadoresPresentes/operadoresPlanejados — somar de novo
+      // aqui dobraria a perda pelo mesmo motivo.
+      if (isAbsenteeismoStopRecord(stop)) continue;
+      // Parte da parada que cai numa janela programada (refeição, manutenção
+      // preventiva etc.) não conta contra a disponibilidade — já é esperada.
+      const overlapProgramado = paradaProgramadaOverlapMinutos(stop, { linhaId: posto.linha_maquina_id });
+      const key = `${stop.turno_producao_id}|${posto.linha_maquina_id}`;
+      const lista = stopsPorTurnoLinha.get(key) || [];
+      lista.push({ ...stop, duracao_minutos: Math.max(0, anumber(stop.duracao_minutos) - overlapProgramado) });
+      stopsPorTurnoLinha.set(key, lista);
     } else {
+      // Mesma lógica: tempo do equipamento avulso parado numa janela programada
+      // (refeição, manutenção preventiva etc.) não reduz a taxa de utilização dele.
+      const overlapProgramado = paradaProgramadaOverlapMinutos(stop, { equipamentoCodigo: posto.codigo });
       const lista = stopsPorEquipamento.get(posto.id) || [];
-      lista.push(stop);
+      lista.push({ ...stop, duracao_minutos: Math.max(0, anumber(stop.duracao_minutos) - overlapProgramado) });
       stopsPorEquipamento.set(posto.id, lista);
     }
   }
@@ -877,7 +1045,7 @@ function renderAcabamentoCharts() {
     const minutosTurno = window.LIDUTEC_TURNOS.shifts[turno]?.minutos || 0;
     if (!minutosTurno) continue;
     const numeroPostos = postoPorLinha.get(shift.linha_maquina_id) || 1;
-    const minutosParada = (stopsPorTurno.get(shift.turno_producao_id) || []).reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
+    const minutosParada = (stopsPorTurnoLinha.get(`${shift.turno_producao_id}|${shift.linha_maquina_id}`) || []).reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
     const disponibilidadeTurno = window.LIDUTEC_TURNOS.calcularDisponibilidade({
       minutosTurno, numeroPostos,
       operadoresPlanejados: shift.operadores_planejados, operadoresPresentes: shift.operadores_presentes,
