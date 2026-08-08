@@ -5,6 +5,14 @@
     if (response.error) throw response.error;
     return response.data ?? fallback;
   };
+  let areaIdCache = null;
+  const areaId = async () => {
+    if (areaIdCache) return areaIdCache;
+    const { data, error } = await client().from("areas_checklist").select("id").eq("codigo", "MOLDAGEM").single();
+    if (error) throw error;
+    areaIdCache = data.id;
+    return areaIdCache;
+  };
   function applyFilters(query, filters = {}) {
     if (filters.from) query = query.gte("data_operacional", filters.from);
     if (filters.to) query = query.lte("data_operacional", filters.to);
@@ -36,6 +44,12 @@
       .select("*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome),categorias_parada_producao(nome),setores_responsaveis_parada(nome)")
       .order("data_operacional", { ascending: false }), filters)),
     productMaterials: () => result(client().rpc("materiais_produtos_producao")),
+    scheduledStopsAll: async () => {
+      const rows = await result(client().from("paradas_programadas")
+        .select("linha_maquina_id,turno,tipo_parada_codigo,horario_inicial,horario_final,dias_semana,vigencia_inicio,vigencia_fim,equipamentos_planejamento(codigo)")
+        .eq("area_id", await areaId()));
+      return rows.map((row) => ({ ...row, equipamento_codigo: row.equipamentos_planejamento?.codigo ?? null }));
+    },
     shift: (date, shift) => result(client().from("turnos_producao_moldes").select("id,status,versao,rascunho_producoes,rascunho_paradas,atualizado_por,atualizado_em,usuarios!turnos_producao_moldes_atualizado_por_fkey(nome)").eq("data_operacional", date).eq("turno", shift).maybeSingle(), null),
     monthShifts: (from, to, shift) => result(client().from("turnos_producao_moldes").select("data_operacional,turno,status").gte("data_operacional", from).lte("data_operacional", to).eq("turno", shift).limit(40)),
     calendarEvents: (from, to, shift) => result(client().from("calendario_operacional").select("id,nome,tipo,escopo,data_inicio,data_fim,turno,observacao").eq("ativo",true).lte("data_inicio",to).gte("data_fim",from).or(`turno.eq.TODOS,turno.eq.${shift}`).order("data_inicio").limit(200)),

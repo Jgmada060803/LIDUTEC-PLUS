@@ -67,6 +67,7 @@ async function loadAcabamentoSupport() {
   acabamentoState.categories = categories;
   acabamentoState.sectors = sectors;
   acabamentoState.postos = postos;
+  acabamentoState.scheduledStops = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.scheduledStopsAll();
   const cycleTimes = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.cycleTimes(products.map((p) => p.id));
   acabamentoState.cycleTimeByProduct = new Map(cycleTimes.map((item) => [String(item.produto_id), item.tempo_ciclo_segundos]));
   for (const select of document.querySelectorAll("[data-categories]")) {
@@ -181,13 +182,32 @@ function renderPostoDots(containerId, linhaId, bounds) {
     return `<span class="acabamento-posto-dot" style="--parado:${percent}%" title="${title}" aria-label="${title}"></span>`;
   }).join("");
 }
-function equipmentSegmentsHtml(postoId, bounds) {
+function equipmentSegmentsHtml(posto, bounds) {
   const totalMs = bounds.end.getTime() - bounds.start.getTime();
   if (totalMs <= 0) return "";
-  return stoppedOverlapsForPosto(postoId, bounds).map(([overlapStart, overlapEnd]) => {
-    const left = ((overlapStart - bounds.start.getTime()) / totalMs) * 100;
-    const width = ((overlapEnd - overlapStart) / totalMs) * 100;
-    return `<span class="acabamento-equip-stop" style="left:${left}%;width:${width}%"></span>`;
+  const form = aq("#shift-entry-form");
+  const turno = form?.elements.turno.value;
+  const dataOperacional = form?.elements.data_operacional.value;
+  const spanFor = (interval, className) => {
+    const left = ((interval.start.getTime() - bounds.start.getTime()) / totalMs) * 100;
+    const width = ((interval.end.getTime() - interval.start.getTime()) / totalMs) * 100;
+    return `<span class="${className}" style="left:${left}%;width:${width}%"></span>`;
+  };
+  return stoppedOverlapsForPosto(posto.id, bounds).flatMap(([overlapStart, overlapEnd]) => {
+    // A fração da parada que cai numa janela programada (refeição, manutenção
+    // preventiva etc.) aparece em amarelo; o restante, na cor normal de parada.
+    const planejados = window.LIDUTEC_PARADAS_PROGRAMADAS.overlapIntervals({
+      janelas: acabamentoState.scheduledStops || [], turnoInicio: bounds.start,
+      paradaInicio: new Date(overlapStart), paradaFim: new Date(overlapEnd),
+      turno, dataOperacional, equipamentoCodigo: posto.codigo
+    });
+    const restante = window.LIDUTEC_PARADAS_PROGRAMADAS.subtractIntervals(
+      { start: new Date(overlapStart), end: new Date(overlapEnd) }, planejados
+    );
+    return [
+      ...planejados.map((interval) => spanFor(interval, "acabamento-equip-stop planned")),
+      ...restante.map((interval) => spanFor(interval, "acabamento-equip-stop"))
+    ];
   }).join("");
 }
 function renderEquipmentTimelines(bounds) {
@@ -197,7 +217,7 @@ function renderEquipmentTimelines(bounds) {
   container.innerHTML = equipamentos.map((equipamento) => `
     <div class="acabamento-equip-row">
       <span class="acabamento-equip-label">${aesc(equipamento.nome)}</span>
-      <div class="acabamento-equip-track">${equipmentSegmentsHtml(equipamento.id, bounds)}</div>
+      <div class="acabamento-equip-track">${equipmentSegmentsHtml(equipamento, bounds)}</div>
     </div>`).join("");
 }
 function renderAcabamentoIllustrations() {
@@ -979,25 +999,11 @@ function postoTipoById() {
 function paradaProgramadaOverlapMinutos(stop, { linhaId = null, equipamentoCodigo = null } = {}) {
   let bounds;
   try { bounds = window.LIDUTEC_TURNOS.shiftBounds(stop.data_operacional, stop.turno); } catch { return 0; }
-  const diaSemana = new Date(`${stop.data_operacional}T12:00:00`).getDay();
-  const aplicaveis = (acabamentoState.scheduledStops || []).filter((janela) => {
-    if (linhaId != null) {
-      if (janela.equipamento_codigo != null) return false;
-      if (janela.linha_maquina_id != null && janela.linha_maquina_id !== linhaId) return false;
-    } else if (equipamentoCodigo != null) {
-      if (janela.linha_maquina_id != null) return false;
-      if (janela.equipamento_codigo != null && janela.equipamento_codigo !== equipamentoCodigo) return false;
-    }
-    return (janela.turno == null || janela.turno === stop.turno) &&
-      janela.dias_semana.includes(diaSemana) &&
-      janela.vigencia_inicio <= stop.data_operacional &&
-      (!janela.vigencia_fim || janela.vigencia_fim >= stop.data_operacional);
+  return window.LIDUTEC_PARADAS_PROGRAMADAS.overlapMinutos({
+    janelas: acabamentoState.scheduledStops || [], turnoInicio: bounds.start,
+    paradaInicio: stop.inicio, paradaFim: stop.fim,
+    turno: stop.turno, dataOperacional: stop.data_operacional, linhaId, equipamentoCodigo
   });
-  const overlap = aplicaveis.reduce((sum, janela) => sum + window.LIDUTEC_TURNOS.minutosParadaProgramadaSobreposta({
-    turnoInicio: bounds.start, paradaInicio: stop.inicio, paradaFim: stop.fim,
-    horarioInicial: janela.horario_inicial, horarioFinal: janela.horario_final
-  }), 0);
-  return Math.min(overlap, anumber(stop.duracao_minutos));
 }
 function renderAcabamentoCharts() {
   const totals = productionTotals(acabamentoState.records);

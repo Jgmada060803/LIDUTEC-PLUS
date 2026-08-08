@@ -23,6 +23,7 @@
 .acabamento-equip-label{font-size:.66rem;font-weight:800;color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .acabamento-equip-track{position:relative;height:8px;border-radius:4px;background:#27ae60;overflow:hidden}
 .acabamento-equip-stop{position:absolute;top:0;bottom:0;min-width:2px;background:#c0392b}
+.acabamento-equip-stop.planned{background:#f1c40f}
 
 @media(max-width:600px){.acabamento-equip-row{grid-template-columns:90px 1fr}}
 

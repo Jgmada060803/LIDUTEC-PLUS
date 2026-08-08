@@ -146,12 +146,10 @@
     return disponivel / capacidadeTotal;
   }
 
-  // Minutos de uma parada real que caem dentro de uma janela de parada
-  // programada (refeição, hidratação, manutenção preventiva etc.) — usado para
-  // não descontar da disponibilidade um tempo que já era esperado/planejado.
-  // horarioInicial/horarioFinal ("HH:MM") são ancorados a partir de turnoInicio
-  // (o início do turno), com suporte a janelas que atravessam a meia-noite.
-  function minutosParadaProgramadaSobreposta({ turnoInicio, paradaInicio, paradaFim, horarioInicial, horarioFinal }) {
+  // Ancora horarioInicial/horarioFinal ("HH:MM") a partir de turnoInicio (o
+  // início do turno), devolvendo o intervalo absoluto da janela — com suporte
+  // a janelas que atravessam a meia-noite (fim menor ou igual ao início).
+  function paradaProgramadaJanelaBounds(turnoInicio, horarioInicial, horarioFinal) {
     const inicioTurno = new Date(turnoInicio);
     const anchor = (hhmm) => {
       const [hours, minutes] = String(hhmm).split(":").map(Number);
@@ -160,9 +158,17 @@
       if (date < inicioTurno) date.setDate(date.getDate() + 1);
       return date;
     };
-    const janelaInicio = anchor(horarioInicial);
-    let janelaFim = anchor(horarioFinal);
-    if (janelaFim <= janelaInicio) janelaFim = new Date(janelaFim.getTime() + 24 * 60 * 60 * 1000);
+    const start = anchor(horarioInicial);
+    let end = anchor(horarioFinal);
+    if (end <= start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+    return { start, end };
+  }
+
+  // Minutos de uma parada real que caem dentro de uma janela de parada
+  // programada (refeição, hidratação, manutenção preventiva etc.) — usado para
+  // não descontar da disponibilidade um tempo que já era esperado/planejado.
+  function minutosParadaProgramadaSobreposta({ turnoInicio, paradaInicio, paradaFim, horarioInicial, horarioFinal }) {
+    const { start: janelaInicio, end: janelaFim } = paradaProgramadaJanelaBounds(turnoInicio, horarioInicial, horarioFinal);
     const paradaInicioMs = new Date(paradaInicio).getTime();
     const paradaFimMs = new Date(paradaFim).getTime();
     const overlapStart = Math.max(paradaInicioMs, janelaInicio.getTime());
@@ -226,6 +232,7 @@
     calcularQualidade,
     calcularOEE,
     calcularTaxaEquipamento,
-    minutosParadaProgramadaSobreposta
+    minutosParadaProgramadaSobreposta,
+    paradaProgramadaJanelaBounds
   };
 });

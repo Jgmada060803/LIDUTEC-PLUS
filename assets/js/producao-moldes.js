@@ -1,5 +1,5 @@
 const productionPage = document.body.dataset.productionPage;
-const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], records:[], stops:[], materialByProduct:new Map(), currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, draftSaveTimer:null, draftSaveInFlight:false, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
+const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], scheduledStops:[], records:[], stops:[], materialByProduct:new Map(), currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, draftSaveTimer:null, draftSaveInFlight:false, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
 const q = (selector) => document.querySelector(selector);
 const esc = (value="") => String(value).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const number = (value) => Number(value || 0);
@@ -9,6 +9,7 @@ function message(text,type="success",source="general"){const el=q("#production-m
 function clearMessage(source){const el=q("#production-message");if(!el||el.hidden||el.dataset.source!==source)return;el.hidden=true;el.textContent="";el.className="form-message";delete el.dataset.source}
 async function loadSupport(){
   const{products,lines,categories,sectors}=await window.LIDUTEC_PRODUCAO_DATA.support();productionState.products=products;productionState.lines=lines;productionState.categories=categories;productionState.sectors=sectors;
+  productionState.scheduledStops=await window.LIDUTEC_PRODUCAO_DATA.scheduledStopsAll();
   for(const select of document.querySelectorAll("[data-products]"))select.insertAdjacentHTML("beforeend",productionState.products.map(p=>`<option value="${p.id}">${esc(p.codigo)} — ${esc(p.nome)}</option>`).join(""));
   for(const select of document.querySelectorAll("[data-lines]"))select.insertAdjacentHTML("beforeend",lines.map(x=>`<option value="${x.id}">${esc(x.codigo)} — ${esc(x.nome)}</option>`).join(""));
   for(const select of document.querySelectorAll("[data-categories]"))select.insertAdjacentHTML("beforeend",categories.map(x=>`<option value="${x.id}">${esc(x.nome)}</option>`).join(""));
@@ -108,9 +109,22 @@ function renderShiftTimeline(){
     const startValue=row.querySelector('[name="inicio"]').value,endValue=row.querySelector('[name="fim"]').value;if(!startValue||!endValue)continue;
     const stopStart=resolveShiftTime(startValue),stopEnd=resolveShiftTime(endValue);if(!stopStart||!stopEnd||stopEnd<=stopStart)continue;
     const visibleStart=Math.max(start.getTime(),stopStart.getTime()),visibleEnd=Math.min(end.getTime(),stopEnd.getTime());if(visibleEnd<=visibleStart)continue;
-    const left=(visibleStart-start)/duration*100,width=(visibleEnd-visibleStart)/duration*100;
     const sector=row.querySelector('[name="setor_id"] option:checked')?.textContent||"Parada",reason=row.querySelector('[name="categoria_id"] option:checked')?.textContent||"Motivo não informado";
-    segments.push(`<span class="shift-stop-segment" style="left:${left}%;width:${width}%" title="${esc(sector)} — ${esc(reason)} — ${formatMinutes(Math.round((visibleEnd-visibleStart)/60000))}"></span>`);
+    const title=`${esc(sector)} — ${esc(reason)} — ${formatMinutes(Math.round((visibleEnd-visibleStart)/60000))}`;
+    // Fração da parada que cai numa janela programada (refeição, manutenção
+    // preventiva etc.) aparece em amarelo; o restante, na cor normal de parada.
+    const planejados=window.LIDUTEC_PARADAS_PROGRAMADAS.overlapIntervals({
+      janelas:productionState.scheduledStops||[],turnoInicio:start,
+      paradaInicio:new Date(visibleStart),paradaFim:new Date(visibleEnd),
+      turno:form.elements.turno.value,dataOperacional:date
+    });
+    const restante=window.LIDUTEC_PARADAS_PROGRAMADAS.subtractIntervals({start:new Date(visibleStart),end:new Date(visibleEnd)},planejados);
+    const spanFor=(interval,className)=>{
+      const left=(interval.start.getTime()-start.getTime())/duration*100,width=(interval.end.getTime()-interval.start.getTime())/duration*100;
+      return `<span class="${className}" style="left:${left}%;width:${width}%" title="${title}"></span>`;
+    };
+    segments.push(...planejados.map(interval=>spanFor(interval,"shift-stop-segment planned")));
+    segments.push(...restante.map(interval=>spanFor(interval,"shift-stop-segment")));
   }
   productionContainer.innerHTML=productionSegments.join("");container.innerHTML=segments.join("");
 }
