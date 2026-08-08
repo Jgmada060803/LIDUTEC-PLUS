@@ -26,9 +26,10 @@ async function refreshCurrentShiftExists(){
   const {date,shift}=checklistOperationalContext();
   if(!date||!shift){checklistState.currentShiftExists=false;return}
   try{
-    const {data,error}=await window.supabaseClient.from("turnos_producao_moldes").select("id").eq("data_operacional",date).eq("turno",shift).limit(1);
+    const {data,error}=await window.supabaseClient.from("turnos_producao_moldes").select("status,rascunho_producoes,rascunho_paradas").eq("data_operacional",date).eq("turno",shift).limit(1);
     if(error)throw error;
-    checklistState.currentShiftExists=(data||[]).length>0;
+    const row=(data||[])[0];
+    checklistState.currentShiftExists=!!row&&(row.status==="FECHADO"||(row.rascunho_producoes||[]).some(item=>item.produto_id)||(row.rascunho_paradas||[]).some(item=>item.categoria_id||item.setor_id));
   }catch{checklistState.currentShiftExists=false}
 }
 function modelDeadline(model){if(model.areas_checklist?.codigo!=="MOLDAGEM"||model.frequencia_tipo!=="INTERVALO"||!model.intervalo_minutos||!window.LIDUTEC_TURNOS)return null;const current=window.LIDUTEC_TURNOS.determineShift();if(!checklistState.currentShiftExists&&!window.LIDUTEC_TURNOS.isScheduledShiftDay(current.dataOperacional,current.codigo))return null;const bounds=window.LIDUTEC_TURNOS.shiftBounds(current.dataOperacional,current.codigo),now=new Date(),executions=checklistState.executions.filter(row=>String(row.modelos_checklist?.id)===String(model.id)&&new Date(row.iniciado_em)>=bounds.start&&new Date(row.iniciado_em)<=now),status=window.LIDUTEC_TURNOS.checklistIntervalStatus(bounds.start,bounds.end,model.intervalo_minutos,executions.length,now);if(!status)return null;return{level:status.late?"late":"pending",label:status.missingCount>1?`${status.missingCount} atrasados`:status.late?"Atrasado":"Pendente",due:status.due}}

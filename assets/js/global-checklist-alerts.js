@@ -20,14 +20,19 @@
     if(now<bounds.start||now>bounds.end)return render([]);
     const {data:{user}}=await client.auth.getUser();if(!user)return render([]);
     // Turno não programado (ex.: sábado à tarde) só gera alerta se alguém
-    // realmente estiver apontando produção extraordinária nele; e, existindo
-    // um turno (programado ou não), o alerta só aparece para quem é
-    // responsável por ele — nunca para todo mundo logado.
+    // realmente estiver apontando produção extraordinária nele (turno aberto
+    // com dado real, ou já fechado); e, existindo esse apontamento real, o
+    // alerta só aparece para quem é responsável por ele — nunca para todo
+    // mundo logado. Um turno aberto sem nenhum dado (digitou e apagou tudo
+    // sem fechar) não conta como apontamento real.
     const scheduled=window.LIDUTEC_TURNOS?.isScheduledShiftDay?.(date,shift)??true;
-    const {data:turno,error:turnoError}=await client.from("turnos_producao_moldes").select("criado_por,fechado_por").eq("data_operacional",date).eq("turno",shift).maybeSingle();
+    const {data:turno,error:turnoError}=await client.from("turnos_producao_moldes").select("status,criado_por,fechado_por,rascunho_producoes,rascunho_paradas").eq("data_operacional",date).eq("turno",shift).maybeSingle();
     if(turnoError)throw turnoError;
-    if(!scheduled&&!turno)return render([]);
-    if(turno&&user.id!==turno.criado_por&&user.id!==turno.fechado_por)return render([]);
+    const turnoTemDados=turno&&(turno.status==="FECHADO"||
+      (turno.rascunho_producoes||[]).some(item=>item.produto_id)||
+      (turno.rascunho_paradas||[]).some(item=>item.categoria_id||item.setor_id));
+    if(!scheduled&&!turnoTemDados)return render([]);
+    if(turnoTemDados&&user.id!==turno.criado_por&&user.id!==turno.fechado_por)return render([]);
     if(currentSequence!==sequence)return;
     const models=await checklistModels();
     if(!models.length)return render([]);
