@@ -204,4 +204,30 @@ assert.equal(
   20
 );
 
+// Colunas de checklist por horário planejado (turno MANHA 06:00-13:20, intervalo 30min).
+// Chegou às 06:00; às 07:31 já teria as colunas de 06:30, 07:00 e 07:30.
+assert.deepEqual(
+  shifts.checklistDueSlots("INTERVALO", "2026-07-24T06:00:00", "2026-07-24T13:20:00", 30, new Date("2026-07-24T07:31:00")).map((d) => d.toISOString()),
+  ["2026-07-24T06:30:00", "2026-07-24T07:00:00", "2026-07-24T07:30:00"].map((v) => new Date(v).toISOString())
+);
+// Antes do primeiro intervalo vencer, nenhuma coluna ainda.
+assert.deepEqual(
+  shifts.checklistDueSlots("INTERVALO", "2026-07-24T06:00:00", "2026-07-24T13:20:00", 30, new Date("2026-07-24T06:15:00")),
+  []
+);
+// Não passa do fim do turno mesmo se "agora" for mais tarde.
+assert.equal(
+  shifts.checklistDueSlots("INTERVALO", "2026-07-24T06:00:00", "2026-07-24T13:20:00", 30, new Date("2026-07-24T23:00:00")).length,
+  14
+);
+// Início de turno: sempre 1 coluna só, já disponível assim que o turno começa.
+assert.equal(
+  shifts.checklistDueSlots("INICIO_TURNO", "2026-07-24T06:00:00", "2026-07-24T13:20:00", null, new Date("2026-07-24T06:00:00")).length,
+  1
+);
+assert.equal(
+  shifts.checklistDueSlots("INICIO_TURNO", "2026-07-24T06:00:00", "2026-07-24T13:20:00", null, new Date("2026-07-24T05:59:00")).length,
+  0
+);
+
 console.log("Testes de turnos e indicadores: OK");

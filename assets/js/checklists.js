@@ -71,20 +71,126 @@ function resultButtons(item){const na=item.permite_na?`<label><input type="radio
 function itemSpecification(item){const parts=[];if(item.valor_minimo!=null)parts.push(`Mín. ${item.valor_minimo}`);if(item.valor_alvo!=null)parts.push(`Alvo ${item.valor_alvo}`);if(item.valor_maximo!=null)parts.push(`Máx. ${item.valor_maximo}`);const source=item.fonte_limite_tipo==="INSTRUCAO_TRABALHO"?` · IT rev. ${item.fonte_limite_revisao||"—"}${item.fonte_limite_pagina?` pág. ${item.fonte_limite_pagina}`:""}`:item.fonte_limite_tipo==="FICHA_TECNICA"?" · Ficha Técnica vigente":"";return parts.length?`${parts.join(" · ")} ${item.unidade||""}${source}`:"Conforme ficha técnica/instrução vigente"}
 function renderChecklistItems(items){
   const groups=new Map();for(const item of items){if(!groups.has(item.secao))groups.set(item.secao,[]);groups.get(item.secao).push(item)}
-  cq("#checklist-sections").innerHTML=[...groups].map(([section,rows])=>`<section class="panel checklist-section"><div class="panel-header"><h3>${cesc(section)}</h3><button type="button" class="checklist-section-ok" data-confirm-section>Confirmar seção conforme</button></div><div class="checklist-item-list">${rows.map(item=>`<article class="checklist-item" data-item-id="${item.id}" data-type="${item.tipo_resposta}" data-min="${item.valor_minimo??""}" data-max="${item.valor_maximo??""}"><div class="checklist-item-heading"><span class="checklist-item-number">${cesc(item.codigo)}</span><div><strong>${cesc(item.descricao)}</strong><small>${cesc(itemSpecification(item))}</small></div>${item.critico?'<span class="checklist-critical">Crítico</span>':""}</div>${item.tipo_resposta==="NUMERO"?`<div class="checklist-number-answer"><input type="number" step="any" data-number placeholder="Valor encontrado"><span>${cesc(item.unidade||"")}</span></div>${item.valor_minimo==null&&item.valor_maximo==null?resultButtons(item):'<span class="checklist-auto-result" data-auto-result>Informe o valor</span>'}`:item.tipo_resposta==="TEXTO"?'<textarea data-text rows="2" maxlength="1000" placeholder="Informe o registro"></textarea>':resultButtons(item)}<div class="checklist-deviation-fields" hidden><label>Desvio encontrado<textarea data-observation rows="2" maxlength="1000"></textarea></label><label>Ação imediata<textarea data-action rows="2" maxlength="1000"></textarea></label>${item.plano_reacao?`<p><strong>Plano de reação:</strong> ${cesc(item.plano_reacao)}</p>`:""}</div></article>`).join("")}</div></section>`).join("");updateAnswerProgress();
+  cq("#checklist-sections").innerHTML=[...groups].map(([section,rows])=>`<section class="panel checklist-section"><div class="panel-header"><h3>${cesc(section)}</h3><button type="button" class="checklist-section-ok" data-confirm-section>Confirmar seção conforme</button></div><div class="checklist-item-list">${rows.map(item=>`<article class="checklist-item" data-item-id="${item.id}" data-type="${item.tipo_resposta}" data-min="${item.valor_minimo??""}" data-max="${item.valor_maximo??""}" data-apenas-valor="${item.apenas_valor?"1":""}"><div class="checklist-item-heading"><span class="checklist-item-number">${cesc(item.codigo)}</span><div><strong>${cesc(item.descricao)}</strong><small>${cesc(itemSpecification(item))}</small></div>${item.critico?'<span class="checklist-critical">Crítico</span>':""}</div>${item.tipo_resposta==="NUMERO"?`<div class="checklist-number-answer"><input type="number" step="any" data-number placeholder="Valor encontrado"><span>${cesc(item.unidade||"")}</span></div>${item.apenas_valor?"":(item.valor_minimo==null&&item.valor_maximo==null?resultButtons(item):'<span class="checklist-auto-result" data-auto-result>Informe o valor</span>')}`:item.tipo_resposta==="TEXTO"?'<textarea data-text rows="2" maxlength="1000" placeholder="Informe o registro"></textarea>':resultButtons(item)}<div class="checklist-deviation-fields" hidden><label>Desvio encontrado<textarea data-observation rows="2" maxlength="1000"></textarea></label><label>Ação imediata<textarea data-action rows="2" maxlength="1000"></textarea></label>${item.plano_reacao?`<p><strong>Plano de reação:</strong> ${cesc(item.plano_reacao)}</p>`:""}</div></article>`).join("")}</div></section>`).join("");updateAnswerProgress();
 }
-function itemResult(article){const type=article.dataset.type;if(type==="TEXTO")return article.querySelector("[data-text]").value.trim()?"CONFORME":"";if(type==="NUMERO"&&(article.dataset.min!==""||article.dataset.max!=="")){const value=article.querySelector("[data-number]").value;if(value==="")return"";const number=Number(value),min=article.dataset.min===""?null:Number(article.dataset.min),max=article.dataset.max===""?null:Number(article.dataset.max);return(min==null||number>=min)&&(max==null||number<=max)?"CONFORME":"NAO_CONFORME"}return article.querySelector('input[type="radio"]:checked')?.value||""}
+function itemResult(article){const type=article.dataset.type;if(type==="TEXTO")return article.querySelector("[data-text]").value.trim()?"CONFORME":"";if(type==="NUMERO"&&article.dataset.apenasValor==="1"){return article.querySelector("[data-number]").value!==""?"CONFORME":""}if(type==="NUMERO"&&(article.dataset.min!==""||article.dataset.max!=="")){const value=article.querySelector("[data-number]").value;if(value==="")return"";const number=Number(value),min=article.dataset.min===""?null:Number(article.dataset.min),max=article.dataset.max===""?null:Number(article.dataset.max);return(min==null||number>=min)&&(max==null||number<=max)?"CONFORME":"NAO_CONFORME"}return article.querySelector('input[type="radio"]:checked')?.value||""}
 function syncItemState(article){const result=itemResult(article),deviation=article.querySelector(".checklist-deviation-fields");if(deviation)deviation.hidden=result!=="NAO_CONFORME";const badge=article.querySelector("[data-auto-result]");if(badge){badge.textContent=result?statusLabels[result]||result:"Informe o valor";badge.className=`checklist-auto-result${result?` result-${result.toLowerCase()}`:""}`}article.classList.toggle("item-nok",result==="NAO_CONFORME");updateAnswerProgress()}
 function updateAnswerProgress(){const articles=[...document.querySelectorAll(".checklist-item")],answered=articles.filter(item=>itemResult(item)).length;const progress=cq("#answer-progress");if(progress)progress.textContent=`${answered} de ${articles.length} itens respondidos`}
 function serializeChecklistAnswers(){return[...document.querySelectorAll(".checklist-item")].map(article=>({item_id:Number(article.dataset.itemId),resultado:itemResult(article),valor_numero:article.querySelector("[data-number]")?.value||null,valor_texto:article.querySelector("[data-text]")?.value||null,observacao:article.querySelector("[data-observation]")?.value||null,acao_imediata:article.querySelector("[data-action]")?.value||null}))}
+// ---------------------------------------------------------------------------
+// Grade de colunas por horário — para checks que se repetem dentro do turno
+// (por enquanto: início de turno e intervalo; setup fica para uma etapa
+// seguinte, pois depende de detectar os setups reais lançados na produção).
+// Cada coluna é um horário previsto; ao vencer, vira preenchível até ser
+// confirmada — depois disso só mostra o valor, quem lançou e quando.
+// ---------------------------------------------------------------------------
+const GRID_FREQUENCIES=new Set(["INTERVALO","INICIO_TURNO"]);
+function gridTimeLabel(date){return `${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}`}
+function gridResultShort(result){return result==="CONFORME"?"C":result==="NAO_CONFORME"?"NC":result==="NAO_APLICAVEL"?"N/A":"—"}
+function findExecutionForSlot(slot,previousBoundary,executions){
+  return executions.find(exec=>{
+    if(exec.horario_previsto)return Math.abs(new Date(exec.horario_previsto).getTime()-slot.getTime())<60000;
+    const t=new Date(exec.iniciado_em).getTime();
+    return t>previousBoundary.getTime()&&t<=slot.getTime();
+  })||null;
+}
+function gridResultButtons(item,colIndex){
+  const na=item.permite_na?`<label><input type="radio" name="grid-${colIndex}-${item.id}" value="NAO_APLICAVEL"><span>N/A</span></label>`:"";
+  return `<div class="checklist-grid-options"><label><input type="radio" name="grid-${colIndex}-${item.id}" value="CONFORME"><span>C</span></label><label><input type="radio" name="grid-${colIndex}-${item.id}" value="NAO_CONFORME"><span>NC</span></label>${na}</div><div class="checklist-grid-deviation" hidden><textarea data-observation rows="2" placeholder="Desvio"></textarea><textarea data-action rows="2" placeholder="Ação imediata"></textarea></div>`;
+}
+function gridCellMarkup(item,execution,colIndex,editable){
+  if(execution){
+    const answer=(execution.respostas_checklist||[]).find(r=>r.item_id===item.id)||null;
+    const value=answer?.valor_numero!=null?`${answer.valor_numero}${item.unidade?` ${item.unidade}`:""}`:gridResultShort(answer?.resultado);
+    return `<span class="checklist-grid-answer result-${(answer?.resultado||"").toLowerCase()}">${cesc(value)}</span>`;
+  }
+  if(!editable)return `<span class="checklist-grid-answer result-pending">—</span>`;
+  if(item.tipo_resposta==="NUMERO"){
+    const showButtons=!item.apenas_valor&&item.valor_minimo==null&&item.valor_maximo==null;
+    return `<input type="number" step="any" class="checklist-grid-number" data-number placeholder="Valor">${showButtons?gridResultButtons(item,colIndex):""}`;
+  }
+  if(item.tipo_resposta==="TEXTO")return `<input type="text" class="checklist-grid-text" data-text maxlength="500">`;
+  return gridResultButtons(item,colIndex);
+}
+function gridCellResult(cell){
+  const type=cell.dataset.type;
+  if(type==="TEXTO")return cell.querySelector("[data-text]")?.value.trim()?"CONFORME":"";
+  if(type==="NUMERO"){
+    const value=cell.querySelector("[data-number]")?.value;
+    if(value===""||value==null)return"";
+    if(cell.dataset.apenasValor==="1")return"CONFORME";
+    if(cell.dataset.min!==""||cell.dataset.max!==""){
+      const number=Number(value),min=cell.dataset.min===""?null:Number(cell.dataset.min),max=cell.dataset.max===""?null:Number(cell.dataset.max);
+      return(min==null||number>=min)&&(max==null||number<=max)?"CONFORME":"NAO_CONFORME";
+    }
+    return cell.querySelector('input[type="radio"]:checked')?.value||"";
+  }
+  return cell.querySelector('input[type="radio"]:checked')?.value||"";
+}
+function syncGridCell(cell){
+  const result=gridCellResult(cell),deviation=cell.querySelector(".checklist-grid-deviation");
+  if(deviation)deviation.hidden=result!=="NAO_CONFORME";
+}
+function renderChecklistGrid(items,slots,executions,bounds,canEdit){
+  const previousBoundaries=[bounds.start,...slots.slice(0,-1)];
+  const columns=slots.map((slot,index)=>({slot,index,execution:findExecutionForSlot(slot,previousBoundaries[index],executions)}));
+  const headerCells=columns.map(col=>{
+    const meta=col.execution?`<small>${gridTimeLabel(new Date(col.execution.iniciado_em))} · ${cesc(col.execution.usuarios?.nome||"—")}</small>`:'<small>Pendente</small>';
+    return `<th class="checklist-grid-slot"><strong>${gridTimeLabel(col.slot)}</strong>${meta}</th>`;
+  }).join("");
+  const rows=items.map(item=>{
+    const cells=columns.map(col=>`<td class="checklist-grid-cell" data-item-id="${item.id}" data-col="${col.index}" data-type="${item.tipo_resposta}" data-min="${item.valor_minimo??""}" data-max="${item.valor_maximo??""}" data-apenas-valor="${item.apenas_valor?"1":""}">${gridCellMarkup(item,col.execution,col.index,canEdit&&!col.execution)}</td>`).join("");
+    return `<tr><th class="checklist-grid-itemcol"><span class="checklist-grid-item-code">${cesc(item.codigo)}</span>${cesc(item.descricao)}${item.critico?' <i class="checklist-critical-dot" title="Item crítico"></i>':""}</th>${cells}</tr>`;
+  }).join("");
+  const actionRow=`<tr class="checklist-grid-actions"><th></th>${columns.map(col=>`<td>${(!col.execution&&canEdit)?`<button type="button" class="button button-primary checklist-grid-confirm" data-col="${col.index}" data-slot="${col.slot.toISOString()}">Confirmar</button>`:""}</td>`).join("")}</tr>`;
+  cq("#checklist-sections").innerHTML=`<section class="panel checklist-grid-panel"><div class="checklist-grid-wrapper"><table class="checklist-grid"><thead><tr><th class="checklist-grid-itemcol">Item</th>${headerCells}</tr></thead><tbody>${rows}${actionRow}</tbody></table></div>${!canEdit?'<p class="checklist-grid-locked">Este turno já foi fechado — somente consulta.</p>':!columns.length?'<p class="checklist-grid-locked">Ainda não há horário previsto vencido para este check.</p>':""}</section>`;
+}
+async function loadChecklistGrid(model,modelId){
+  const date=cq("#execution-date").value,turno=cq("#execution-shift").value;
+  const bounds=window.LIDUTEC_TURNOS.shiftBounds(date,turno);
+  const [items,executions,shift]=await Promise.all([
+    checklistData.items(modelId),
+    checklistData.executionsForSlots(Number(modelId),date,turno),
+    checklistData.shiftStatus(date,turno)
+  ]);
+  const slots=window.LIDUTEC_TURNOS.checklistDueSlots(model.frequencia_tipo,bounds.start,bounds.end,model.intervalo_minutos,new Date());
+  renderChecklistGrid(items,slots,executions,bounds,shift?.status==="ABERTO");
+}
+async function submitGridColumn(button,modelId,model){
+  const colIndex=button.dataset.col,slot=button.dataset.slot;
+  const cells=[...document.querySelectorAll(`.checklist-grid-cell[data-col="${colIndex}"]`)];
+  const respostas=cells.map(cell=>({item_id:Number(cell.dataset.itemId),resultado:gridCellResult(cell),valor_numero:cell.querySelector("[data-number]")?.value||null,valor_texto:cell.querySelector("[data-text]")?.value||null,observacao:cell.querySelector("[data-observation]")?.value||null,acao_imediata:cell.querySelector("[data-action]")?.value||null}));
+  button.disabled=true;
+  try{
+    const productId=cq("#execution-product").value?Number(cq("#execution-product").value):null;
+    await checklistData.save({p_modelo_id:Number(modelId),p_data_operacional:cq("#execution-date").value,p_turno:cq("#execution-shift").value,p_produto_id:productId,p_equipamento:cq("#execution-equipment").value||null,p_corrida:cq("#execution-run").value||null,p_observacao:null,p_respostas:respostas,p_horario_previsto:slot});
+    checklistMessage(`Check das ${gridTimeLabel(new Date(slot))} registrado com sucesso.`);
+    await loadChecklistGrid(model,modelId);
+  }catch(error){checklistMessage(error.message,"error");button.disabled=false}
+}
+
 async function initializeForm(){
   const params=new URLSearchParams(location.search),modelId=params.get("modelo");if(!modelId)throw new Error("Modelo não informado.");const[model,items,products]=await Promise.all([checklistData.model(modelId),checklistData.items(modelId),checklistData.products()]);if(!model)throw new Error("Modelo não encontrado.");
   const automaticMoldProduct=model.areas_checklist?.codigo==="MOLDAGEM"&&model.codigo==="M02"&&model.frequencia_tipo==="INTERVALO"&&Number(model.intervalo_minutos)===30;
   cq("#form-title").textContent=model.nome;cq("#form-subtitle").textContent=model.descricao||model.nome;cq("#form-code").textContent=`${model.areas_checklist?.nome} · ${model.codigo} · ${modelFrequency(model)}`;cq("#form-name").textContent=model.nome;cq("#form-instruction").textContent=`Referência: ${model.instrucao_codigo||"não informada"} · revisão do modelo ${model.versao}`;
   const operationalContext=checklistOperationalContext();cq("#execution-date").value=params.get("data")||operationalContext.date;if(operationalContext.shift)cq("#execution-shift").value=params.get("turno")||operationalContext.shift;
-  cq("#execution-product").insertAdjacentHTML("beforeend",products.map(product=>`<option value="${product.id}">${cesc(product.codigo)} — ${cesc(product.nome)}</option>`).join(""));let selectedProduct=params.get("produto");if(automaticMoldProduct&&!selectedProduct){const production=await checklistData.productionAt(cq("#execution-date").value,cq("#execution-shift").value);selectedProduct=production?.produto_id?String(production.produto_id):"";if(production?.produtos&&!products.some(product=>String(product.id)===selectedProduct))cq("#execution-product").insertAdjacentHTML("beforeend",`<option value="${production.produtos.id}">${cesc(production.produtos.codigo)} — ${cesc(production.produtos.nome)}</option>`)}if(selectedProduct)cq("#execution-product").value=selectedProduct;if(automaticMoldProduct&&selectedProduct){cq("#execution-product").disabled=true;cq("#product-field").dataset.automatic="true"}else if(automaticMoldProduct)checklistMessage("Não foi possível identificar automaticamente um produto em produção. Selecione o produto para continuar.");cq("#product-field").hidden=!model.produto_obrigatorio;cq("#equipment-field").hidden=automaticMoldProduct||!model.equipamento_obrigatorio;if(automaticMoldProduct)cq("#execution-equipment").value="";cq("#run-field").hidden=!model.corrida_obrigatoria;renderChecklistItems(items);cq("#checklist-loading").hidden=true;cq("#checklist-form").hidden=false;
-  cq("#checklist-sections").addEventListener("input",event=>{const article=event.target.closest(".checklist-item");if(article)syncItemState(article)});cq("#checklist-sections").addEventListener("change",event=>{const article=event.target.closest(".checklist-item");if(article)syncItemState(article)});cq("#checklist-sections").addEventListener("click",event=>{const button=event.target.closest("[data-confirm-section]");if(!button)return;for(const article of button.closest(".checklist-section").querySelectorAll(".checklist-item")){const radio=article.querySelector('input[value="CONFORME"]');if(radio){radio.checked=true;syncItemState(article)}}});
-  cq("#checklist-form").addEventListener("submit",async event=>{event.preventDefault();const submit=cq("#submit-checklist");submit.disabled=true;try{const productId=cq("#execution-product").value?Number(cq("#execution-product").value):null,id=await checklistData.save({p_modelo_id:Number(modelId),p_data_operacional:cq("#execution-date").value,p_turno:cq("#execution-shift").value,p_produto_id:productId,p_equipamento:cq("#execution-equipment").value||null,p_corrida:cq("#execution-run").value||null,p_observacao:cq("#execution-notes").value||null,p_respostas:serializeChecklistAnswers()}),completedAt=new Date().toISOString();sessionStorage.setItem("lidutec:checklists:ultima-conclusao",JSON.stringify({id,modelo_id:Number(modelId),produto_id:productId,data_operacional:cq("#execution-date").value,turno:cq("#execution-shift").value,status:"CONFORME",iniciado_em:completedAt,concluido_em:completedAt}));alert(`Checklist ${id} registrado com sucesso.`);location.replace(params.get("origem")==="apontamento"?"../producao-moldes/lancamento.html":"./checklist-historico.html")}catch(error){checklistMessage(error.message);submit.disabled=false}});
+  cq("#execution-product").insertAdjacentHTML("beforeend",products.map(product=>`<option value="${product.id}">${cesc(product.codigo)} — ${cesc(product.nome)}</option>`).join(""));let selectedProduct=params.get("produto");if(automaticMoldProduct&&!selectedProduct){const production=await checklistData.productionAt(cq("#execution-date").value,cq("#execution-shift").value);selectedProduct=production?.produto_id?String(production.produto_id):"";if(production?.produtos&&!products.some(product=>String(product.id)===selectedProduct))cq("#execution-product").insertAdjacentHTML("beforeend",`<option value="${production.produtos.id}">${cesc(production.produtos.codigo)} — ${cesc(production.produtos.nome)}</option>`)}if(selectedProduct)cq("#execution-product").value=selectedProduct;if(automaticMoldProduct&&selectedProduct){cq("#execution-product").disabled=true;cq("#product-field").dataset.automatic="true"}else if(automaticMoldProduct)checklistMessage("Não foi possível identificar automaticamente um produto em produção. Selecione o produto para continuar.");cq("#product-field").hidden=!model.produto_obrigatorio;cq("#equipment-field").hidden=automaticMoldProduct||!model.equipamento_obrigatorio;if(automaticMoldProduct)cq("#execution-equipment").value="";cq("#run-field").hidden=!model.corrida_obrigatoria;
+  const useGrid=GRID_FREQUENCIES.has(model.frequencia_tipo);
+  if(useGrid){
+    cq(".checklist-submit-bar").hidden=true;
+    cq("#execution-notes").closest(".panel").hidden=true;
+    await loadChecklistGrid(model,modelId);
+    cq("#checklist-sections").addEventListener("click",event=>{const button=event.target.closest(".checklist-grid-confirm");if(button)submitGridColumn(button,modelId,model)});
+    cq("#checklist-sections").addEventListener("input",event=>{const cell=event.target.closest(".checklist-grid-cell");if(cell)syncGridCell(cell)});
+    cq("#checklist-sections").addEventListener("change",event=>{const cell=event.target.closest(".checklist-grid-cell");if(cell)syncGridCell(cell)});
+    cq("#execution-date").addEventListener("change",()=>loadChecklistGrid(model,modelId).catch(error=>checklistMessage(error.message,"error")));
+    cq("#execution-shift").addEventListener("change",()=>loadChecklistGrid(model,modelId).catch(error=>checklistMessage(error.message,"error")));
+  }else{
+    renderChecklistItems(items);
+    cq("#checklist-sections").addEventListener("input",event=>{const article=event.target.closest(".checklist-item");if(article)syncItemState(article)});cq("#checklist-sections").addEventListener("change",event=>{const article=event.target.closest(".checklist-item");if(article)syncItemState(article)});cq("#checklist-sections").addEventListener("click",event=>{const button=event.target.closest("[data-confirm-section]");if(!button)return;for(const article of button.closest(".checklist-section").querySelectorAll(".checklist-item")){const radio=article.querySelector('input[value="CONFORME"]');if(radio){radio.checked=true;syncItemState(article)}}});
+    cq("#checklist-form").addEventListener("submit",async event=>{event.preventDefault();const submit=cq("#submit-checklist");submit.disabled=true;try{const productId=cq("#execution-product").value?Number(cq("#execution-product").value):null,id=await checklistData.save({p_modelo_id:Number(modelId),p_data_operacional:cq("#execution-date").value,p_turno:cq("#execution-shift").value,p_produto_id:productId,p_equipamento:cq("#execution-equipment").value||null,p_corrida:cq("#execution-run").value||null,p_observacao:cq("#execution-notes").value||null,p_respostas:serializeChecklistAnswers()}),completedAt=new Date().toISOString();sessionStorage.setItem("lidutec:checklists:ultima-conclusao",JSON.stringify({id,modelo_id:Number(modelId),produto_id:productId,data_operacional:cq("#execution-date").value,turno:cq("#execution-shift").value,status:"CONFORME",iniciado_em:completedAt,concluido_em:completedAt}));alert(`Checklist ${id} registrado com sucesso.`);location.replace(params.get("origem")==="apontamento"?"../producao-moldes/lancamento.html":"./checklist-historico.html")}catch(error){checklistMessage(error.message);submit.disabled=false}});
+  }
+  cq("#checklist-loading").hidden=true;cq("#checklist-form").hidden=false;
 }
 
 function populateAreaFilter(){cq("#history-area").insertAdjacentHTML("beforeend",checklistState.areas.map(area=>`<option value="${cesc(area.codigo)}">${cesc(area.nome)}</option>`).join(""))}

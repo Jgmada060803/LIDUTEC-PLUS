@@ -8,3 +8,37 @@
 @media(max-width:700px){.checklist-toolbar{display:grid}.checklist-page-links,.checklist-approval-actions{flex-wrap:wrap}.checklist-kpis,.checklist-model-grid,.checklist-context-grid,.checklist-filters,.checklist-deviation-fields{grid-template-columns:1fr}.checklist-submit-bar{justify-content:space-between;padding:9px 12px}.checklist-section-ok{font-size:.6rem}.checklist-item-heading{grid-template-columns:30px 1fr}.checklist-critical{grid-column:2}.checklist-result-options span{padding:8px 9px}.checklist-deviation-fields p{grid-column:auto}}
 .checklist-dialog{width:min(1080px,calc(100vw - 32px));max-height:90vh;border:0;border-radius:16px;padding:0;box-shadow:0 24px 70px #0005}.checklist-dialog::backdrop{background:#10204099}.checklist-dialog form{padding:24px;overflow:auto;max-height:90vh}.it-spec-row{margin:12px 0;padding:16px}.table-actions{display:flex;gap:6px;flex-wrap:wrap}.table-actions .button{padding:7px 10px}.checklist-span-2{grid-column:span 2}
 .checklist-deadline{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;font-size:.66rem;font-weight:900}.checklist-deadline i{width:10px;height:10px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px #fff8}.checklist-deadline.pending{color:#a16207;background:#fff3bf}.checklist-deadline.late{color:#b42318;background:#ffe1de}
+
+/* Grade de colunas por horário (checks que se repetem no turno) — colunas
+   bem finas para não estourar a largura da tela mesmo com vários horários. */
+.checklist-grid-panel{padding:0;overflow:hidden}
+.checklist-grid-wrapper{overflow-x:auto}
+.checklist-grid{border-collapse:collapse;width:100%}
+.checklist-grid th,.checklist-grid td{padding:6px 7px;border:1px solid var(--color-border);vertical-align:top;text-align:left}
+.checklist-grid-itemcol{position:sticky;left:0;z-index:1;width:220px;min-width:220px;max-width:220px;background:#fff;font-size:.72rem;font-weight:700}
+.checklist-grid-item-code{display:block;margin-bottom:2px;color:var(--color-text-muted);font-size:.62rem;font-weight:900;text-transform:uppercase}
+.checklist-critical-dot{display:inline-block;width:7px;height:7px;margin-left:4px;border-radius:50%;background:var(--color-danger)}
+.checklist-grid-slot{width:96px;min-width:96px;max-width:96px;background:#e9efff;text-align:center}
+.checklist-grid-slot strong{display:block;font-size:.82rem;color:var(--color-primary)}
+.checklist-grid-slot small{display:block;margin-top:2px;color:var(--color-text-muted);font-size:.6rem;font-weight:700}
+.checklist-grid-cell{width:96px;min-width:96px;max-width:96px;text-align:center}
+.checklist-grid-number{width:100%;min-height:30px;padding:3px 4px;border:1px solid var(--color-border);border-radius:5px;text-align:center;font-size:.78rem;font-weight:800}
+.checklist-grid-text{width:100%;min-height:30px;padding:3px 4px;border:1px solid var(--color-border);border-radius:5px;font-size:.72rem}
+.checklist-grid-options{display:flex;flex-wrap:wrap;justify-content:center;gap:3px;margin-top:4px}
+.checklist-grid-options label{cursor:pointer}
+.checklist-grid-options input{position:absolute;opacity:0}
+.checklist-grid-options span{display:block;padding:4px 6px;border:1px solid var(--color-border);border-radius:5px;background:#fff;font-size:.64rem;font-weight:900}
+.checklist-grid-options input[value="CONFORME"]:checked+span{border-color:#15803d;color:#fff;background:#15803d}
+.checklist-grid-options input[value="NAO_CONFORME"]:checked+span{border-color:var(--color-danger);color:#fff;background:var(--color-danger)}
+.checklist-grid-options input[value="NAO_APLICAVEL"]:checked+span{border-color:#64748b;color:#fff;background:#64748b}
+.checklist-grid-deviation{display:grid;gap:4px;margin-top:5px}
+.checklist-grid-deviation textarea{width:100%;min-height:44px;padding:4px;border:1px solid var(--color-border);border-radius:5px;font-size:.66rem;resize:vertical}
+.checklist-grid-answer{display:inline-block;padding:4px 8px;border-radius:5px;font-size:.74rem;font-weight:900;background:#eef3f5;color:var(--color-text-muted)}
+.checklist-grid-answer.result-conforme{color:#116837;background:#def7e8}
+.checklist-grid-answer.result-nao_conforme{color:#9f1710;background:#ffe3e0}
+.checklist-grid-answer.result-nao_aplicavel{color:#475569;background:#e8edf2}
+.checklist-grid-answer.result-pending{color:#94a3b8;background:#f1f5f9}
+.checklist-grid-actions td{background:#fafbfc;text-align:center}
+.checklist-grid-confirm{padding:5px 9px;font-size:.66rem}
+.checklist-grid-locked{margin:0;padding:10px 14px;color:var(--color-text-muted);font-size:.72rem;font-weight:700}
+@media(max-width:700px){.checklist-grid-itemcol{width:150px;min-width:150px;max-width:150px}}

@@ -104,6 +104,25 @@
     const due = new Date(start.getTime() + (completed + 1) * interval * 60000);
     return { due, dueCount, completedCount: completed, missingCount, late: missingCount > 1 };
   }
+  // Lista os horários planejados (colunas) de um checklist que se repete
+  // dentro do turno, até "agora" (ou até o fim do turno, o que vier antes).
+  // INICIO_TURNO tem sempre 1 coluna, no início do turno; INTERVALO tem uma
+  // coluna a cada N minutos a partir do início (a primeira já é início+N, não
+  // início — o check de início de turno é um modelo separado).
+  function checklistDueSlots(frequenciaTipo, startValue, endValue, intervalMinutes, nowValue = new Date()) {
+    const start = new Date(startValue), end = new Date(endValue), now = new Date(nowValue);
+    if ([start, end, now].some((value) => Number.isNaN(value.getTime()))) return [];
+    if (frequenciaTipo === "INICIO_TURNO") return start.getTime() <= Math.min(now.getTime(), end.getTime()) ? [new Date(start)] : [];
+    if (frequenciaTipo !== "INTERVALO") return [];
+    const interval = Number(intervalMinutes);
+    if (!(interval > 0)) return [];
+    const cap = Math.min(now.getTime(), end.getTime());
+    const slots = [];
+    for (let time = start.getTime() + interval * 60000; time <= cap; time += interval * 60000) {
+      slots.push(new Date(time));
+    }
+    return slots;
+  }
   function productionCalculation(moldesVazados, moldesQuebrados, pecasPorMolde, pesoPecaKg) {
     const poured = Math.max(0, Number(moldesVazados || 0));
     const broken = Math.max(0, Number(moldesQuebrados || 0));
@@ -220,6 +239,7 @@
     intervalWithinShift,
     isScheduledShiftDay,
     checklistIntervalStatus,
+    checklistDueSlots,
     productionCalculation,
     stopDurationMinutes,
     effectiveMinutes,

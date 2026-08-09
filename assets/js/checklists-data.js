@@ -27,6 +27,18 @@
       .lte("inicio", new Date(moment).toISOString())
       .order("inicio", { ascending: false }).limit(1).maybeSingle(), null),
     save: (payload) => unwrap(client().rpc("salvar_execucao_checklist", payload), null),
+    executionsForSlots: (modeloId, date, turno) => unwrap(client().from("execucoes_checklist")
+      .select(`
+        id,horario_previsto,iniciado_em,concluido_em,status,
+        usuarios!execucoes_checklist_operador_id_fkey(nome),
+        respostas_checklist(item_id,resultado,valor_numero,valor_texto,observacao,acao_imediata)
+      `)
+      .eq("modelo_id", modeloId).eq("data_operacional", date).eq("turno", turno)
+      .order("horario_previsto")),
+    // TODO: generalizar por área quando outros setores migrarem (hoje só
+    // Moldagem tem apontamento de produção com turno aberto/fechado).
+    shiftStatus: (date, turno) => unwrap(client().from("turnos_producao_moldes")
+      .select("status").eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
     decide: (executionId, decision, justification) => unwrap(client().rpc(
       "decidir_execucao_checklist", {
         p_execucao_id: executionId,
