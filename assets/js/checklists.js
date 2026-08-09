@@ -32,6 +32,9 @@ function backToApontamentoUrl(){
   const forward=forwardedApontamentoParams();
   return `../producao-moldes/lancamento.html${forward.toString()?`?${forward}`:""}`;
 }
+// Desbloqueio de edição do check de um turno já fechado, direto na tela do
+// próprio check (ex.: M02) — sem precisar navegar até o apontamento.
+let checklistEditingClosedShift=false;
 function checklistMessage(text,type="error") { const element=cq("#checklist-message"); if(!element)return;element.textContent=text;element.className=`form-message ${type}`;element.hidden=false; }
 function checklistInitials(name="Usuário"){return name.trim().split(/\s+/).slice(0,2).map(part=>part[0]?.toUpperCase()).join("")}
 function activeProfileArea(){const code=String(checklistState.profile?.perfil||"").toUpperCase();return["MOLDAGEM","VAZAMENTO","FUSAO","MACHARIA","ACABAMENTO"].includes(code)?code:null}
@@ -152,7 +155,7 @@ function gridProductMarkup(colIndex,produto,products,editable){
   if(!editable)return '<span class="checklist-grid-product-label muted">—</span>';
   return `<select class="checklist-grid-produto" data-col="${colIndex}"><option value="">Produto</option>${products.map(p=>`<option value="${p.id}">${cesc(p.codigo)}</option>`).join("")}</select>`;
 }
-function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products){
+function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable){
   const previousBoundaries=[bounds.start,...slots.slice(0,-1)];
   const columns=slots.map((slot,index)=>({slot,index,execution:findExecutionForSlot(slot,previousBoundaries[index],executions),producao:productions[index]}));
   const headerCells=columns.map(col=>{
@@ -166,7 +169,8 @@ function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,p
     return `<tr><th class="checklist-grid-itemcol"><span class="checklist-grid-item-code">${cesc(item.codigo)}</span>${cesc(item.descricao)}${item.critico?' <i class="checklist-critical-dot" title="Item crítico"></i>':""}</th>${cells}</tr>`;
   }).join("");
   const actionRow=`<tr class="checklist-grid-actions"><th></th>${columns.map(col=>`<td>${(!col.execution&&canEdit)?`<button type="button" class="button button-primary checklist-grid-confirm" data-col="${col.index}" data-slot="${col.slot.toISOString()}">Confirmar</button>`:""}</td>`).join("")}</tr>`;
-  cq("#checklist-sections").innerHTML=`<section class="panel checklist-grid-panel"><div class="checklist-grid-wrapper"><table class="checklist-grid"><thead><tr><th class="checklist-grid-itemcol">Item</th>${headerCells}</tr></thead><tbody>${rows}${actionRow}</tbody></table></div>${!canEdit?'<p class="checklist-grid-locked">Este turno já foi fechado — somente consulta.</p>':!columns.length?'<p class="checklist-grid-locked">Ainda não há horário previsto vencido para este check.</p>':""}</section>`;
+  const lockedMessage=!canEdit?`<p class="checklist-grid-locked">Este turno já foi fechado — somente consulta.${unlockable?' <button type="button" class="button button-secondary checklist-grid-unlock">Editar turno fechado</button>':""}</p>`:!columns.length?'<p class="checklist-grid-locked">Ainda não há horário previsto vencido para este check.</p>':"";
+  cq("#checklist-sections").innerHTML=`<section class="panel checklist-grid-panel"><div class="checklist-grid-wrapper"><table class="checklist-grid"><thead><tr><th class="checklist-grid-itemcol">Item</th>${headerCells}</tr></thead><tbody>${rows}${actionRow}</tbody></table></div>${lockedMessage}</section>`;
 }
 async function loadChecklistGrid(model,modelId){
   const date=cq("#execution-date").value,turno=cq("#execution-shift").value;
@@ -181,7 +185,9 @@ async function loadChecklistGrid(model,modelId){
   // O produto é identificado por coluna — qual produto estava em produção
   // naquele horário planejado — em vez de um único campo para o turno todo.
   const productions=await Promise.all(slots.map(slot=>checklistData.productionAt(date,turno,slot)));
-  renderChecklistGrid(items,slots,executions,bounds,shift?.status==="ABERTO",productions,products);
+  const open=shift?.status==="ABERTO",canEdit=open||checklistEditingClosedShift;
+  const unlockable=!open&&shift?.status==="FECHADO"&&!checklistEditingClosedShift&&checklistState.permissions.has("producao_moldes.editar");
+  renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable);
 }
 async function submitGridColumn(button,modelId,model){
   const colIndex=button.dataset.col,slot=button.dataset.slot;
@@ -204,6 +210,7 @@ async function initializeForm(){
   cq("#form-title").textContent=model.nome;cq("#form-subtitle").textContent=model.descricao||model.nome;cq("#form-code").textContent=`${model.areas_checklist?.nome} · ${model.codigo} · ${modelFrequency(model)}`;cq("#form-name").textContent=model.nome;cq("#form-instruction").textContent=`Referência: ${model.instrucao_codigo||"não informada"} · revisão do modelo ${model.versao}`;
   const operationalContext=checklistOperationalContext();cq("#execution-date").value=params.get("data")||operationalContext.date;if(operationalContext.shift)cq("#execution-shift").value=params.get("turno")||operationalContext.shift;
   cq("#checklist-back-link").href=backToApontamentoUrl();
+  checklistEditingClosedShift=false;
   cq("#execution-product").insertAdjacentHTML("beforeend",products.map(product=>`<option value="${product.id}">${cesc(product.codigo)} — ${cesc(product.nome)}</option>`).join(""));let selectedProduct=params.get("produto");if(automaticMoldProduct&&!selectedProduct){const production=await checklistData.productionAt(cq("#execution-date").value,cq("#execution-shift").value);selectedProduct=production?.produto_id?String(production.produto_id):"";if(production?.produtos&&!products.some(product=>String(product.id)===selectedProduct))cq("#execution-product").insertAdjacentHTML("beforeend",`<option value="${production.produtos.id}">${cesc(production.produtos.codigo)} — ${cesc(production.produtos.nome)}</option>`)}if(selectedProduct)cq("#execution-product").value=selectedProduct;if(automaticMoldProduct&&selectedProduct){cq("#execution-product").disabled=true;cq("#product-field").dataset.automatic="true"}else if(automaticMoldProduct)checklistMessage("Não foi possível identificar automaticamente um produto em produção. Selecione o produto para continuar.");cq("#product-field").hidden=!model.produto_obrigatorio;cq("#equipment-field").hidden=automaticMoldProduct||!model.equipamento_obrigatorio;if(automaticMoldProduct)cq("#execution-equipment").value="";cq("#run-field").hidden=!model.corrida_obrigatoria;
   const useGrid=GRID_FREQUENCIES.has(model.frequencia_tipo);
   if(useGrid){
@@ -211,7 +218,10 @@ async function initializeForm(){
     cq("#execution-notes").closest(".panel").hidden=true;
     cq("#product-field").hidden=true;
     await loadChecklistGrid(model,modelId);
-    cq("#checklist-sections").addEventListener("click",event=>{const button=event.target.closest(".checklist-grid-confirm");if(button)submitGridColumn(button,modelId,model)});
+    cq("#checklist-sections").addEventListener("click",event=>{
+      const confirmButton=event.target.closest(".checklist-grid-confirm");if(confirmButton)return submitGridColumn(confirmButton,modelId,model);
+      const unlockButton=event.target.closest(".checklist-grid-unlock");if(unlockButton){checklistEditingClosedShift=true;loadChecklistGrid(model,modelId).catch(error=>checklistMessage(error.message,"error"))}
+    });
     cq("#checklist-sections").addEventListener("input",event=>{const cell=event.target.closest(".checklist-grid-cell");if(cell)syncGridCell(cell)});
     cq("#checklist-sections").addEventListener("change",event=>{const cell=event.target.closest(".checklist-grid-cell");if(cell)syncGridCell(cell)});
     cq("#execution-date").addEventListener("change",()=>loadChecklistGrid(model,modelId).catch(error=>checklistMessage(error.message,"error")));

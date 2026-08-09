@@ -428,7 +428,13 @@ if (window.location.pathname.replace(/\\/g, "/").includes("/pages/controle-proce
     const returnToShift = document.createElement("a");
     returnToShift.id = "return-to-shift-entry";
     returnToShift.className = "topbar-return-shift";
-    returnToShift.href = "../producao-moldes/lancamento.html";
+    const currentParams = new URLSearchParams(window.location.search);
+    const forwardParams = new URLSearchParams();
+    for (const key of ["data", "turno", "editar"]) {
+      if (currentParams.get(key)) forwardParams.set(key, currentParams.get(key));
+    }
+    const query = forwardParams.toString();
+    returnToShift.href = `../producao-moldes/lancamento.html${query ? `?${query}` : ""}`;
     returnToShift.dataset.permission = "producao_moldes.lancar";
     returnToShift.textContent = "Voltar ao apontamento";
     userBox.before(returnToShift);
