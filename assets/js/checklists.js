@@ -103,7 +103,7 @@ function serializeChecklistAnswers(){return[...document.querySelectorAll(".check
 // Cada coluna é um horário previsto; ao vencer, vira preenchível até ser
 // confirmada — depois disso só mostra o valor, quem lançou e quando.
 // ---------------------------------------------------------------------------
-const GRID_FREQUENCIES=new Set(["INTERVALO","INICIO_TURNO"]);
+const GRID_FREQUENCIES=new Set(["INTERVALO","INICIO_TURNO","SETUP"]);
 function gridTimeLabel(date){return `${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}`}
 function gridResultShort(result){return result==="CONFORME"?"C":result==="NAO_CONFORME"?"NC":result==="NAO_APLICAVEL"?"N/A":"—"}
 function findExecutionForSlot(slot,previousBoundary,executions){
@@ -155,7 +155,7 @@ function gridProductMarkup(colIndex,produto,products,editable){
   if(!editable)return '<span class="checklist-grid-product-label muted">—</span>';
   return `<select class="checklist-grid-produto" data-col="${colIndex}"><option value="">Produto</option>${products.map(p=>`<option value="${p.id}">${cesc(p.codigo)}</option>`).join("")}</select>`;
 }
-function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable){
+function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,frequenciaTipo){
   const previousBoundaries=[bounds.start,...slots.slice(0,-1)];
   const columns=slots.map((slot,index)=>({slot,index,execution:findExecutionForSlot(slot,previousBoundaries[index],executions),producao:productions[index]}));
   const headerCells=columns.map(col=>{
@@ -169,8 +169,41 @@ function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,p
     return `<tr><th class="checklist-grid-itemcol"><span class="checklist-grid-item-code">${cesc(item.codigo)}</span>${cesc(item.descricao)}${item.critico?' <i class="checklist-critical-dot" title="Item crítico"></i>':""}</th>${cells}</tr>`;
   }).join("");
   const actionRow=`<tr class="checklist-grid-actions"><th></th>${columns.map(col=>`<td>${(!col.execution&&canEdit)?`<button type="button" class="button button-primary checklist-grid-confirm" data-col="${col.index}" data-slot="${col.slot.toISOString()}">Confirmar</button>`:""}</td>`).join("")}</tr>`;
-  const lockedMessage=!canEdit?`<p class="checklist-grid-locked">Este turno já foi fechado — somente consulta.${unlockable?' <button type="button" class="button button-secondary checklist-grid-unlock">Editar turno fechado</button>':""}</p>`:!columns.length?'<p class="checklist-grid-locked">Ainda não há horário previsto vencido para este check.</p>':"";
+  const emptyMessage=frequenciaTipo==="SETUP"?"Ainda não houve nenhuma linha de produção que exija checklist de setup neste turno.":"Ainda não há horário previsto vencido para este check.";
+  const lockedMessage=!canEdit?`<p class="checklist-grid-locked">Este turno já foi fechado — somente consulta.${unlockable?' <button type="button" class="button button-secondary checklist-grid-unlock">Editar turno fechado</button>':""}</p>`:!columns.length?`<p class="checklist-grid-locked">${emptyMessage}</p>`:"";
   cq("#checklist-sections").innerHTML=`<section class="panel checklist-grid-panel"><div class="checklist-grid-wrapper"><table class="checklist-grid"><thead><tr><th class="checklist-grid-itemcol">Item</th>${headerCells}</tr></thead><tbody>${rows}${actionRow}</tbody></table></div>${lockedMessage}</section>`;
+}
+// Linhas de produção que exigem checklist de setup dentro do turno — mesma
+// regra do apontamento (1ª linha só dispensa se for sequência do produto do
+// turno anterior; as demais sempre exigem). Turno aberto ainda não tem
+// registro definitivo de produção (só vira registros_producao_moldes quando
+// o turno fecha), então lê do rascunho nesse caso.
+async function setupProductionRows(date,turno,shiftRow){
+  if(shiftRow?.status==="FECHADO"){
+    const rows=await checklistData.productionsForShift(date,turno);
+    return rows.filter(row=>row.inicio&&row.produto_id).map(row=>({inicio:new Date(row.inicio),produto_id:row.produto_id,produtos:row.produtos}));
+  }
+  const rows=(shiftRow?.rascunho_producoes||[]).map(item=>{
+    const inicio=window.LIDUTEC_TURNOS.resolveShiftTime(date,turno,item.inicio);
+    return inicio&&item.produto_id?{inicio,produto_id:item.produto_id,produtos:null}:null;
+  }).filter(Boolean);
+  return rows.sort((a,b)=>a.inicio-b.inicio);
+}
+async function setupSlots(date,turno,shiftRow,products){
+  const rows=await setupProductionRows(date,turno,shiftRow);
+  if(!rows.length)return{slots:[],productions:[]};
+  const bounds=window.LIDUTEC_TURNOS.shiftBounds(date,turno);
+  const previousShift=window.LIDUTEC_TURNOS.determineShift(new Date(bounds.start.getTime()-60000));
+  const previousBounds=window.LIDUTEC_TURNOS.shiftBounds(previousShift.dataOperacional,previousShift.codigo);
+  const previous=await checklistData.previousProduction(previousBounds.start.toISOString(),previousBounds.end.toISOString());
+  const slots=[],productions=[];
+  rows.forEach((row,index)=>{
+    const isSequence=index===0&&previous?.produto_id!=null&&String(row.produto_id)===String(previous.produto_id);
+    if(isSequence)return;
+    slots.push(row.inicio);
+    productions.push({produtos:row.produtos||products.find(p=>String(p.id)===String(row.produto_id))||null});
+  });
+  return{slots,productions};
 }
 async function loadChecklistGrid(model,modelId){
   const date=cq("#execution-date").value,turno=cq("#execution-shift").value;
@@ -181,13 +214,18 @@ async function loadChecklistGrid(model,modelId){
     checklistData.shiftStatus(date,turno),
     checklistData.products()
   ]);
-  const slots=window.LIDUTEC_TURNOS.checklistDueSlots(model.frequencia_tipo,bounds.start,bounds.end,model.intervalo_minutos,new Date());
-  // O produto é identificado por coluna — qual produto estava em produção
-  // naquele horário planejado — em vez de um único campo para o turno todo.
-  const productions=await Promise.all(slots.map(slot=>checklistData.productionAt(date,turno,slot)));
+  let slots,productions;
+  if(model.frequencia_tipo==="SETUP"){
+    ({slots,productions}=await setupSlots(date,turno,shift,products));
+  }else{
+    slots=window.LIDUTEC_TURNOS.checklistDueSlots(model.frequencia_tipo,bounds.start,bounds.end,model.intervalo_minutos,new Date());
+    // O produto é identificado por coluna — qual produto estava em produção
+    // naquele horário planejado — em vez de um único campo para o turno todo.
+    productions=await Promise.all(slots.map(slot=>checklistData.productionAt(date,turno,slot)));
+  }
   const open=shift?.status==="ABERTO",canEdit=open||checklistEditingClosedShift;
   const unlockable=!open&&shift?.status==="FECHADO"&&!checklistEditingClosedShift&&checklistState.permissions.has("producao_moldes.editar");
-  renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable);
+  renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,model.frequencia_tipo);
 }
 async function submitGridColumn(button,modelId,model){
   const colIndex=button.dataset.col,slot=button.dataset.slot;

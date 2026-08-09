@@ -39,7 +39,16 @@
     // TODO: generalizar por área quando outros setores migrarem (hoje só
     // Moldagem tem apontamento de produção com turno aberto/fechado).
     shiftStatus: (date, turno) => unwrap(client().from("turnos_producao_moldes")
-      .select("status").eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
+      .select("status,rascunho_producoes").eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
+    // Turno fechado já tem registro definitivo de produção; usado pra montar
+    // as colunas do checklist de SETUP (uma coluna por linha de produção que
+    // exige setup).
+    productionsForShift: (date, turno) => unwrap(client().from("registros_producao_moldes")
+      .select("produto_id,inicio,fim,produtos(id,codigo,nome)")
+      .eq("data_operacional", date).eq("turno", turno).order("inicio")),
+    previousProduction: (from, before) => unwrap(client().from("registros_producao_moldes")
+      .select("produto_id,inicio").gte("inicio", from).lt("inicio", before)
+      .order("inicio", { ascending: false }).limit(1).maybeSingle(), null),
     decide: (executionId, decision, justification) => unwrap(client().rpc(
       "decidir_execucao_checklist", {
         p_execucao_id: executionId,
