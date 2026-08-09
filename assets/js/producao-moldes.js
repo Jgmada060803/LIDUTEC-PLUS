@@ -13,8 +13,10 @@ const formatMinutes = (value) => `${Math.floor(number(value)/60)}h ${String(numb
 function message(text,type="success",source="general"){const el=q("#production-message");if(!el)return;el.textContent=text;el.className=`form-message ${type}`;el.dataset.source=source;el.hidden=false}
 function clearMessage(source){const el=q("#production-message");if(!el||el.hidden||el.dataset.source!==source)return;el.hidden=true;el.textContent="";el.className="form-message";delete el.dataset.source}
 async function loadSupport(){
-  const{products,lines,categories,sectors}=await window.LIDUTEC_PRODUCAO_DATA.support();productionState.products=products;productionState.lines=lines;productionState.categories=categories;productionState.sectors=sectors;
-  productionState.scheduledStops=await window.LIDUTEC_PRODUCAO_DATA.scheduledStopsAll();
+  // support() e scheduledStopsAll() não dependem um do outro — busca os dois
+  // ao mesmo tempo em vez de esperar o primeiro terminar pra só então pedir o segundo.
+  const[{products,lines,categories,sectors},scheduledStops]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.support(),window.LIDUTEC_PRODUCAO_DATA.scheduledStopsAll()]);
+  productionState.products=products;productionState.lines=lines;productionState.categories=categories;productionState.sectors=sectors;productionState.scheduledStops=scheduledStops;
   for(const select of document.querySelectorAll("[data-products]"))select.insertAdjacentHTML("beforeend",productionState.products.map(p=>`<option value="${p.id}">${esc(p.codigo)} — ${esc(p.nome)}</option>`).join(""));
   for(const select of document.querySelectorAll("[data-lines]"))select.insertAdjacentHTML("beforeend",lines.map(x=>`<option value="${x.id}">${esc(x.codigo)} — ${esc(x.nome)}</option>`).join(""));
   for(const select of document.querySelectorAll("[data-categories]"))select.insertAdjacentHTML("beforeend",categories.map(x=>`<option value="${x.id}">${esc(x.nome)}</option>`).join(""));
@@ -189,16 +191,21 @@ function changeDescriptions(original,current){
 async function checkShiftStatus(){
   const form=q("#shift-entry-form"),date=form.elements.data_operacional.value,shift=form.elements.turno.value;if(!date||!shift)return;
   const requestId=++productionState.statusRequestId;
-  const blockingShift=await findBlockingOpenShift(shift,date);
+  const bounds=window.LIDUTEC_TURNOS.shiftBounds(date,shift),previousMoment=new Date(bounds.start.getTime()-60000),previousShift=window.LIDUTEC_TURNOS.determineShift(previousMoment),previousBounds=window.LIDUTEC_TURNOS.shiftBounds(previousShift.dataOperacional,previousShift.codigo);
+  // findBlockingOpenShift olha outras datas, e o turno atual/produção anterior
+  // não dependem desse resultado — busca os três ao mesmo tempo em vez de
+  // esperar o bloqueio ser descartado pra só então buscar o resto.
+  const[blockingShift,data,previous]=await Promise.all([findBlockingOpenShift(shift,date),window.LIDUTEC_PRODUCAO_DATA.shift(date,shift),window.LIDUTEC_PRODUCAO_DATA.previousProduction(previousBounds.start.toISOString(),previousBounds.end.toISOString())]);
   if(requestId!==productionState.statusRequestId)return;
   if(blockingShift){showShiftBlocked(blockingShift.data_operacional,shift);return}
   hideShiftBlocked();
-  const bounds=window.LIDUTEC_TURNOS.shiftBounds(date,shift),previousMoment=new Date(bounds.start.getTime()-60000),previousShift=window.LIDUTEC_TURNOS.determineShift(previousMoment),previousBounds=window.LIDUTEC_TURNOS.shiftBounds(previousShift.dataOperacional,previousShift.codigo),[data,previous]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.shift(date,shift),window.LIDUTEC_PRODUCAO_DATA.previousProduction(previousBounds.start.toISOString(),previousBounds.end.toISOString())]);
-  if(requestId!==productionState.statusRequestId)return;
   const previousVersion=productionState.currentShift?.versao??-1,previousKey=productionState.currentShift?`${productionState.currentShift.data_operacional||date}|${productionState.currentShift.turno||shift}`:"";productionState.currentShift=data?{...data,data_operacional:date,turno:shift}:null;productionState.previousProductId=previous?.produto_id??null;productionState.editingClosed=false;const closed=data?.status==="FECHADO";
+  // O histórico só existe quando o turno está fechado; dispara junto com a
+  // busca de produções/paradas do turno em vez de esperar elas terminarem.
+  const historyPromise=closed&&data?.id?loadShiftHistory(data.id):null;
   if(closed){const[productions,stops]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.shiftProductions(data.id),window.LIDUTEC_PRODUCAO_DATA.shiftStops(data.id)]);if(requestId!==productionState.statusRequestId)return;productionState.originalShiftData={productions,stops};populateShiftRows(productions,stops);syncProductionEndTimes({onlyMissing:true,referenceTime:bounds.end});form.dataset.loadedClosedShift=`${date}|${shift}`}else{productionState.originalShiftData=null;if(form.dataset.loadedClosedShift){resetShiftEntryRows();delete form.dataset.loadedClosedShift}const key=`${date}|${shift}`,hasNewSharedDraft=data&&(previousKey!==key||Number(data.versao)>Number(previousVersion));if(hasNewSharedDraft&&!productionState.draftSaveInFlight)populateSharedDraft(data.rascunho_producoes||[],data.rascunho_paradas||[])}
   for(const row of document.querySelectorAll(".shift-production-row"))updateProductionRow(row);renderShiftTimeline();document.dispatchEvent(new CustomEvent("production-setup-context-changed"));
-  const canEdit=closed&&productionState.permissions.has("producao_moldes.editar"),canDelete=closed&&productionState.permissions.has("producao_moldes.excluir_turno"),updatedBy=data?.usuarios?.nome,updatedAt=data?.atualizado_em?new Date(data.atualizado_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";form.classList.toggle("shift-readonly",closed);q("#shift-status").textContent=closed?"Fechado":updatedBy?`Em apontamento · ${updatedBy} às ${updatedAt}`:"Em apontamento";q("#close-shift-button").hidden=closed;q("#close-shift-button").disabled=closed;q("#close-shift-button").textContent="Fechar turno";q("#edit-shift-button").hidden=!canEdit;q("#delete-shift-button").hidden=!canDelete;q("#delete-shift-button").disabled=false;for(const control of form.querySelectorAll("tbody input,tbody select,tbody button,#add-production-row,#add-stop-row"))control.disabled=closed;if(data?.id&&closed)await loadShiftHistory(data.id);else q("#shift-edit-history").hidden=true;
+  const canEdit=closed&&productionState.permissions.has("producao_moldes.editar"),canDelete=closed&&productionState.permissions.has("producao_moldes.excluir_turno"),updatedBy=data?.usuarios?.nome,updatedAt=data?.atualizado_em?new Date(data.atualizado_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";form.classList.toggle("shift-readonly",closed);q("#shift-status").textContent=closed?"Fechado":updatedBy?`Em apontamento · ${updatedBy} às ${updatedAt}`:"Em apontamento";q("#close-shift-button").hidden=closed;q("#close-shift-button").disabled=closed;q("#close-shift-button").textContent="Fechar turno";q("#edit-shift-button").hidden=!canEdit;q("#delete-shift-button").hidden=!canDelete;q("#delete-shift-button").disabled=false;for(const control of form.querySelectorAll("tbody input,tbody select,tbody button,#add-production-row,#add-stop-row"))control.disabled=closed;if(historyPromise)await historyPromise;else q("#shift-edit-history").hidden=true;
   if(closed&&canEdit&&pendingAutoEdit){pendingAutoEdit=false;await editClosedShift()}
   updateChecklistLink();
 }

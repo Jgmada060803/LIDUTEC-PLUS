@@ -89,21 +89,35 @@ async function getUserPermissions(userId) {
     return new Set();
   }
 
-  const {
-    data: profilePermissions,
-    error: profileError
-  } = await window.supabaseClient
-    .from("usuario_perfis")
-    .select(`
-      perfis (
-        perfil_permissoes (
-          permissoes (
-            codigo
+  // As duas consultas são independentes entre si — só a ordem de MERGE abaixo
+  // importa (individual sobrescreve perfil), não a ordem de chegada da rede —
+  // então buscamos as duas ao mesmo tempo em vez de uma depois da outra.
+  const [
+    { data: profilePermissions, error: profileError },
+    { data: individualPermissions, error: individualError }
+  ] = await Promise.all([
+    window.supabaseClient
+      .from("usuario_perfis")
+      .select(`
+        perfis (
+          perfil_permissoes (
+            permissoes (
+              codigo
+            )
           )
         )
-      )
-    `)
-    .eq("usuario_id", userId);
+      `)
+      .eq("usuario_id", userId),
+    window.supabaseClient
+      .from("usuario_permissoes")
+      .select(`
+        permitido,
+        permissoes (
+          codigo
+        )
+      `)
+      .eq("usuario_id", userId)
+  ]);
 
   if (profileError) {
     console.error(
@@ -123,19 +137,6 @@ async function getUserPermissions(userId) {
       }
     }
   }
-
-  const {
-    data: individualPermissions,
-    error: individualError
-  } = await window.supabaseClient
-    .from("usuario_permissoes")
-    .select(`
-      permitido,
-      permissoes (
-        codigo
-      )
-    `)
-    .eq("usuario_id", userId);
 
   if (individualError) {
     console.error(
