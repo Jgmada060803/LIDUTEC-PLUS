@@ -1,4 +1,9 @@
 const productionPage = document.body.dataset.productionPage;
+// Se veio do checklist com "?editar=1" (ida e volta durante uma edição de
+// turno fechado), reabre o modo de edição sozinho assim que o turno carregar
+// — sem isso, sair pro checklist e voltar perdia o modo de edição, que só
+// existe na memória da página. Consumido uma única vez.
+let pendingAutoEdit = new URLSearchParams(location.search).get("editar") === "1";
 const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], scheduledStops:[], records:[], stops:[], materialByProduct:new Map(), currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, draftSaveTimer:null, draftSaveInFlight:false, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
 const q = (selector) => document.querySelector(selector);
 const esc = (value="") => String(value).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -158,6 +163,16 @@ async function editClosedShift(){
   if(!productionState.originalShiftData){const[productions,stops]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.shiftProductions(turnId),window.LIDUTEC_PRODUCAO_DATA.shiftStops(turnId)]);productionState.originalShiftData={productions,stops};populateShiftRows(productions,stops);syncProductionEndTimes({onlyMissing:true,referenceTime:shiftDateTimeBounds().end})}
   productionState.editingClosed=true;
   const form=q("#shift-entry-form");form.classList.remove("shift-readonly");for(const control of form.querySelectorAll("tbody input,tbody select,tbody button,#add-production-row,#add-stop-row"))control.disabled=false;q("#edit-shift-button").hidden=true;q("#delete-shift-button").hidden=true;q("#close-shift-button").hidden=false;q("#close-shift-button").disabled=false;q("#close-shift-button").textContent="Salvar alterações";q("#shift-status").textContent="Editando turno fechado";
+  updateChecklistLink();
+}
+function updateChecklistLink(){
+  const link=q("#checklist-link"),form=q("#shift-entry-form");if(!link||!form)return;
+  const params=new URLSearchParams();
+  if(form.elements.data_operacional.value)params.set("data",form.elements.data_operacional.value);
+  if(form.elements.turno.value)params.set("turno",form.elements.turno.value);
+  params.set("origem","apontamento");
+  if(productionState.editingClosed)params.set("editar","1");
+  link.href=`../controle-processo/checklists.html?area=MOLDAGEM&${params}`;
 }
 function changeDescriptions(original,current){
   const changes=[],valueText=value=>value==null||value===""?"vazio":String(value),productCode=id=>productionState.products.find(item=>String(item.id)===String(id))?.codigo||`produto ${id}`;
@@ -180,6 +195,8 @@ async function checkShiftStatus(){
   if(closed){const[productions,stops]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.shiftProductions(data.id),window.LIDUTEC_PRODUCAO_DATA.shiftStops(data.id)]);if(requestId!==productionState.statusRequestId)return;productionState.originalShiftData={productions,stops};populateShiftRows(productions,stops);syncProductionEndTimes({onlyMissing:true,referenceTime:bounds.end});form.dataset.loadedClosedShift=`${date}|${shift}`}else{productionState.originalShiftData=null;if(form.dataset.loadedClosedShift){resetShiftEntryRows();delete form.dataset.loadedClosedShift}const key=`${date}|${shift}`,hasNewSharedDraft=data&&(previousKey!==key||Number(data.versao)>Number(previousVersion));if(hasNewSharedDraft&&!productionState.draftSaveInFlight)populateSharedDraft(data.rascunho_producoes||[],data.rascunho_paradas||[])}
   for(const row of document.querySelectorAll(".shift-production-row"))updateProductionRow(row);renderShiftTimeline();document.dispatchEvent(new CustomEvent("production-setup-context-changed"));
   const canEdit=closed&&productionState.permissions.has("producao_moldes.editar"),canDelete=closed&&productionState.permissions.has("producao_moldes.excluir_turno"),updatedBy=data?.usuarios?.nome,updatedAt=data?.atualizado_em?new Date(data.atualizado_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";form.classList.toggle("shift-readonly",closed);q("#shift-status").textContent=closed?"Fechado":updatedBy?`Em apontamento · ${updatedBy} às ${updatedAt}`:"Em apontamento";q("#close-shift-button").hidden=closed;q("#close-shift-button").disabled=closed;q("#close-shift-button").textContent="Fechar turno";q("#edit-shift-button").hidden=!canEdit;q("#delete-shift-button").hidden=!canDelete;q("#delete-shift-button").disabled=false;for(const control of form.querySelectorAll("tbody input,tbody select,tbody button,#add-production-row,#add-stop-row"))control.disabled=closed;if(data?.id&&closed)await loadShiftHistory(data.id);else q("#shift-edit-history").hidden=true;
+  if(closed&&canEdit&&pendingAutoEdit){pendingAutoEdit=false;await editClosedShift()}
+  updateChecklistLink();
 }
 async function deleteClosedShift(){
   const turnId=productionState.currentShift?.id;if(!turnId)return;if(!confirm("Excluir definitivamente este turno, suas produções, paradas e histórico de alterações?"))return;

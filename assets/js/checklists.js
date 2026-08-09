@@ -16,6 +16,22 @@ const formatDateTimeChecklist = value => value ? new Date(value).toLocaleString(
 const statusLabels = {CONFORME:"Conforme",NAO_CONFORME:"Não conforme",AGUARDANDO_SUPERVISOR:"Aguardando supervisor",BLOQUEADO:"Bloqueado",LIBERADO:"Liberado",EM_PREENCHIMENTO:"Em preenchimento"};
 const frequencyLabels = {INICIO_TURNO:"Início do turno",SETUP:"A cada setup",INTERVALO:"Verificação programada",CORRIDA:"Por corrida",DIARIO:"Diário",SEMANAL:"Semanal",EVENTO:"Quando ocorrer",ESPECIAL:"Fluxo especial"};
 
+// Mantém o contexto de onde veio (data/turno/se estava editando um turno
+// fechado) enquanto navega entre a lista de checklists, o preenchimento e a
+// volta pro apontamento — sem isso, o apontamento perderia o modo de edição
+// ao voltar do checklist.
+function forwardedApontamentoParams(extra={}){
+  const params=new URLSearchParams(location.search),forward=new URLSearchParams();
+  for(const key of["data","turno","origem","editar"])if(params.get(key))forward.set(key,params.get(key));
+  for(const[key,value]of Object.entries(extra))if(value!=null)forward.set(key,value);
+  return forward;
+}
+function backToApontamentoUrl(){
+  const params=new URLSearchParams(location.search);
+  if(params.get("origem")!=="apontamento")return"./checklists.html";
+  const forward=forwardedApontamentoParams();
+  return `../producao-moldes/lancamento.html${forward.toString()?`?${forward}`:""}`;
+}
 function checklistMessage(text,type="error") { const element=cq("#checklist-message"); if(!element)return;element.textContent=text;element.className=`form-message ${type}`;element.hidden=false; }
 function checklistInitials(name="Usuário"){return name.trim().split(/\s+/).slice(0,2).map(part=>part[0]?.toUpperCase()).join("")}
 function activeProfileArea(){const code=String(checklistState.profile?.perfil||"").toUpperCase();return["MOLDAGEM","VAZAMENTO","FUSAO","MACHARIA","ACABAMENTO"].includes(code)?code:null}
@@ -48,7 +64,7 @@ function renderAreaTabs(selected){
 }
 function renderModels(areaCode){
   const models=checklistState.models.filter(model=>model.areas_checklist?.codigo===areaCode),canFill=checklistState.permissions.has("checklist.preencher");
-  cq("#checklist-models").innerHTML=models.map(model=>`<article class="panel checklist-model-card" style="--area-color:${cesc(model.areas_checklist?.cor)}"><div class="checklist-model-top"><span class="checklist-model-code">${cesc(model.codigo)}</span><span>${cesc(modelFrequency(model))}</span></div><h3>${cesc(model.nome)}</h3><p>${cesc(model.descricao||"")}</p><div class="checklist-model-meta"><span>${cesc(model.instrucao_codigo||"Sem instrução vinculada")}</span>${model.produto_obrigatorio?"<span>Produto obrigatório</span>":""}${model.equipamento_obrigatorio?"<span>Equipamento obrigatório</span>":""}</div>${canFill?`<a class="button button-primary" href="./checklist.html?modelo=${model.id}">Preencher</a>`:""}</article>`).join("");
+  cq("#checklist-models").innerHTML=models.map(model=>`<article class="panel checklist-model-card" style="--area-color:${cesc(model.areas_checklist?.cor)}"><div class="checklist-model-top"><span class="checklist-model-code">${cesc(model.codigo)}</span><span>${cesc(modelFrequency(model))}</span></div><h3>${cesc(model.nome)}</h3><p>${cesc(model.descricao||"")}</p><div class="checklist-model-meta"><span>${cesc(model.instrucao_codigo||"Sem instrução vinculada")}</span>${model.produto_obrigatorio?"<span>Produto obrigatório</span>":""}${model.equipamento_obrigatorio?"<span>Equipamento obrigatório</span>":""}</div>${canFill?`<a class="button button-primary" href="./checklist.html?${forwardedApontamentoParams({modelo:model.id})}">Preencher</a>`:""}</article>`).join("");
   cq("#checklist-empty").hidden=models.length>0;
   applyDeadlineIndicators(areaCode);
 }
@@ -63,7 +79,7 @@ function renderApprovals(rows){
 async function loadDashboardData(){
   const[areas,models,executions,approvals]=await Promise.all([checklistData.areas(),checklistData.models(),checklistData.executions(),checklistData.pendingApprovals(),refreshCurrentShiftExists()]);checklistState.areas=areas;checklistState.models=models;checklistState.executions=executions;
   const today=checklistOperationalContext().date;cq("#models-count").textContent=models.length;cq("#today-count").textContent=executions.filter(row=>row.data_operacional===today).length;cq("#approval-count").textContent=approvals.length;cq("#deviation-count").textContent=executions.filter(row=>["NAO_CONFORME","BLOQUEADO"].includes(row.status)).length;
-  const preferred=activeProfileArea(),selected=checklistState.areas.some(area=>area.codigo===preferred)?preferred:checklistState.areas[0]?.codigo;renderAreaTabs(selected);renderModels(selected);renderApprovals(approvals);cq("#checklist-loading").hidden=true;
+  const paramArea=new URLSearchParams(location.search).get("area"),preferred=paramArea||activeProfileArea(),selected=checklistState.areas.some(area=>area.codigo===preferred)?preferred:checklistState.areas[0]?.codigo;renderAreaTabs(selected);renderModels(selected);renderApprovals(approvals);cq("#checklist-loading").hidden=true;
 }
 async function initializeDashboard(){await loadDashboardData();cq("#area-tabs").addEventListener("click",event=>{const button=event.target.closest("[data-area]");if(!button)return;renderAreaTabs(button.dataset.area);renderModels(button.dataset.area)});cq("#approval-list").addEventListener("click",event=>{const button=event.target.closest("[data-decision]");if(button)decideChecklist(Number(button.dataset.execution),button.dataset.decision).catch(error=>alert(error.message))})}
 
@@ -187,6 +203,7 @@ async function initializeForm(){
   const automaticMoldProduct=model.areas_checklist?.codigo==="MOLDAGEM"&&model.codigo==="M02"&&model.frequencia_tipo==="INTERVALO"&&Number(model.intervalo_minutos)===30;
   cq("#form-title").textContent=model.nome;cq("#form-subtitle").textContent=model.descricao||model.nome;cq("#form-code").textContent=`${model.areas_checklist?.nome} · ${model.codigo} · ${modelFrequency(model)}`;cq("#form-name").textContent=model.nome;cq("#form-instruction").textContent=`Referência: ${model.instrucao_codigo||"não informada"} · revisão do modelo ${model.versao}`;
   const operationalContext=checklistOperationalContext();cq("#execution-date").value=params.get("data")||operationalContext.date;if(operationalContext.shift)cq("#execution-shift").value=params.get("turno")||operationalContext.shift;
+  cq("#checklist-back-link").href=backToApontamentoUrl();
   cq("#execution-product").insertAdjacentHTML("beforeend",products.map(product=>`<option value="${product.id}">${cesc(product.codigo)} — ${cesc(product.nome)}</option>`).join(""));let selectedProduct=params.get("produto");if(automaticMoldProduct&&!selectedProduct){const production=await checklistData.productionAt(cq("#execution-date").value,cq("#execution-shift").value);selectedProduct=production?.produto_id?String(production.produto_id):"";if(production?.produtos&&!products.some(product=>String(product.id)===selectedProduct))cq("#execution-product").insertAdjacentHTML("beforeend",`<option value="${production.produtos.id}">${cesc(production.produtos.codigo)} — ${cesc(production.produtos.nome)}</option>`)}if(selectedProduct)cq("#execution-product").value=selectedProduct;if(automaticMoldProduct&&selectedProduct){cq("#execution-product").disabled=true;cq("#product-field").dataset.automatic="true"}else if(automaticMoldProduct)checklistMessage("Não foi possível identificar automaticamente um produto em produção. Selecione o produto para continuar.");cq("#product-field").hidden=!model.produto_obrigatorio;cq("#equipment-field").hidden=automaticMoldProduct||!model.equipamento_obrigatorio;if(automaticMoldProduct)cq("#execution-equipment").value="";cq("#run-field").hidden=!model.corrida_obrigatoria;
   const useGrid=GRID_FREQUENCIES.has(model.frequencia_tipo);
   if(useGrid){
@@ -202,7 +219,7 @@ async function initializeForm(){
   }else{
     renderChecklistItems(items);
     cq("#checklist-sections").addEventListener("input",event=>{const article=event.target.closest(".checklist-item");if(article)syncItemState(article)});cq("#checklist-sections").addEventListener("change",event=>{const article=event.target.closest(".checklist-item");if(article)syncItemState(article)});cq("#checklist-sections").addEventListener("click",event=>{const button=event.target.closest("[data-confirm-section]");if(!button)return;for(const article of button.closest(".checklist-section").querySelectorAll(".checklist-item")){const radio=article.querySelector('input[value="CONFORME"]');if(radio){radio.checked=true;syncItemState(article)}}});
-    cq("#checklist-form").addEventListener("submit",async event=>{event.preventDefault();const submit=cq("#submit-checklist");submit.disabled=true;try{const productId=cq("#execution-product").value?Number(cq("#execution-product").value):null,id=await checklistData.save({p_modelo_id:Number(modelId),p_data_operacional:cq("#execution-date").value,p_turno:cq("#execution-shift").value,p_produto_id:productId,p_equipamento:cq("#execution-equipment").value||null,p_corrida:cq("#execution-run").value||null,p_observacao:cq("#execution-notes").value||null,p_respostas:serializeChecklistAnswers()}),completedAt=new Date().toISOString();sessionStorage.setItem("lidutec:checklists:ultima-conclusao",JSON.stringify({id,modelo_id:Number(modelId),produto_id:productId,data_operacional:cq("#execution-date").value,turno:cq("#execution-shift").value,status:"CONFORME",iniciado_em:completedAt,concluido_em:completedAt}));alert(`Checklist ${id} registrado com sucesso.`);location.replace(params.get("origem")==="apontamento"?"../producao-moldes/lancamento.html":"./checklist-historico.html")}catch(error){checklistMessage(error.message);submit.disabled=false}});
+    cq("#checklist-form").addEventListener("submit",async event=>{event.preventDefault();const submit=cq("#submit-checklist");submit.disabled=true;try{const productId=cq("#execution-product").value?Number(cq("#execution-product").value):null,id=await checklistData.save({p_modelo_id:Number(modelId),p_data_operacional:cq("#execution-date").value,p_turno:cq("#execution-shift").value,p_produto_id:productId,p_equipamento:cq("#execution-equipment").value||null,p_corrida:cq("#execution-run").value||null,p_observacao:cq("#execution-notes").value||null,p_respostas:serializeChecklistAnswers()}),completedAt=new Date().toISOString();sessionStorage.setItem("lidutec:checklists:ultima-conclusao",JSON.stringify({id,modelo_id:Number(modelId),produto_id:productId,data_operacional:cq("#execution-date").value,turno:cq("#execution-shift").value,status:"CONFORME",iniciado_em:completedAt,concluido_em:completedAt}));alert(`Checklist ${id} registrado com sucesso.`);location.replace(params.get("origem")==="apontamento"?backToApontamentoUrl():"./checklist-historico.html")}catch(error){checklistMessage(error.message);submit.disabled=false}});
   }
   cq("#checklist-loading").hidden=true;cq("#checklist-form").hidden=false;
 }
