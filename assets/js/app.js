@@ -303,6 +303,11 @@ function syncSidebarNavigation() {
          data-permission="reclamacao.visualizar">
         Solicitações de Manutenção
       </a>
+      <a href="${prefix}manutencao/paradas-programadas.html"
+         class="${activeClass(isActive("manutencao"))}"
+         data-permission="metas.visualizar,metas.gerenciar,paradas_programadas.criar,paradas_programadas.encerrar">
+        Paradas Programadas
+      </a>
     `)}
 
     ${navSection("Administração", `

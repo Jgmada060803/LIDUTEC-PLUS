@@ -1,0 +1,38 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paradas Programadas | Metalsider</title><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"></head>
+<body class="app-page"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+<div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Paradas Programadas</h1><p>Refeição, hidratação, manutenção preventiva etc.</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+<main class="main-content">
+  <section class="page-heading"><div><span class="eyebrow">Manutenção</span><h2>Paradas programadas</h2><p>Refeição, hidratação, manutenção preventiva etc. Paradas reais que caírem dentro desses horários não impactam a disponibilidade — já são esperadas.</p></div></section>
+
+  <section class="panel" data-permission="paradas_programadas.criar">
+    <div class="panel-header"><h3>Nova parada programada</h3></div>
+    <form id="parada-programada-form" class="meta-form">
+      <label>Setor<select id="pp-area" name="area_id" required><option value="">Selecione</option></select></label>
+      <label>Unidade de trabalho<select id="pp-unidade" name="unidade_trabalho"><option value="">Geral (toda a área)</option></select></label>
+      <label>Turno<select id="pp-turno" name="turno"><option value="">Todos os turnos</option><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
+      <label>Tipo de parada programada<select id="pp-tipo" name="tipo_parada_codigo" required><option value="">Selecione</option></select></label>
+      <label>Horário inicial<input id="pp-horario-inicial" name="horario_inicial" type="time" required></label>
+      <label>Horário final<input id="pp-horario-final" name="horario_final" type="time" required></label>
+      <label>Vigente a partir de<input id="pp-vigencia" name="vigencia_inicio" type="date" required></label>
+      <fieldset class="pp-dias-semana"><legend>Dias da semana</legend>
+        <label><input type="checkbox" name="dias_semana" value="0">Dom</label>
+        <label><input type="checkbox" name="dias_semana" value="1" checked>Seg</label>
+        <label><input type="checkbox" name="dias_semana" value="2" checked>Ter</label>
+        <label><input type="checkbox" name="dias_semana" value="3" checked>Qua</label>
+        <label><input type="checkbox" name="dias_semana" value="4" checked>Qui</label>
+        <label><input type="checkbox" name="dias_semana" value="5" checked>Sex</label>
+        <label><input type="checkbox" name="dias_semana" value="6">Sáb</label>
+      </fieldset>
+      <div id="parada-programada-message" class="form-message" hidden></div>
+      <div class="meta-form-actions"><button class="button button-primary">Salvar parada programada</button></div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Paradas programadas vigentes</h3></div>
+    <div id="parada-programada-list-loading" class="loading-state">Carregando...</div>
+    <div class="table-wrapper"><table class="products-table" id="parada-programada-list-table" hidden><thead><tr><th>Setor</th><th>Unidade de trabalho</th><th>Turno</th><th>Tipo</th><th>Horário</th><th>Dias da semana</th><th>Vigente desde</th><th></th></tr></thead><tbody id="parada-programada-list-rows"></tbody></table></div>
+    <p id="parada-programada-list-empty" class="production-muted" hidden>Nenhuma parada programada cadastrada.</p>
+  </section>
+</main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/paradas-programadas-admin.js"></script></body></html>
