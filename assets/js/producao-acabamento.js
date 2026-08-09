@@ -359,6 +359,20 @@ function serializeShift() {
       }
       return { inicio: start.toISOString(), fim: end.toISOString(), posto_id: anumber(value("posto_id")), setor_id: anumber(value("setor_id")), categoria_id: anumber(value("categoria_id")), observacao: value("observacao") };
     });
+  // No Acabamento cada parada é vinculada a um posto/equipamento, então
+  // paradas em postos diferentes podem ter o mesmo horário — só bloqueia
+  // sobreposição dentro do mesmo posto/equipamento.
+  const stopsPorPosto = new Map();
+  for (const stop of stops) {
+    const lista = stopsPorPosto.get(stop.posto_id) || [];
+    lista.push(stop);
+    stopsPorPosto.set(stop.posto_id, lista);
+  }
+  for (const lista of stopsPorPosto.values()) {
+    if (window.LIDUTEC_TURNOS.findOverlappingInterval(lista)) {
+      throw new Error("Há paradas com horários sobrepostos no mesmo posto/equipamento. Ajuste os horários antes de continuar.");
+    }
+  }
   return { productions, linhas, stops };
 }
 

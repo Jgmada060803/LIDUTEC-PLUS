@@ -145,7 +145,11 @@ function serializeShift(){
   if(!productions.length)throw new Error("Informe ao menos uma linha de produção.");
   const stops=[...document.querySelectorAll(".shift-stop-row")].filter(row=>completeRow(row,["inicio","fim","setor_id","categoria_id","observacao"])).map(row=>{
     const value=name=>row.querySelector(`[name="${name}"]`).value;if(!value("inicio")||!value("fim")||!value("setor_id")||!value("categoria_id"))throw new Error("Preencha início, fim, setor e motivo em todas as paradas.");const start=resolveShiftTime(value("inicio")),end=resolveShiftTime(value("fim"));if(!start||!end)throw new Error("Os horários da parada devem estar dentro do turno selecionado.");validateShiftInterval(start.toISOString(),end.toISOString(),"A parada");return{inicio:start.toISOString(),fim:end.toISOString(),setor_id:number(value("setor_id")),categoria_id:number(value("categoria_id")),observacao:value("observacao")};
-  });return{productions,stops};
+  });
+  // Na Moldagem uma parada trava o turno inteiro (não existe posto/equipamento
+  // por parada), então duas paradas não podem ter horários sobrepostos.
+  if(window.LIDUTEC_TURNOS.findOverlappingInterval(stops))throw new Error("Há paradas com horários sobrepostos. Ajuste os horários antes de continuar.");
+  return{productions,stops};
 }
 const toTimeInput=value=>{if(!value)return"";const date=new Date(value),pad=item=>String(item).padStart(2,"0");return`${pad(date.getHours())}:${pad(date.getMinutes())}`};
 function populateShiftRows(productions,stops){

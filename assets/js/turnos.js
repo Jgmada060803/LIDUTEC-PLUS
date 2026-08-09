@@ -85,6 +85,20 @@
     return !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) &&
       start >= bounds.start && end <= bounds.end && end >= start;
   }
+
+  // Acha o primeiro par de paradas com horário sobreposto num mesmo grupo —
+  // na Moldagem o grupo é o turno inteiro (uma parada trava tudo); no
+  // Acabamento o grupo é o posto/equipamento (paradas em postos diferentes
+  // podem coexistir no mesmo horário).
+  function findOverlappingInterval(intervals) {
+    const sorted = intervals
+      .map((interval, index) => ({ index, start: new Date(interval.inicio).getTime(), end: new Date(interval.fim).getTime() }))
+      .sort((a, b) => a.start - b.start);
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].start < sorted[i - 1].end) return [intervals[sorted[i - 1].index], intervals[sorted[i].index]];
+    }
+    return null;
+  }
   function isScheduledShiftDay(operationalDate, shiftCode) {
     const date = new Date(`${operationalDate}T12:00:00`);
     if (Number.isNaN(date.getTime()) || !shifts[shiftCode]) return false;
@@ -237,6 +251,7 @@
     resolveShiftTime,
     productionEndTime,
     intervalWithinShift,
+    findOverlappingInterval,
     isScheduledShiftDay,
     checklistIntervalStatus,
     checklistDueSlots,

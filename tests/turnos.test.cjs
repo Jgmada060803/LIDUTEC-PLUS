@@ -230,4 +230,29 @@ assert.equal(
   0
 );
 
+// findOverlappingInterval: usado para bloquear paradas com horário
+// sobreposto (Moldagem: turno inteiro; Acabamento: mesmo posto/equipamento).
+assert.equal(
+  shifts.findOverlappingInterval([
+    { inicio: "2026-07-24T06:00:00", fim: "2026-07-24T06:30:00" },
+    { inicio: "2026-07-24T07:00:00", fim: "2026-07-24T07:30:00" }
+  ]),
+  null
+);
+assert.notEqual(
+  shifts.findOverlappingInterval([
+    { inicio: "2026-07-24T06:00:00", fim: "2026-07-24T07:00:00" },
+    { inicio: "2026-07-24T06:30:00", fim: "2026-07-24T06:45:00" }
+  ]),
+  null
+);
+// Paradas encostadas (fim de uma = início da outra) não contam como sobreposição.
+assert.equal(
+  shifts.findOverlappingInterval([
+    { inicio: "2026-07-24T06:00:00", fim: "2026-07-24T06:30:00" },
+    { inicio: "2026-07-24T06:30:00", fim: "2026-07-24T07:00:00" }
+  ]),
+  null
+);
+
 console.log("Testes de turnos e indicadores: OK");
