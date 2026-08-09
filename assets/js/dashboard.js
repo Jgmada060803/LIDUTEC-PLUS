@@ -8,7 +8,7 @@ const dashboard = {
   activeFilters: document.querySelector("#dashboard-active-filters"),
   filterChips: document.querySelector("#dashboard-filter-chips"),
   clearFilters: document.querySelector("#dashboard-clear-filters"),
-  data: { records: [], stops: [], turns: [] },
+  data: { records: [], stops: [], turns: [], scheduledStops: [] },
   filters: { date: null, shift: null, product: null, sector: null, reason: null }
 };
 
@@ -124,19 +124,27 @@ function mergeSegments(segments) {
   return merged;
 }
 
-function shiftTimeline(date, shift, turn, stops, now) {
+function shiftTimeline(date, shift, turn, stops, now, scheduled) {
   const bounds = LIDUTEC_TURNOS.shiftBounds(date, shift);
   const start = bounds.start.getTime(), end = bounds.end.getTime(), total = (end - start) / 60000;
   const effectiveEnd = !turn ? start : turn.status === "ABERTO" ? Math.max(start, Math.min(end, now.getTime())) : end;
   const relevant = stops.filter(row => row.turno === shift).map(row => [Math.max(start, new Date(row.inicio).getTime()), Math.min(effectiveEnd, new Date(row.fim).getTime())]).filter(([from, to]) => to > from).sort((a, b) => a[0] - b[0]);
+  // Janela de parada programada aparece em amarelo mesmo sem parada real
+  // lançada, e tem prioridade sobre a parada real (mesma regra da linha do
+  // tempo do apontamento: a amarela sobrepõe a vermelha).
+  const planned = LIDUTEC_PARADAS_PROGRAMADAS.overlapIntervals({ janelas: scheduled || [], turnoInicio: bounds.start, paradaInicio: bounds.start, paradaFim: bounds.end, turno: shift, dataOperacional: date }).map(interval => [interval.start.getTime(), interval.end.getTime()]);
   const points = new Set([start, effectiveEnd, end]);
   for (const [from, to] of relevant) { points.add(from); points.add(to); }
+  for (const [from, to] of planned) { points.add(from); points.add(to); }
   const sorted = [...points].sort((a, b) => a - b), segments = [];
   for (let index = 0; index < sorted.length - 1; index++) {
     const from = sorted[index], to = sorted[index + 1];
     if (to <= from) continue;
     const middle = (from + to) / 2;
-    const type = from >= effectiveEnd ? "inactive" : relevant.some(([stopFrom, stopTo]) => middle >= stopFrom && middle < stopTo) ? "stopped" : "productive";
+    const type = from >= effectiveEnd ? "inactive"
+      : planned.some(([plannedFrom, plannedTo]) => middle >= plannedFrom && middle < plannedTo) ? "planned"
+      : relevant.some(([stopFrom, stopTo]) => middle >= stopFrom && middle < stopTo) ? "stopped"
+      : "productive";
     segments.push({ type, minutes: (to - from) / 60000 });
   }
   return { shift, total, segments: mergeSegments(segments) };
@@ -145,10 +153,10 @@ function shiftTimeline(date, shift, turn, stops, now) {
 function renderTimeline(stops) {
   const now = new Date(), dates = datesBetween(dashboard.from.value, dashboard.to.value);
   const turnMap = new Map(dashboard.data.turns.map(turn => [`${turn.data_operacional}|${turn.turno}`, turn]));
-  const totals = { productive: 0, stopped: 0, inactive: 0 };
+  const totals = { productive: 0, stopped: 0, planned: 0, inactive: 0 };
   const days = dates.map(date => {
     const dayStops = stops.filter(stop => stop.data_operacional === date);
-    const tracks = shifts.map(shift => shiftTimeline(date, shift, turnMap.get(`${date}|${shift}`), dayStops, now));
+    const tracks = shifts.map(shift => shiftTimeline(date, shift, turnMap.get(`${date}|${shift}`), dayStops, now, dashboard.data.scheduledStops));
     for (const track of tracks) for (const segment of track.segments) {
       if ((!dashboard.filters.date || dashboard.filters.date === date) && (!dashboard.filters.shift || dashboard.filters.shift === track.shift)) totals[segment.type] += segment.minutes;
     }
@@ -157,6 +165,7 @@ function renderTimeline(stops) {
   document.querySelector("#period-timeline").innerHTML = `<div class="report-timeline-flow">${days}</div>`;
   document.querySelector("#timeline-production-total").textContent = durationLabel(totals.productive);
   document.querySelector("#timeline-stop-total").textContent = durationLabel(totals.stopped);
+  document.querySelector("#timeline-planned-total").textContent = durationLabel(totals.planned);
   document.querySelector("#timeline-inactive-total").textContent = durationLabel(totals.inactive);
 }
 
@@ -191,13 +200,16 @@ async function loadDashboard() {
   dashboard.loading.hidden = false; dashboard.message.hidden = true; dashboard.refresh.disabled = true;
   try {
     if (!dashboard.from.value || !dashboard.to.value || dashboard.from.value > dashboard.to.value) throw new Error("Informe um período válido.");
-    const [production, stops, turns] = await Promise.all([
+    const { data: area, error: areaError } = await supabaseClient.from("areas_checklist").select("id").eq("codigo", "MOLDAGEM").single();
+    if (areaError) throw areaError;
+    const [production, stops, turns, scheduledStops] = await Promise.all([
       supabaseClient.from("registros_producao_moldes").select("data_operacional,turno,moldes_vazados,toneladas_produzidas,produtos(codigo,nome)").gte("data_operacional", dashboard.from.value).lte("data_operacional", dashboard.to.value).order("data_operacional").limit(5000),
       supabaseClient.from("paradas_producao_moldes").select("data_operacional,turno,inicio,fim,duracao_minutos,motivo,observacao,categorias_parada_producao(nome),setores_responsaveis_parada(nome)").gte("data_operacional", dashboard.from.value).lte("data_operacional", dashboard.to.value).order("inicio").limit(5000),
-      supabaseClient.from("turnos_producao_moldes").select("data_operacional,turno,status").gte("data_operacional", dashboard.from.value).lte("data_operacional", dashboard.to.value).limit(5000)
+      supabaseClient.from("turnos_producao_moldes").select("data_operacional,turno,status").gte("data_operacional", dashboard.from.value).lte("data_operacional", dashboard.to.value).limit(5000),
+      supabaseClient.from("paradas_programadas").select("linha_maquina_id,turno,tipo_parada_codigo,horario_inicial,horario_final,dias_semana,vigencia_inicio,vigencia_fim,equipamentos_planejamento(codigo)").eq("area_id", area.id)
     ]);
-    if (production.error) throw production.error; if (stops.error) throw stops.error; if (turns.error) throw turns.error;
-    dashboard.data = { records: production.data || [], stops: stops.data || [], turns: turns.data || [] };
+    if (production.error) throw production.error; if (stops.error) throw stops.error; if (turns.error) throw turns.error; if (scheduledStops.error) throw scheduledStops.error;
+    dashboard.data = { records: production.data || [], stops: stops.data || [], turns: turns.data || [], scheduledStops: (scheduledStops.data || []).map(row => ({ ...row, equipamento_codigo: row.equipamentos_planejamento?.codigo ?? null })) };
     dashboard.filters = { date: null, shift: null, product: null, sector: null, reason: null };
     render();
   } catch (error) {
