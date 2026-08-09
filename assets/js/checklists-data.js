@@ -29,7 +29,8 @@
     save: (payload) => unwrap(client().rpc("salvar_execucao_checklist", payload), null),
     executionsForSlots: (modeloId, date, turno) => unwrap(client().from("execucoes_checklist")
       .select(`
-        id,horario_previsto,iniciado_em,concluido_em,status,
+        id,horario_previsto,iniciado_em,concluido_em,status,produto_id,
+        produtos(id,codigo,nome),
         usuarios!execucoes_checklist_operador_id_fkey(nome),
         respostas_checklist(item_id,resultado,valor_numero,valor_texto,observacao,acao_imediata)
       `)

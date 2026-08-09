@@ -21,6 +21,10 @@
 .checklist-grid-slot{width:96px;min-width:96px;max-width:96px;background:#e9efff;text-align:center}
 .checklist-grid-slot strong{display:block;font-size:.82rem;color:var(--color-primary)}
 .checklist-grid-slot small{display:block;margin-top:2px;color:var(--color-text-muted);font-size:.6rem;font-weight:700}
+.checklist-grid-product{margin:3px 0}
+.checklist-grid-product-label{display:inline-block;padding:2px 6px;border-radius:4px;background:#fff;color:var(--color-primary);font-size:.64rem;font-weight:900}
+.checklist-grid-product-label.muted{color:var(--color-text-muted);background:transparent;font-weight:700}
+.checklist-grid-produto{width:100%;min-height:26px;padding:2px 3px;border:1px solid var(--color-border);border-radius:5px;font-size:.62rem}
 .checklist-grid-cell{width:96px;min-width:96px;max-width:96px;text-align:center}
 .checklist-grid-number{width:100%;min-height:30px;padding:3px 4px;border:1px solid var(--color-border);border-radius:5px;text-align:center;font-size:.78rem;font-weight:800}
 .checklist-grid-text{width:100%;min-height:30px;padding:3px 4px;border:1px solid var(--color-border);border-radius:5px;font-size:.72rem}

@@ -131,12 +131,19 @@ function syncGridCell(cell){
   const result=gridCellResult(cell),deviation=cell.querySelector(".checklist-grid-deviation");
   if(deviation)deviation.hidden=result!=="NAO_CONFORME";
 }
-function renderChecklistGrid(items,slots,executions,bounds,canEdit){
+function gridProductMarkup(colIndex,produto,products,editable){
+  if(produto)return `<input type="hidden" class="checklist-grid-produto" data-col="${colIndex}" value="${produto.id}"><span class="checklist-grid-product-label" title="${cesc(produto.nome||"")}">${cesc(produto.codigo||"—")}</span>`;
+  if(!editable)return '<span class="checklist-grid-product-label muted">—</span>';
+  return `<select class="checklist-grid-produto" data-col="${colIndex}"><option value="">Produto</option>${products.map(p=>`<option value="${p.id}">${cesc(p.codigo)}</option>`).join("")}</select>`;
+}
+function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products){
   const previousBoundaries=[bounds.start,...slots.slice(0,-1)];
-  const columns=slots.map((slot,index)=>({slot,index,execution:findExecutionForSlot(slot,previousBoundaries[index],executions)}));
+  const columns=slots.map((slot,index)=>({slot,index,execution:findExecutionForSlot(slot,previousBoundaries[index],executions),producao:productions[index]}));
   const headerCells=columns.map(col=>{
     const meta=col.execution?`<small>${gridTimeLabel(new Date(col.execution.iniciado_em))} · ${cesc(col.execution.usuarios?.nome||"—")}</small>`:'<small>Pendente</small>';
-    return `<th class="checklist-grid-slot"><strong>${gridTimeLabel(col.slot)}</strong>${meta}</th>`;
+    const produto=col.execution?col.execution.produtos:col.producao?.produtos;
+    const productMarkup=gridProductMarkup(col.index,produto,products,canEdit&&!col.execution);
+    return `<th class="checklist-grid-slot"><strong>${gridTimeLabel(col.slot)}</strong><div class="checklist-grid-product">${productMarkup}</div>${meta}</th>`;
   }).join("");
   const rows=items.map(item=>{
     const cells=columns.map(col=>`<td class="checklist-grid-cell" data-item-id="${item.id}" data-col="${col.index}" data-type="${item.tipo_resposta}" data-min="${item.valor_minimo??""}" data-max="${item.valor_maximo??""}" data-apenas-valor="${item.apenas_valor?"1":""}">${gridCellMarkup(item,col.execution,col.index,canEdit&&!col.execution)}</td>`).join("");
@@ -148,21 +155,27 @@ function renderChecklistGrid(items,slots,executions,bounds,canEdit){
 async function loadChecklistGrid(model,modelId){
   const date=cq("#execution-date").value,turno=cq("#execution-shift").value;
   const bounds=window.LIDUTEC_TURNOS.shiftBounds(date,turno);
-  const [items,executions,shift]=await Promise.all([
+  const [items,executions,shift,products]=await Promise.all([
     checklistData.items(modelId),
     checklistData.executionsForSlots(Number(modelId),date,turno),
-    checklistData.shiftStatus(date,turno)
+    checklistData.shiftStatus(date,turno),
+    checklistData.products()
   ]);
   const slots=window.LIDUTEC_TURNOS.checklistDueSlots(model.frequencia_tipo,bounds.start,bounds.end,model.intervalo_minutos,new Date());
-  renderChecklistGrid(items,slots,executions,bounds,shift?.status==="ABERTO");
+  // O produto é identificado por coluna — qual produto estava em produção
+  // naquele horário planejado — em vez de um único campo para o turno todo.
+  const productions=await Promise.all(slots.map(slot=>checklistData.productionAt(date,turno,slot)));
+  renderChecklistGrid(items,slots,executions,bounds,shift?.status==="ABERTO",productions,products);
 }
 async function submitGridColumn(button,modelId,model){
   const colIndex=button.dataset.col,slot=button.dataset.slot;
   const cells=[...document.querySelectorAll(`.checklist-grid-cell[data-col="${colIndex}"]`)];
   const respostas=cells.map(cell=>({item_id:Number(cell.dataset.itemId),resultado:gridCellResult(cell),valor_numero:cell.querySelector("[data-number]")?.value||null,valor_texto:cell.querySelector("[data-text]")?.value||null,observacao:cell.querySelector("[data-observation]")?.value||null,acao_imediata:cell.querySelector("[data-action]")?.value||null}));
+  const productControl=document.querySelector(`.checklist-grid-produto[data-col="${colIndex}"]`);
+  const productId=productControl?.value?Number(productControl.value):null;
+  if(model.produto_obrigatorio&&!productId){checklistMessage("Selecione o produto dessa coluna antes de confirmar.","error");return}
   button.disabled=true;
   try{
-    const productId=cq("#execution-product").value?Number(cq("#execution-product").value):null;
     await checklistData.save({p_modelo_id:Number(modelId),p_data_operacional:cq("#execution-date").value,p_turno:cq("#execution-shift").value,p_produto_id:productId,p_equipamento:cq("#execution-equipment").value||null,p_corrida:cq("#execution-run").value||null,p_observacao:null,p_respostas:respostas,p_horario_previsto:slot});
     checklistMessage(`Check das ${gridTimeLabel(new Date(slot))} registrado com sucesso.`);
     await loadChecklistGrid(model,modelId);
@@ -179,6 +192,7 @@ async function initializeForm(){
   if(useGrid){
     cq(".checklist-submit-bar").hidden=true;
     cq("#execution-notes").closest(".panel").hidden=true;
+    cq("#product-field").hidden=true;
     await loadChecklistGrid(model,modelId);
     cq("#checklist-sections").addEventListener("click",event=>{const button=event.target.closest(".checklist-grid-confirm");if(button)submitGridColumn(button,modelId,model)});
     cq("#checklist-sections").addEventListener("input",event=>{const cell=event.target.closest(".checklist-grid-cell");if(cell)syncGridCell(cell)});
