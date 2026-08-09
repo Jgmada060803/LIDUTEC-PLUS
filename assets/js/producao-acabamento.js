@@ -852,7 +852,7 @@ function calendarDayState(value, shift) {
     if (holiday) return { type: "worked-holiday", label: `Trabalhado (feriado) · ${holiday.nome}` };
     return { type: "worked", label: `Trabalhado${events.length ? ` · ${events.map((event) => event.nome).join(" · ")}` : ""}` };
   }
-  if (turn?.status === "ABERTO") return { type: "incomplete", label: "Turno com dados faltando finalizar" };
+  if (turn?.status === "ABERTO" && shiftDraftHasData(turn)) return { type: "incomplete", label: "Turno com dados faltando finalizar" };
   if (bounds.end > now) return { type: "off", label: "Futuro" };
   if (work) return { type: "missing", label: `Trabalho excepcional sem apontamento · ${work.nome}` };
   if (holiday) return { type: "holiday", label: holiday.nome };

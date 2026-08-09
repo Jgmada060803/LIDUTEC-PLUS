@@ -51,7 +51,7 @@
       return rows.map((row) => ({ ...row, equipamento_codigo: row.equipamentos_planejamento?.codigo ?? null }));
     },
     shift: (date, shift) => result(client().from("turnos_producao_moldes").select("id,status,versao,rascunho_producoes,rascunho_paradas,atualizado_por,atualizado_em,usuarios!turnos_producao_moldes_atualizado_por_fkey(nome)").eq("data_operacional", date).eq("turno", shift).maybeSingle(), null),
-    monthShifts: (from, to, shift) => result(client().from("turnos_producao_moldes").select("data_operacional,turno,status").gte("data_operacional", from).lte("data_operacional", to).eq("turno", shift).limit(40)),
+    monthShifts: (from, to, shift) => result(client().from("turnos_producao_moldes").select("data_operacional,turno,status,rascunho_producoes,rascunho_paradas").gte("data_operacional", from).lte("data_operacional", to).eq("turno", shift).limit(40)),
     openShiftsBefore: (turno, date) => result(client().from("turnos_producao_moldes")
       .select("data_operacional,rascunho_producoes,rascunho_paradas")
       .eq("turno", turno).eq("status", "ABERTO").lt("data_operacional", date)
