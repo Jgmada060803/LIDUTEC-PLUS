@@ -44,12 +44,12 @@ async function loadParadaProgramadaList() {
   mq("#parada-programada-list-table").hidden = true;
   const { data, error } = await window.supabaseClient
     .from("paradas_programadas")
-    .select("linha_maquina_id,turno,horario_inicial,horario_final,dias_semana,vigencia_inicio,areas_checklist(nome),linhas_maquinas_producao(nome),equipamentos_planejamento(nome),tipos_parada_programada(nome)")
+    .select("id,linha_maquina_id,turno,horario_inicial,horario_final,dias_semana,vigencia_inicio,areas_checklist(nome),linhas_maquinas_producao(nome),equipamentos_planejamento(nome),tipos_parada_programada(nome)")
     .is("vigencia_fim", null)
     .order("area_id");
   if (error) throw error;
   const rows = data || [];
-  mq("#parada-programada-list-rows").innerHTML = rows.map((item) => `<tr>
+  mq("#parada-programada-list-rows").innerHTML = rows.map((item) => `<tr data-parada-id="${item.id}">
       <td>${mesc(item.areas_checklist?.nome || "—")}</td>
       <td>${mesc(item.linhas_maquinas_producao?.nome || item.equipamentos_planejamento?.nome || "Geral")}</td>
       <td>${mesc(item.turno || "Todos")}</td>
@@ -57,10 +57,28 @@ async function loadParadaProgramadaList() {
       <td>${formatHorario(item.horario_inicial)} às ${formatHorario(item.horario_final)}</td>
       <td>${(item.dias_semana || []).slice().sort().map((d) => DIA_SEMANA_LABEL[d]).join(", ")}</td>
       <td>${new Date(`${item.vigencia_inicio}T12:00:00`).toLocaleDateString("pt-BR")}</td>
+      <td><button type="button" class="button button-secondary parada-programada-encerrar" data-parada-id="${item.id}">Encerrar</button></td>
     </tr>`).join("");
   mq("#parada-programada-list-loading").hidden = true;
   mq("#parada-programada-list-table").hidden = false;
   mq("#parada-programada-list-empty").hidden = rows.length > 0;
+}
+
+async function encerrarParadaProgramada(button) {
+  const row = button.closest("tr");
+  const id = Number(button.dataset.paradaId);
+  if (!confirm("Encerrar esta parada programada a partir de hoje?")) return;
+  button.disabled = true;
+  try {
+    const { error } = await window.supabaseClient.rpc("encerrar_parada_programada", { p_id: id });
+    if (error) throw error;
+    row.remove();
+    mq("#parada-programada-list-empty").hidden = mq("#parada-programada-list-rows").children.length > 0;
+    paradaProgramadaMessage("Parada programada encerrada com sucesso.");
+  } catch (error) {
+    paradaProgramadaMessage(error.message, "error");
+    button.disabled = false;
+  }
 }
 
 function metaMessage(text, type = "success") {
@@ -144,6 +162,10 @@ async function initializeMetasGerenciais() {
 
   mq("#meta-area").addEventListener("change", (event) => loadAreaContext(event.target.value).catch((error) => metaMessage(error.message, "error")));
   mq("#pp-area").addEventListener("change", (event) => loadParadaProgramadaUnidades(event.target.value).catch((error) => paradaProgramadaMessage(error.message, "error")));
+  mq("#parada-programada-list-rows").addEventListener("click", (event) => {
+    const button = event.target.closest(".parada-programada-encerrar");
+    if (button) encerrarParadaProgramada(button);
+  });
   mq("#parada-programada-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const button = event.submitter;
