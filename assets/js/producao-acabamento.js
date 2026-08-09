@@ -511,7 +511,10 @@ function handlePresentesInput(key) {
   const input = key === "l1" ? form.elements.operadores_presentes_l1 : form.elements.operadores_presentes_l2;
   const value = input.value === "" ? null : anumber(input.value);
   const previous = acabamentoState.lastPresentes[key];
-  if (previous != null && value != null && value > previous) {
+  // Campo vazio = ainda não dá pra saber se falta gente, então nenhum posto
+  // deve continuar marcado como parado por absenteísmo até ser preenchido de
+  // novo — mesma limpeza já feita quando o número aumenta.
+  if (value == null || (previous != null && value > previous)) {
     clearAbsenteeismStopsForLinha(key === "l1" ? linha1Id() : linha2Id());
     renderAcabamentoIllustrations();
   }
