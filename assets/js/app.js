@@ -277,7 +277,7 @@ function syncSidebarNavigation() {
       <a href="${prefix}producao-moldes/index.html"
          class="${activeClass(isActive("producao-moldes") && !isActive("producao-moldes", "paradas.html"))}"
          data-permission="producao_moldes.visualizar">
-        Registros de Produção
+        DISA
       </a>
       <a href="${prefix}producao-moldes/paradas.html"
          class="${activeClass(isActive("producao-moldes", "paradas.html"))}"
@@ -287,7 +287,7 @@ function syncSidebarNavigation() {
       <a href="${prefix}producao-acabamento/index.html"
          class="${activeClass(isActive("producao-acabamento") && !isActive("producao-acabamento", "paradas.html"))}"
          data-permission="producao_acabamento.visualizar">
-        Registros de Acabamento
+        Acabamento
       </a>
       <a href="${prefix}producao-acabamento/paradas.html"
          class="${activeClass(isActive("producao-acabamento", "paradas.html"))}"
