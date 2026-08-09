@@ -227,6 +227,58 @@ async function loadChecklistGrid(model,modelId){
   const unlockable=!open&&shift?.status==="FECHADO"&&!checklistEditingClosedShift&&checklistState.permissions.has("producao_moldes.editar");
   renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,model.frequencia_tipo);
 }
+
+// Checklist por posto (ex.: A01 - Máquinas de rebarbação): uma coluna por
+// posto de trabalho ativo no turno, em vez de por horário ou por setup. A
+// Linha 1 do Acabamento está sempre ativa; a Linha 2 só entra se também
+// tiver sido lançada nesse turno (turnos_acabamento_linhas).
+let currentPostoColumns=[];
+async function acabamentoPostoColumns(shiftRow){
+  const postos=await checklistData.postosAcabamento();
+  const linha2Ids=new Set((shiftRow?.turnos_acabamento_linhas||[]).map(row=>String(row.linha_maquina_id)));
+  return postos.filter(posto=>posto.linhas_maquinas_producao?.codigo==="ACABAMENTO_L1"||linha2Ids.has(String(posto.linha_maquina_id)));
+}
+function findExecutionForPosto(posto,executions){
+  return executions.find(exec=>exec.equipamento===posto.nome)||null;
+}
+function renderPostoChecklistGrid(items,postos,executions,canEdit,unlockable){
+  const columns=postos.map((posto,index)=>({posto,index,execution:findExecutionForPosto(posto,executions)}));
+  const headerCells=columns.map(col=>{
+    const meta=col.execution?`<small>${gridTimeLabel(new Date(col.execution.iniciado_em))} · ${cesc(col.execution.usuarios?.nome||"—")}</small>`:'<small>Pendente</small>';
+    return `<th class="checklist-grid-slot"><strong>${cesc(col.posto.nome)}</strong>${meta}</th>`;
+  }).join("");
+  const rows=items.map(item=>{
+    const cells=columns.map(col=>`<td class="checklist-grid-cell" data-item-id="${item.id}" data-col="${col.index}" data-type="${item.tipo_resposta}" data-min="${item.valor_minimo??""}" data-max="${item.valor_maximo??""}" data-apenas-valor="${item.apenas_valor?"1":""}">${gridCellMarkup(item,col.execution,col.index,canEdit&&!col.execution)}</td>`).join("");
+    return `<tr><th class="checklist-grid-itemcol"><span class="checklist-grid-item-code">${cesc(item.codigo)}</span>${cesc(item.descricao)}${item.critico?' <i class="checklist-critical-dot" title="Item crítico"></i>':""}</th>${cells}</tr>`;
+  }).join("");
+  const actionRow=`<tr class="checklist-grid-actions"><th></th>${columns.map(col=>`<td>${(!col.execution&&canEdit)?`<button type="button" class="button button-primary checklist-grid-confirm" data-col="${col.index}" data-posto-id="${col.posto.id}">Confirmar</button>`:""}</td>`).join("")}</tr>`;
+  const lockedMessage=!canEdit?`<p class="checklist-grid-locked">Este turno já foi fechado — somente consulta.${unlockable?' <button type="button" class="button button-secondary checklist-grid-unlock">Editar turno fechado</button>':""}</p>`:!columns.length?'<p class="checklist-grid-locked">Nenhum posto ativo encontrado para este turno.</p>':"";
+  cq("#checklist-sections").innerHTML=`<section class="panel checklist-grid-panel"><div class="checklist-grid-wrapper"><table class="checklist-grid"><thead><tr><th class="checklist-grid-itemcol">Item</th>${headerCells}</tr></thead><tbody>${rows}${actionRow}</tbody></table></div>${lockedMessage}</section>`;
+}
+async function loadPostoChecklistGrid(model,modelId){
+  const date=cq("#execution-date").value,turno=cq("#execution-shift").value;
+  const [items,executions,shift]=await Promise.all([
+    checklistData.items(modelId),
+    checklistData.executionsForSlots(Number(modelId),date,turno),
+    checklistData.shiftStatus(date,turno,"ACABAMENTO")
+  ]);
+  currentPostoColumns=await acabamentoPostoColumns(shift);
+  const open=shift?.status==="ABERTO",canEdit=open||checklistEditingClosedShift;
+  const unlockable=!open&&shift?.status==="FECHADO"&&!checklistEditingClosedShift&&checklistState.permissions.has("producao_acabamento.editar");
+  renderPostoChecklistGrid(items,currentPostoColumns,executions,canEdit,unlockable);
+}
+async function submitPostoGridColumn(button,modelId,model,posto){
+  const colIndex=button.dataset.col;
+  const cells=[...document.querySelectorAll(`.checklist-grid-cell[data-col="${colIndex}"]`)];
+  const respostas=cells.map(cell=>({item_id:Number(cell.dataset.itemId),resultado:gridCellResult(cell),valor_numero:cell.querySelector("[data-number]")?.value||null,valor_texto:cell.querySelector("[data-text]")?.value||null,observacao:cell.querySelector("[data-observation]")?.value||null,acao_imediata:cell.querySelector("[data-action]")?.value||null}));
+  if(respostas.some(item=>!item.resultado)){checklistMessage("Responda todos os itens dessa coluna antes de confirmar.","error");return}
+  button.disabled=true;
+  try{
+    await checklistData.save({p_modelo_id:Number(modelId),p_data_operacional:cq("#execution-date").value,p_turno:cq("#execution-shift").value,p_produto_id:null,p_equipamento:posto.nome,p_corrida:null,p_observacao:null,p_respostas:respostas});
+    checklistMessage(`Check do ${posto.nome} registrado com sucesso.`);
+    await loadPostoChecklistGrid(model,modelId);
+  }catch(error){checklistMessage(error.message,"error");button.disabled=false}
+}
 async function submitGridColumn(button,modelId,model){
   const colIndex=button.dataset.col,slot=button.dataset.slot;
   const cells=[...document.querySelectorAll(`.checklist-grid-cell[data-col="${colIndex}"]`)];
@@ -250,8 +302,23 @@ async function initializeForm(){
   cq("#checklist-back-link").href=backToApontamentoUrl();
   checklistEditingClosedShift=false;
   cq("#execution-product").insertAdjacentHTML("beforeend",products.map(product=>`<option value="${product.id}">${cesc(product.codigo)} — ${cesc(product.nome)}</option>`).join(""));let selectedProduct=params.get("produto");if(automaticMoldProduct&&!selectedProduct){const production=await checklistData.productionAt(cq("#execution-date").value,cq("#execution-shift").value);selectedProduct=production?.produto_id?String(production.produto_id):"";if(production?.produtos&&!products.some(product=>String(product.id)===selectedProduct))cq("#execution-product").insertAdjacentHTML("beforeend",`<option value="${production.produtos.id}">${cesc(production.produtos.codigo)} — ${cesc(production.produtos.nome)}</option>`)}if(selectedProduct)cq("#execution-product").value=selectedProduct;if(automaticMoldProduct&&selectedProduct){cq("#execution-product").disabled=true;cq("#product-field").dataset.automatic="true"}else if(automaticMoldProduct)checklistMessage("Não foi possível identificar automaticamente um produto em produção. Selecione o produto para continuar.");cq("#product-field").hidden=!model.produto_obrigatorio;cq("#equipment-field").hidden=automaticMoldProduct||!model.equipamento_obrigatorio;if(automaticMoldProduct)cq("#execution-equipment").value="";cq("#run-field").hidden=!model.corrida_obrigatoria;
-  const useGrid=GRID_FREQUENCIES.has(model.frequencia_tipo);
-  if(useGrid){
+  const postoGrid=model.areas_checklist?.codigo==="ACABAMENTO"&&model.codigo==="A01";
+  const useGrid=!postoGrid&&GRID_FREQUENCIES.has(model.frequencia_tipo);
+  if(postoGrid){
+    cq(".checklist-submit-bar").hidden=true;
+    cq("#execution-notes").closest(".panel").hidden=true;
+    cq("#product-field").hidden=true;
+    cq("#equipment-field").hidden=true;
+    await loadPostoChecklistGrid(model,modelId);
+    cq("#checklist-sections").addEventListener("click",event=>{
+      const confirmButton=event.target.closest(".checklist-grid-confirm");if(confirmButton){const posto=currentPostoColumns.find(item=>String(item.id)===confirmButton.dataset.postoId);if(posto)submitPostoGridColumn(confirmButton,modelId,model,posto);return}
+      const unlockButton=event.target.closest(".checklist-grid-unlock");if(unlockButton){checklistEditingClosedShift=true;loadPostoChecklistGrid(model,modelId).catch(error=>checklistMessage(error.message,"error"))}
+    });
+    cq("#checklist-sections").addEventListener("input",event=>{const cell=event.target.closest(".checklist-grid-cell");if(cell)syncGridCell(cell)});
+    cq("#checklist-sections").addEventListener("change",event=>{const cell=event.target.closest(".checklist-grid-cell");if(cell)syncGridCell(cell)});
+    cq("#execution-date").addEventListener("change",()=>loadPostoChecklistGrid(model,modelId).catch(error=>checklistMessage(error.message,"error")));
+    cq("#execution-shift").addEventListener("change",()=>loadPostoChecklistGrid(model,modelId).catch(error=>checklistMessage(error.message,"error")));
+  }else if(useGrid){
     cq(".checklist-submit-bar").hidden=true;
     cq("#execution-notes").closest(".panel").hidden=true;
     cq("#product-field").hidden=true;
