@@ -1066,8 +1066,11 @@ function renderAcabamentoDashboard() {
   // guarda linhas de qualquer turno com apontamento iniciado nessa data, então
   // sem filtrar por turno o cálculo misturaria manhã/tarde/noite entre si (e
   // mostraria algo mesmo quando o turno atual ainda nem foi apontado).
+  // Só entra na conta a linha cujo "operadores presentes" já foi realmente
+  // preenchido — senão presentes=null vira 0 na soma e mostra 100% de
+  // absenteísmo assim que o turno abre, antes de qualquer dado ser lançado.
   const currentTurno = window.LIDUTEC_TURNOS.determineShift().codigo;
-  const shifts = (acabamentoState.periodShifts || []).filter((s) => s.turnos_producao_acabamento?.turno === currentTurno);
+  const shifts = (acabamentoState.periodShifts || []).filter((s) => s.turnos_producao_acabamento?.turno === currentTurno && s.operadores_presentes != null);
   const planejados = shifts.reduce((sum, s) => sum + anumber(s.operadores_planejados), 0);
   const presentes = shifts.reduce((sum, s) => sum + anumber(s.operadores_presentes), 0);
   const absenteismo = planejados > 0 ? Math.max(0, 1 - presentes / planejados) : 0;
