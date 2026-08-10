@@ -489,12 +489,19 @@ async function loadGraficosMonthData(monthValue){
   productionState.materialByProduct=new Map(materials.map(item=>[String(item.produto_id),item.tipo_material]));
   productionState.cycleTimeByProduct=new Map(cycleTimes.map(item=>[String(item.produto_id),item.tempo_ciclo_segundos]));
 }
+async function renderMoldesHoraGoal(monthValue){
+  const container=q("#monthly-goal-rate");if(!container)return;
+  const{start}=monthBounds(monthValue),from=isoDateStr(start);
+  const valor=await window.LIDUTEC_PRODUCAO_DATA.monthlyGoal("MOLDES_HORA_DISPONIVEL",from);
+  container.textContent=valor?`${Number(valor).toLocaleString("pt-BR",{maximumFractionDigits:1})} moldes/h`:"Nenhuma meta cadastrada";
+}
 async function renderGraficosMonth(monthValue){
   await loadGraficosMonthData(monthValue);
   renderCharts();
   const{metaMensal,serie}=await loadMonthlyGoal(monthValue);
   renderMonthlyGoalSummary(metaMensal,serie);
   renderMonthlyGoalChart(serie);
+  await renderMoldesHoraGoal(monthValue);
 }
 async function initializeGraficos(){
   const input=q("#graficos-month");

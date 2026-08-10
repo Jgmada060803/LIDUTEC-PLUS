@@ -23,6 +23,10 @@
 .monthly-goal-side .production-donut-chart{grid-template-columns:1fr;justify-items:center;gap:6px}
 .monthly-goal-side .production-donut{width:104px}
 .monthly-goal-side .production-donut>div strong{font-size:.86rem}
+.monthly-goal-rate-panel{grid-column:1/-1;padding:12px}
+.monthly-goal-rate-panel h3{font-size:.78rem}
+.monthly-goal-rate-panel>p{margin:3px 0 10px;font-size:.62rem;color:var(--color-text-muted)}
+.monthly-goal-rate-value{font-size:1.4rem;font-weight:800;color:var(--color-primary);text-align:center}
 @media(max-width:1200px){.monthly-goal-layout{grid-template-columns:1fr}}
 @media(max-width:520px){.monthly-goal-side{grid-template-columns:1fr}}
 .monthly-goal-panel .panel-header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
