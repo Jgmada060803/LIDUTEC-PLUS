@@ -249,10 +249,10 @@ async function loadProductionData(){
     const form=q("#stop-query-filters");form.elements.inicio.value=daysBefore(today,30);form.elements.fim.value=today;
     productionState.records=[];productionState.stops=await window.LIDUTEC_PRODUCAO_DATA.stops(productionFilters(form));return;
   }
+  // "charts" carrega tudo pelo mês selecionado no cabeçalho (initializeGraficos),
+  // não por uma janela corrida de dias — não passa por aqui.
+  if(productionPage==="charts")return;
   const from=daysBefore(today,90);
-  if(productionPage==="charts"){
-    const[records,stops,materials,cycleTimes]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.records({from,to:today,limit:5000}),window.LIDUTEC_PRODUCAO_DATA.stops({from,to:today,limit:5000}),window.LIDUTEC_PRODUCAO_DATA.productMaterials(),window.LIDUTEC_PRODUCAO_DATA.cycleTimes(productionState.products.map(p=>p.id))]);productionState.records=records;productionState.stops=stops;productionState.materialByProduct=new Map(materials.map(item=>[String(item.produto_id),item.tipo_material]));productionState.cycleTimeByProduct=new Map(cycleTimes.map(item=>[String(item.produto_id),item.tempo_ciclo_segundos]));return;
-  }
   [productionState.records,productionState.stops]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.records({from,to:today,limit:5000}),window.LIDUTEC_PRODUCAO_DATA.stops({from,to:today,limit:5000})]);
 }
 function productionTotals(records=productionState.records,stops=productionState.stops){
@@ -360,7 +360,6 @@ function renderCharts(){
   renderOEE();
   renderDonut("#material-tons-chart",record=>record.toneladas_produzidas,value=>`${value.toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3})} t`);
   renderDonut("#material-molds-chart",record=>record.moldes_vazados,value=>value.toLocaleString("pt-BR"));
-  if(q("#monthly-goal-chart"))initializeMonthlyGoal();
 }
 // ---------------------------------------------------------------------------
 // Meta mensal de toneladas: distribui a meta do mês pela capacidade prevista
@@ -379,15 +378,16 @@ function calendarBlocksShift(events,date,turno){
   const excecao=doDia.some(event=>event.tipo==="TRABALHO_EXCEPCIONAL");
   return bloqueia&&!excecao;
 }
+// records vem de productionState (já carregado pelo mês selecionado em
+// initializeGraficos) — evita buscar a mesma faixa de datas duas vezes.
 async function loadMonthlyGoal(monthValue){
   const{start,end,daysInMonth}=monthBounds(monthValue),from=isoDateStr(start),to=isoDateStr(end);
-  const[metaMensal,events,records]=await Promise.all([
+  const[metaMensal,events]=await Promise.all([
     window.LIDUTEC_PRODUCAO_DATA.monthlyGoal("TONELADAS_PECAS_MES",from),
-    window.LIDUTEC_PRODUCAO_DATA.calendarEventsAll(from,to),
-    window.LIDUTEC_PRODUCAO_DATA.records({from,to,limit:5000})
+    window.LIDUTEC_PRODUCAO_DATA.calendarEventsAll(from,to)
   ]);
   const shifts=["MANHA","TARDE","NOITE"],realizadoPorDia=new Map();
-  for(const record of records)realizadoPorDia.set(record.data_operacional,(realizadoPorDia.get(record.data_operacional)||0)+number(record.toneladas_produzidas));
+  for(const record of productionState.records)realizadoPorDia.set(record.data_operacional,(realizadoPorDia.get(record.data_operacional)||0)+number(record.toneladas_produzidas));
   const hoje=isoDateStr(new Date());
   const dias=[];let capacidadeTotal=0;
   for(let day=1;day<=daysInMonth;day++){
@@ -471,16 +471,39 @@ function renderMonthlyGoalSummary(metaMensal,serie){
   const previstoAteHoje=ultimo?ultimo.previstoAcum:0,realizadoAteHoje=ultimo?ultimo.realizadoAcum:0,saldo=realizadoAteHoje-previstoAteHoje;
   container.innerHTML=`<div><dt>Meta do mês</dt><dd>${tonsShort(metaMensal)} t</dd></div><div><dt>Previsto até hoje</dt><dd>${tonsShort(previstoAteHoje)} t</dd></div><div><dt>Realizado até hoje</dt><dd>${tonsShort(realizadoAteHoje)} t</dd></div><div><dt>Saldo</dt><dd class="${saldo>=0?"positivo":"negativo"}">${saldo>=0?"+":""}${tonsShort(saldo)} t</dd></div>`;
 }
-async function renderMonthlyGoal(monthValue){
+// ---------------------------------------------------------------------------
+// Seletor de mês único no cabeçalho da tela — todo o conteúdo da página
+// (OEE, gráficos de material, meta de toneladas) fica sempre referente ao
+// mesmo mês selecionado, pra não misturar períodos diferentes na leitura.
+// ---------------------------------------------------------------------------
+async function loadGraficosMonthData(monthValue){
+  const{start,end}=monthBounds(monthValue),from=isoDateStr(start),to=isoDateStr(end);
+  const[records,stops,materials,cycleTimes]=await Promise.all([
+    window.LIDUTEC_PRODUCAO_DATA.records({from,to,limit:5000}),
+    window.LIDUTEC_PRODUCAO_DATA.stops({from,to,limit:5000}),
+    window.LIDUTEC_PRODUCAO_DATA.productMaterials(),
+    window.LIDUTEC_PRODUCAO_DATA.cycleTimes(productionState.products.map(p=>p.id))
+  ]);
+  productionState.records=records;
+  productionState.stops=stops;
+  productionState.materialByProduct=new Map(materials.map(item=>[String(item.produto_id),item.tipo_material]));
+  productionState.cycleTimeByProduct=new Map(cycleTimes.map(item=>[String(item.produto_id),item.tempo_ciclo_segundos]));
+}
+async function renderGraficosMonth(monthValue){
+  await loadGraficosMonthData(monthValue);
+  renderCharts();
   const{metaMensal,serie}=await loadMonthlyGoal(monthValue);
   renderMonthlyGoalSummary(metaMensal,serie);
   renderMonthlyGoalChart(serie);
 }
-function initializeMonthlyGoal(){
-  const input=q("#monthly-goal-month");if(!input||input.dataset.wired)return;input.dataset.wired="1";
-  input.value=isoDateStr(new Date()).slice(0,7);
-  input.addEventListener("change",()=>renderMonthlyGoal(input.value).catch(error=>message(error.message,"error")));
-  renderMonthlyGoal(input.value).catch(error=>message(error.message,"error"));
+async function initializeGraficos(){
+  const input=q("#graficos-month");
+  const initial=input?.value||isoDateStr(new Date()).slice(0,7);
+  if(input){
+    input.value=initial;
+    input.addEventListener("change",()=>renderGraficosMonth(input.value).catch(error=>message(error.message,"error")));
+  }
+  await renderGraficosMonth(initial);
 }
 function applyCurrentShift(form){
   const params=new URLSearchParams(location.search),paramDate=params.get("data"),paramTurno=params.get("turno");
@@ -525,7 +548,7 @@ async function initializeProduction(){
   productionState.user=user;productionState.permissions=permissions;window.LIDUTEC_APP.applyPermissionVisibility(permissions);
   q("#user-name").textContent=profile.nome;q("#user-profile").textContent=profile.perfil||"Usuário";q("#user-avatar").textContent=profile.nome.slice(0,1).toUpperCase();
   await loadSupport();if(productionPage!=="entry")await loadProductionData();q("#production-loading")?.setAttribute("hidden","");
-  if(productionPage==="dashboard")renderDashboard();if(productionPage==="records")renderRecords();if(productionPage==="stops")renderStops();if(productionPage==="charts")renderCharts();
+  if(productionPage==="dashboard")renderDashboard();if(productionPage==="records")renderRecords();if(productionPage==="stops")renderStops();if(productionPage==="charts")await initializeGraficos();
   let filterTimer;const scheduleReload=callback=>{clearTimeout(filterTimer);filterTimer=setTimeout(()=>callback().catch(error=>message(error.message,"error")),300)};
   q("#production-query-filters")?.addEventListener("input",()=>scheduleReload(reloadProductionQuery));q(".production-query-table")?.addEventListener("click",event=>{const button=event.target.closest(".table-sort");if(!button)return;if(productionPage==="stops"){const same=productionState.stopSort.key===button.dataset.sort;productionState.stopSort={key:button.dataset.sort,direction:same&&productionState.stopSort.direction==="asc"?"desc":"asc"};renderStops();return}const same=productionState.querySort.key===button.dataset.sort;productionState.querySort={key:button.dataset.sort,direction:same&&productionState.querySort.direction==="asc"?"desc":"asc"};renderProductionQuery()});q("#stop-query-filters")?.addEventListener("input",()=>scheduleReload(reloadStops));
   q("#production-export-button")?.addEventListener("click",exportVisibleProductions);
