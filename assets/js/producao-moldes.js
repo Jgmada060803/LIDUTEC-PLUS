@@ -4,7 +4,7 @@ const productionPage = document.body.dataset.productionPage;
 // — sem isso, sair pro checklist e voltar perdia o modo de edição, que só
 // existe na memória da página. Consumido uma única vez.
 let pendingAutoEdit = new URLSearchParams(location.search).get("editar") === "1";
-const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], scheduledStops:[], records:[], stops:[], materialByProduct:new Map(), cycleTimeByProduct:new Map(), currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, draftSaveTimer:null, draftSaveInFlight:false, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
+const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], scheduledStops:[], records:[], stops:[], materialByProduct:new Map(), cycleTimeByProduct:new Map(), tempoDisponivelMinutosMes:0, currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, draftSaveTimer:null, draftSaveInFlight:false, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
 const q = (selector) => document.querySelector(selector);
 const esc = (value="") => String(value).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const number = (value) => Number(value || 0);
@@ -344,6 +344,7 @@ function renderOEE(){
   }
   const disponibilidade=window.LIDUTEC_TURNOS.calcularTaxaEquipamento({minutosPeriodo:totalMinutosTurno,minutosParada:totalMinutosParadaLiquida});
   const tempoDisponivel=Math.max(0,totalMinutosTurno-totalMinutosParadaLiquida);
+  productionState.tempoDisponivelMinutosMes=tempoDisponivel;
   const tempoTeorico=productionState.records.reduce((sum,record)=>{
     const tempoCiclo=productionState.cycleTimeByProduct.get(String(record.produto_id))||0;
     return sum+window.LIDUTEC_TURNOS.calcularTempoTeorico({pecasLiberadas:record.moldes_vazados,pecasRefugadas:record.moldes_quebrados,tempoCicloSegundos:tempoCiclo});
@@ -489,11 +490,14 @@ async function loadGraficosMonthData(monthValue){
   productionState.materialByProduct=new Map(materials.map(item=>[String(item.produto_id),item.tipo_material]));
   productionState.cycleTimeByProduct=new Map(cycleTimes.map(item=>[String(item.produto_id),item.tempo_ciclo_segundos]));
 }
-async function renderMoldesHoraGoal(monthValue){
+// Taxa REALIZADA no mês (moldes vazados ÷ horas realmente disponíveis, já
+// descontando parada), não a meta programada — usa o mesmo tempo disponível
+// já calculado em renderOEE (por isso precisa rodar depois dele).
+function renderMoldesHoraGoal(){
   const container=q("#monthly-goal-rate");if(!container)return;
-  const{start}=monthBounds(monthValue),from=isoDateStr(start);
-  const valor=await window.LIDUTEC_PRODUCAO_DATA.monthlyGoal("MOLDES_HORA_DISPONIVEL",from);
-  container.textContent=valor?`${Number(valor).toLocaleString("pt-BR",{maximumFractionDigits:1})} moldes/h`:"Nenhuma meta cadastrada";
+  const totalMoldes=productionState.records.reduce((sum,record)=>sum+number(record.moldes_vazados),0);
+  const horasDisponiveis=productionState.tempoDisponivelMinutosMes/60;
+  container.textContent=horasDisponiveis>0?`${(totalMoldes/horasDisponiveis).toLocaleString("pt-BR",{maximumFractionDigits:1})} moldes/h`:"Sem dados no mês";
 }
 async function renderGraficosMonth(monthValue){
   await loadGraficosMonthData(monthValue);
@@ -501,7 +505,7 @@ async function renderGraficosMonth(monthValue){
   const{metaMensal,serie}=await loadMonthlyGoal(monthValue);
   renderMonthlyGoalSummary(metaMensal,serie);
   renderMonthlyGoalChart(serie);
-  await renderMoldesHoraGoal(monthValue);
+  renderMoldesHoraGoal();
 }
 async function initializeGraficos(){
   const input=q("#graficos-month");
