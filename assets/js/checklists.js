@@ -155,20 +155,24 @@ function gridProductMarkup(colIndex,produto,products,editable){
   if(!editable)return '<span class="checklist-grid-product-label muted">—</span>';
   return `<select class="checklist-grid-produto" data-col="${colIndex}"><option value="">Produto</option>${products.map(p=>`<option value="${p.id}">${cesc(p.codigo)}</option>`).join("")}</select>`;
 }
-function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,frequenciaTipo){
+function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,frequenciaTipo,stopped=[]){
   const previousBoundaries=[bounds.start,...slots.slice(0,-1)];
-  const columns=slots.map((slot,index)=>({slot,index,execution:findExecutionForSlot(slot,previousBoundaries[index],executions),producao:productions[index]}));
+  const columns=slots.map((slot,index)=>({slot,index,execution:findExecutionForSlot(slot,previousBoundaries[index],executions),producao:productions[index],parada:!!stopped[index]}));
   const headerCells=columns.map(col=>{
-    const meta=col.execution?`<small>${gridTimeLabel(new Date(col.execution.iniciado_em))} · ${cesc(col.execution.usuarios?.nome||"—")}</small>`:'<small>Pendente</small>';
+    const meta=col.execution?`<small>${gridTimeLabel(new Date(col.execution.iniciado_em))} · ${cesc(col.execution.usuarios?.nome||"—")}</small>`:col.parada?'<small>Máquina parada</small>':'<small>Pendente</small>';
     const produto=col.execution?col.execution.produtos:col.producao?.produtos;
-    const productMarkup=gridProductMarkup(col.index,produto,products,canEdit&&!col.execution);
-    return `<th class="checklist-grid-slot"><strong>${gridTimeLabel(col.slot)}</strong><div class="checklist-grid-product">${productMarkup}</div>${meta}</th>`;
+    const productMarkup=gridProductMarkup(col.index,produto,products,canEdit&&!col.execution&&!col.parada);
+    return `<th class="checklist-grid-slot${col.parada&&!col.execution?" checklist-grid-slot-stopped":""}"><strong>${gridTimeLabel(col.slot)}</strong><div class="checklist-grid-product">${productMarkup}</div>${meta}</th>`;
   }).join("");
   const rows=items.map(item=>{
-    const cells=columns.map(col=>`<td class="checklist-grid-cell" data-item-id="${item.id}" data-col="${col.index}" data-type="${item.tipo_resposta}" data-min="${item.valor_minimo??""}" data-max="${item.valor_maximo??""}" data-apenas-valor="${item.apenas_valor?"1":""}">${gridCellMarkup(item,col.execution,col.index,canEdit&&!col.execution)}</td>`).join("");
+    const cells=columns.map(col=>{
+      const dispensado=col.parada&&!col.execution;
+      const markup=dispensado?'<span class="checklist-grid-answer result-pending">Parada</span>':gridCellMarkup(item,col.execution,col.index,canEdit&&!col.execution);
+      return `<td class="checklist-grid-cell" data-item-id="${item.id}" data-col="${col.index}" data-type="${item.tipo_resposta}" data-min="${item.valor_minimo??""}" data-max="${item.valor_maximo??""}" data-apenas-valor="${item.apenas_valor?"1":""}">${markup}</td>`;
+    }).join("");
     return `<tr><th class="checklist-grid-itemcol"><span class="checklist-grid-item-code">${cesc(item.codigo)}</span>${cesc(item.descricao)}${item.critico?' <i class="checklist-critical-dot" title="Item crítico"></i>':""}</th>${cells}</tr>`;
   }).join("");
-  const actionRow=`<tr class="checklist-grid-actions"><th></th>${columns.map(col=>`<td>${(!col.execution&&canEdit)?`<button type="button" class="button button-primary checklist-grid-confirm" data-col="${col.index}" data-slot="${col.slot.toISOString()}">Confirmar</button>`:""}</td>`).join("")}</tr>`;
+  const actionRow=`<tr class="checklist-grid-actions"><th></th>${columns.map(col=>`<td>${(!col.execution&&!col.parada&&canEdit)?`<button type="button" class="button button-primary checklist-grid-confirm" data-col="${col.index}" data-slot="${col.slot.toISOString()}">Confirmar</button>`:""}</td>`).join("")}</tr>`;
   const emptyMessage=frequenciaTipo==="SETUP"?"Ainda não houve nenhuma linha de produção que exija checklist de setup neste turno.":"Ainda não há horário previsto vencido para este check.";
   const lockedMessage=!canEdit?`<p class="checklist-grid-locked">Este turno já foi fechado — somente consulta.${unlockable?' <button type="button" class="button button-secondary checklist-grid-unlock">Editar turno fechado</button>':""}</p>`:!columns.length?`<p class="checklist-grid-locked">${emptyMessage}</p>`:"";
   cq("#checklist-sections").innerHTML=`<section class="panel checklist-grid-panel"><div class="checklist-grid-wrapper"><table class="checklist-grid"><thead><tr><th class="checklist-grid-itemcol">Item</th>${headerCells}</tr></thead><tbody>${rows}${actionRow}</tbody></table></div>${lockedMessage}</section>`;
@@ -205,6 +209,22 @@ async function setupSlots(date,turno,shiftRow,products){
   });
   return{slots,productions};
 }
+// Paradas do turno (aberto: rascunho; fechado: registro definitivo) — usado
+// pra identificar colunas do checklist de intervalo/início de turno em que a
+// máquina estava parada, que não exigem preenchimento.
+async function stopIntervalsForShift(date,turno,shiftRow){
+  if(shiftRow?.status==="FECHADO"){
+    const rows=await checklistData.stopsForShift(date,turno);
+    return rows.filter(row=>row.inicio&&row.fim).map(row=>({inicio:new Date(row.inicio),fim:new Date(row.fim)}));
+  }
+  return (shiftRow?.rascunho_paradas||[]).map(item=>{
+    const inicio=window.LIDUTEC_TURNOS.resolveShiftTime(date,turno,item.inicio),fim=window.LIDUTEC_TURNOS.resolveShiftTime(date,turno,item.fim);
+    return inicio&&fim?{inicio,fim}:null;
+  }).filter(Boolean);
+}
+function slotStoppedByParadas(previousBoundary,slot,paradas){
+  return paradas.some(parada=>parada.inicio<slot&&parada.fim>previousBoundary);
+}
 async function loadChecklistGrid(model,modelId){
   const date=cq("#execution-date").value,turno=cq("#execution-shift").value;
   const bounds=window.LIDUTEC_TURNOS.shiftBounds(date,turno);
@@ -214,7 +234,7 @@ async function loadChecklistGrid(model,modelId){
     checklistData.shiftStatus(date,turno),
     checklistData.products()
   ]);
-  let slots,productions;
+  let slots,productions,stopped=[];
   if(model.frequencia_tipo==="SETUP"){
     ({slots,productions}=await setupSlots(date,turno,shift,products));
   }else{
@@ -222,10 +242,13 @@ async function loadChecklistGrid(model,modelId){
     // O produto é identificado por coluna — qual produto estava em produção
     // naquele horário planejado — em vez de um único campo para o turno todo.
     productions=await Promise.all(slots.map(slot=>checklistData.productionAt(date,turno,slot)));
+    const paradas=await stopIntervalsForShift(date,turno,shift);
+    const previousBoundaries=[bounds.start,...slots.slice(0,-1)];
+    stopped=slots.map((slot,index)=>slotStoppedByParadas(previousBoundaries[index],slot,paradas));
   }
   const open=shift?.status==="ABERTO",canEdit=open||checklistEditingClosedShift;
   const unlockable=!open&&shift?.status==="FECHADO"&&!checklistEditingClosedShift&&checklistState.permissions.has("producao_moldes.editar");
-  renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,model.frequencia_tipo);
+  renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,model.frequencia_tipo,stopped);
 }
 
 // Checklist por posto (ex.: A01 - Máquinas de rebarbação): uma coluna por

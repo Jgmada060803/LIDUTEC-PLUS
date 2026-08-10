@@ -43,7 +43,7 @@
           .select("status,rascunho_producoes,turnos_acabamento_linhas(linha_maquina_id)")
           .eq("data_operacional", date).eq("turno", turno).maybeSingle(), null)
       : unwrap(client().from("turnos_producao_moldes")
-          .select("status,rascunho_producoes").eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
+          .select("status,rascunho_producoes,rascunho_paradas").eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
     // Postos de linha do Acabamento (ex.: rebarbação) — usado pra montar as
     // colunas do checklist por posto (ex.: A01), já com a linha a que pertencem.
     postosAcabamento: () => unwrap(client().from("postos_equipamentos_acabamento")
@@ -54,6 +54,11 @@
     // exige setup).
     productionsForShift: (date, turno) => unwrap(client().from("registros_producao_moldes")
       .select("produto_id,inicio,fim,produtos(id,codigo,nome)")
+      .eq("data_operacional", date).eq("turno", turno).order("inicio")),
+    // Idem, mas para paradas — usado pra identificar colunas do checklist de
+    // intervalo em que a máquina estava parada (não exige preenchimento).
+    stopsForShift: (date, turno) => unwrap(client().from("paradas_producao_moldes")
+      .select("inicio,fim")
       .eq("data_operacional", date).eq("turno", turno).order("inicio")),
     previousProduction: (from, before) => unwrap(client().from("registros_producao_moldes")
       .select("produto_id,inicio").gte("inicio", from).lt("inicio", before)
