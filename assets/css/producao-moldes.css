@@ -27,19 +27,19 @@
 .monthly-goal-svg{width:100%;height:auto;max-height:360px}
 .monthly-goal-grid{stroke:var(--color-border);stroke-width:1}
 .monthly-goal-axis-label{fill:var(--color-text-muted);font-size:9px}
-.monthly-goal-area{stroke:none}
-.monthly-goal-area.positivo{fill:var(--color-success);fill-opacity:.18}
-.monthly-goal-area.negativo{fill:var(--color-danger);fill-opacity:.18}
+.monthly-goal-area{stroke-width:1;stroke-linejoin:round}
+.monthly-goal-area.positivo{fill:var(--color-success);fill-opacity:.4;stroke:var(--color-success);stroke-opacity:.7}
+.monthly-goal-area.negativo{fill:var(--color-danger);fill-opacity:.4;stroke:var(--color-danger);stroke-opacity:.7}
 .monthly-goal-line{fill:none;stroke-linecap:round;stroke-linejoin:round}
 .monthly-goal-line-previsto{stroke:var(--color-primary);stroke-width:4}
-.monthly-goal-line-realizado{stroke:var(--color-text);stroke-width:2.5}
+.monthly-goal-line-realizado{stroke:var(--color-text);stroke-width:1;opacity:.45}
 .monthly-goal-bar-zero{stroke:var(--color-border);stroke-width:1}
 .monthly-goal-bar{shape-rendering:crispEdges}
 .monthly-goal-bar.positivo{fill:var(--color-success)}
 .monthly-goal-bar.negativo{fill:var(--color-danger)}
 .monthly-goal-legend{display:flex;gap:18px;margin-top:6px;font-size:.72rem;color:var(--color-text-muted)}
 .monthly-goal-legend span{display:inline-flex;align-items:center;gap:6px}
-.monthly-goal-swatch{display:inline-block;width:16px;height:2.5px;border-radius:2px;background:var(--color-text)}
+.monthly-goal-swatch{display:inline-block;width:16px;height:1.5px;border-radius:2px;background:var(--color-text);opacity:.6}
 .monthly-goal-swatch.previsto{height:4px;background:var(--color-primary)}
 .monthly-goal-swatch.saldo{width:10px;height:10px;border-radius:2px;background:linear-gradient(90deg,var(--color-success) 50%,var(--color-danger) 50%)}
 .production-bar-track{height:18px;border-radius:9px;background:#e7edef;overflow:hidden}.production-bar-fill{height:100%;min-width:2px;background:var(--color-primary)}
