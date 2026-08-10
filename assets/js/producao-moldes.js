@@ -4,7 +4,7 @@ const productionPage = document.body.dataset.productionPage;
 // — sem isso, sair pro checklist e voltar perdia o modo de edição, que só
 // existe na memória da página. Consumido uma única vez.
 let pendingAutoEdit = new URLSearchParams(location.search).get("editar") === "1";
-const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], scheduledStops:[], records:[], stops:[], materialByProduct:new Map(), currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, draftSaveTimer:null, draftSaveInFlight:false, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
+const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], scheduledStops:[], records:[], stops:[], materialByProduct:new Map(), cycleTimeByProduct:new Map(), currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, draftSaveTimer:null, draftSaveInFlight:false, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
 const q = (selector) => document.querySelector(selector);
 const esc = (value="") => String(value).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const number = (value) => Number(value || 0);
@@ -251,7 +251,7 @@ async function loadProductionData(){
   }
   const from=daysBefore(today,90);
   if(productionPage==="charts"){
-    const[records,materials]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.records({from,to:today,limit:5000}),window.LIDUTEC_PRODUCAO_DATA.productMaterials()]);productionState.records=records;productionState.stops=[];productionState.materialByProduct=new Map(materials.map(item=>[String(item.produto_id),item.tipo_material]));return;
+    const[records,stops,materials,cycleTimes]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.records({from,to:today,limit:5000}),window.LIDUTEC_PRODUCAO_DATA.stops({from,to:today,limit:5000}),window.LIDUTEC_PRODUCAO_DATA.productMaterials(),window.LIDUTEC_PRODUCAO_DATA.cycleTimes(productionState.products.map(p=>p.id))]);productionState.records=records;productionState.stops=stops;productionState.materialByProduct=new Map(materials.map(item=>[String(item.produto_id),item.tipo_material]));productionState.cycleTimeByProduct=new Map(cycleTimes.map(item=>[String(item.produto_id),item.tempo_ciclo_segundos]));return;
   }
   [productionState.records,productionState.stops]=await Promise.all([window.LIDUTEC_PRODUCAO_DATA.records({from,to:today,limit:5000}),window.LIDUTEC_PRODUCAO_DATA.stops({from,to:today,limit:5000})]);
 }
@@ -315,7 +315,49 @@ function productionMaterial(record){const raw=String(productionState.materialByP
 function renderDonut(selector,valueFn,formatter){
   const container=q(selector),labels=["Cinzento","Nodular","Não especificado"],colors={Cinzento:"#185abd",Nodular:"#218c4b","Não especificado":"#94a3b8"},values=new Map(labels.map(label=>[label,0]));for(const record of productionState.records){const material=productionMaterial(record);values.set(material,values.get(material)+number(valueFn(record)))}const total=[...values.values()].reduce((sum,value)=>sum+value,0);if(!total){container.innerHTML='<p class="production-muted">Sem dados no período.</p>';return}let offset=0;const segments=labels.map(label=>{const start=offset;offset+=values.get(label)/total*360;return`${colors[label]} ${start}deg ${offset}deg`});container.innerHTML=`<div class="production-donut" style="--donut-segments:${segments.join(",")}" role="img" aria-label="Distribuição por tipo de material"><div><strong>${formatter(total)}</strong><span>Total</span></div></div><div class="production-donut-legend">${labels.map(label=>`<div><i style="--legend-color:${colors[label]}"></i><span>${label}</span><strong>${formatter(values.get(label))}</strong><small>${(values.get(label)/total*100).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})}%</small></div>`).join("")}</div>`;
 }
+function renderGauge(selector,fraction,label){
+  const container=q(selector);if(!container)return;
+  const percent=Math.max(0,Math.min(1,fraction||0))*100;
+  const color=percent>=85?"#218c4b":percent>=65?"#b7791f":"#b90e2c";
+  container.innerHTML=`<div class="production-donut" style="--donut-segments:${color} 0deg ${percent*3.6}deg,#e2e8f0 ${percent*3.6}deg 360deg" role="img" aria-label="${esc(label)}"><div><strong>${percent.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</strong><span>${esc(label)}</span></div></div>`;
+}
+// OEE do período: só existem registros/paradas de turnos já fechados (a
+// produção de um turno aberto ainda vive só no rascunho, não em
+// registros_producao_moldes), então os turnos do período vêm dos próprios
+// registros. Parte da parada que cai numa janela programada (refeição,
+// manutenção preventiva etc.) não conta contra a disponibilidade.
+function renderOEE(){
+  const turnos=new Map();
+  for(const record of productionState.records){
+    const key=`${record.data_operacional}|${record.turno}`;
+    if(!turnos.has(key))turnos.set(key,{data_operacional:record.data_operacional,turno:record.turno});
+  }
+  let totalMinutosTurno=0,totalMinutosParadaLiquida=0;
+  for(const{data_operacional,turno}of turnos.values()){
+    const minutosTurno=window.LIDUTEC_TURNOS.shifts[turno]?.minutos||0;if(!minutosTurno)continue;
+    const bounds=window.LIDUTEC_TURNOS.shiftBounds(data_operacional,turno);
+    const stopsDoTurno=productionState.stops.filter(stop=>stop.data_operacional===data_operacional&&stop.turno===turno);
+    const minutosParada=stopsDoTurno.reduce((sum,stop)=>sum+number(stop.duracao_minutos),0);
+    const overlapProgramado=stopsDoTurno.reduce((sum,stop)=>sum+window.LIDUTEC_PARADAS_PROGRAMADAS.overlapMinutos({janelas:productionState.scheduledStops||[],turnoInicio:bounds.start,paradaInicio:stop.inicio,paradaFim:stop.fim,turno,dataOperacional:data_operacional}),0);
+    totalMinutosTurno+=minutosTurno;
+    totalMinutosParadaLiquida+=Math.max(0,minutosParada-overlapProgramado);
+  }
+  const disponibilidade=window.LIDUTEC_TURNOS.calcularTaxaEquipamento({minutosPeriodo:totalMinutosTurno,minutosParada:totalMinutosParadaLiquida});
+  const tempoDisponivel=Math.max(0,totalMinutosTurno-totalMinutosParadaLiquida);
+  const tempoTeorico=productionState.records.reduce((sum,record)=>{
+    const tempoCiclo=productionState.cycleTimeByProduct.get(String(record.produto_id))||0;
+    return sum+window.LIDUTEC_TURNOS.calcularTempoTeorico({pecasLiberadas:record.moldes_vazados,pecasRefugadas:record.moldes_quebrados,tempoCicloSegundos:tempoCiclo});
+  },0);
+  const eficiencia=window.LIDUTEC_TURNOS.calcularEficiencia({tempoTeoricoMinutos:tempoTeorico,tempoDisponivelMinutos:tempoDisponivel});
+  const qualidade=0.97;
+  const oee=window.LIDUTEC_TURNOS.calcularOEE({disponibilidade,eficiencia,qualidade});
+  renderGauge("#gauge-disponibilidade",disponibilidade,"Disponibilidade");
+  renderGauge("#gauge-eficiencia",eficiencia,"Eficiência");
+  renderGauge("#gauge-qualidade",qualidade,"Qualidade");
+  renderGauge("#gauge-oee",oee,"OEE");
+}
 function renderCharts(){
+  renderOEE();
   renderDonut("#material-tons-chart",record=>record.toneladas_produzidas,value=>`${value.toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3})} t`);
   renderDonut("#material-molds-chart",record=>record.moldes_vazados,value=>value.toLocaleString("pt-BR"));
 }

@@ -44,6 +44,11 @@
       .select("*,produtos(codigo,nome),linhas_maquinas_producao(codigo,nome),categorias_parada_producao(nome),setores_responsaveis_parada(nome)")
       .order("data_operacional", { ascending: false }), filters)),
     productMaterials: () => result(client().rpc("materiais_produtos_producao")),
+    cycleTimes: async (productIds) => {
+      if (!productIds?.length) return [];
+      return result(client().from("tempos_ciclo_padrao").select("produto_id,identificador,tempo_ciclo_segundos")
+        .eq("area_id", await areaId()).in("produto_id", productIds));
+    },
     scheduledStopsAll: async () => {
       const rows = await result(client().from("paradas_programadas")
         .select("linha_maquina_id,turno,tipo_parada_codigo,horario_inicial,horario_final,dias_semana,vigencia_inicio,vigencia_fim,equipamentos_planejamento(codigo)")
