@@ -24,20 +24,23 @@
 .monthly-goal-summary dd{margin:4px 0 0;font-size:1rem;font-weight:800}
 .monthly-goal-summary dd.positivo{color:var(--color-success)}
 .monthly-goal-summary dd.negativo{color:var(--color-danger)}
-.monthly-goal-svg{width:100%;height:auto;max-height:320px}
+.monthly-goal-svg{width:100%;height:auto;max-height:360px}
 .monthly-goal-grid{stroke:var(--color-border);stroke-width:1}
 .monthly-goal-axis-label{fill:var(--color-text-muted);font-size:9px}
-.monthly-goal-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
-.monthly-goal-line-previsto{stroke:var(--color-text-muted);stroke-dasharray:5 4}
-.monthly-goal-line-realizado{stroke:var(--color-primary)}
+.monthly-goal-area{stroke:none}
+.monthly-goal-area.positivo{fill:var(--color-success);fill-opacity:.18}
+.monthly-goal-area.negativo{fill:var(--color-danger);fill-opacity:.18}
+.monthly-goal-line{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.monthly-goal-line-previsto{stroke:var(--color-primary);stroke-width:4}
+.monthly-goal-line-realizado{stroke:var(--color-text);stroke-width:2.5}
 .monthly-goal-bar-zero{stroke:var(--color-border);stroke-width:1}
 .monthly-goal-bar{shape-rendering:crispEdges}
 .monthly-goal-bar.positivo{fill:var(--color-success)}
 .monthly-goal-bar.negativo{fill:var(--color-danger)}
 .monthly-goal-legend{display:flex;gap:18px;margin-top:6px;font-size:.72rem;color:var(--color-text-muted)}
 .monthly-goal-legend span{display:inline-flex;align-items:center;gap:6px}
-.monthly-goal-swatch{display:inline-block;width:16px;height:2.5px;border-radius:2px;background:var(--color-primary)}
-.monthly-goal-swatch.previsto{background:repeating-linear-gradient(90deg,var(--color-text-muted) 0 4px,transparent 4px 7px)}
+.monthly-goal-swatch{display:inline-block;width:16px;height:2.5px;border-radius:2px;background:var(--color-text)}
+.monthly-goal-swatch.previsto{height:4px;background:var(--color-primary)}
 .monthly-goal-swatch.saldo{width:10px;height:10px;border-radius:2px;background:linear-gradient(90deg,var(--color-success) 50%,var(--color-danger) 50%)}
 .production-bar-track{height:18px;border-radius:9px;background:#e7edef;overflow:hidden}.production-bar-fill{height:100%;min-width:2px;background:var(--color-primary)}
 .production-table{min-width:950px}.production-muted{color:var(--color-text-muted)}

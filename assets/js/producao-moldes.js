@@ -418,10 +418,29 @@ const tonsShort=value=>value.toLocaleString("pt-BR",{maximumFractionDigits:1});
 // principal, em cima, e uma barra por dia (saldo daquele dia, não acumulado)
 // numa faixa com escala própria embaixo, verde/vermelho — mesmo eixo de dias,
 // escalas independentes já que os valores têm ordens de grandeza diferentes.
+// Monta os polígonos da área entre previsto e realizado, cortando exatamente
+// no ponto em que uma linha cruza a outra — pra cada pedaço ficar 100% verde
+// (realizado acima) ou 100% vermelho (abaixo), sem misturar as duas cores no
+// mesmo polígono.
+function areaSegmentsBetweenLines(points){
+  const segments=[];
+  for(let index=0;index<points.length-1;index++){
+    const a=points[index],b=points[index+1];
+    if(a.delta===0&&b.delta===0)continue;
+    if((a.delta>=0)===(b.delta>=0)){
+      segments.push({positivo:a.delta+b.delta>=0,points:[[a.x,a.previstoY],[b.x,b.previstoY],[b.x,b.realizadoY],[a.x,a.realizadoY]]});
+    }else{
+      const t=a.delta/(a.delta-b.delta),crossX=a.x+(b.x-a.x)*t,crossY=a.previstoY+(b.previstoY-a.previstoY)*t;
+      segments.push({positivo:a.delta>=0,points:[[a.x,a.previstoY],[crossX,crossY],[a.x,a.realizadoY]]});
+      segments.push({positivo:b.delta>=0,points:[[crossX,crossY],[b.x,b.previstoY],[b.x,b.realizadoY]]});
+    }
+  }
+  return segments;
+}
 function renderMonthlyGoalChart(serie){
   const container=q("#monthly-goal-chart");if(!container)return;
   if(!serie.length){container.innerHTML='<p class="production-muted">Sem dados neste mês.</p>';return}
-  const width=760,height=300,padding={top:16,right:56,bottom:10,left:56},gap=26,barBandHeight=90;
+  const width=1180,height=320,padding={top:16,right:64,bottom:10,left:60},gap=26,barBandHeight=90;
   const plotWidth=width-padding.left-padding.right;
   const lineTop=padding.top,lineBottom=height-padding.bottom-barBandHeight;
   const barTop=lineBottom+gap,barBottom=height-padding.bottom,barCenter=(barTop+barBottom)/2;
@@ -432,6 +451,8 @@ function renderMonthlyGoalChart(serie){
   const previstoPath=linePath(serie.map(d=>d.previstoAcum));
   const diasComDado=serie.filter(d=>d.temDado);
   const realizadoPath=diasComDado.length?linePath(diasComDado.map(d=>d.realizadoAcum)):"";
+  const areaPoints=diasComDado.map((dia,index)=>({x:x(index),previstoY:y1(dia.previstoAcum),realizadoY:y1(dia.realizadoAcum),delta:dia.realizadoAcum-dia.previstoAcum}));
+  const areaSegments=areaSegmentsBetweenLines(areaPoints).map(segment=>`<polygon points="${segment.points.map(([px,py])=>`${px.toFixed(1)},${py.toFixed(1)}`).join(" ")}" class="monthly-goal-area ${segment.positivo?"positivo":"negativo"}"></polygon>`).join("");
   const gridLines=[0,.25,.5,.75,1].map(fraction=>{const value=maxAcumulado*fraction,yPos=y1(value);return`<line x1="${padding.left}" x2="${width-padding.right}" y1="${yPos.toFixed(1)}" y2="${yPos.toFixed(1)}" class="monthly-goal-grid"></line><text x="${padding.left-8}" y="${(yPos+3).toFixed(1)}" class="monthly-goal-axis-label" text-anchor="end">${tonsShort(value)}</text>`}).join("");
   const maxAbsSaldo=Math.max(1,...diasComDado.map(d=>Math.abs(d.saldoDia)));
   const y2=value=>barCenter-(value/maxAbsSaldo*((barBottom-barTop)/2));
@@ -441,7 +462,7 @@ function renderMonthlyGoalChart(serie){
     return`<rect x="${(x(index)-barWidth/2).toFixed(1)}" y="${yStart.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" class="monthly-goal-bar ${positivo?"positivo":"negativo"}"><title>${new Date(`${dia.date}T12:00:00`).toLocaleDateString("pt-BR")}: ${positivo?"+":""}${tonsShort(dia.saldoDia)} t no dia</title></rect>`;
   }).join("");
   const barAxisLabels=`<text x="${width-padding.right+8}" y="${(barTop+4).toFixed(1)}" class="monthly-goal-axis-label">+${tonsShort(maxAbsSaldo)}</text><text x="${width-padding.right+8}" y="${(barCenter+3).toFixed(1)}" class="monthly-goal-axis-label">0</text><text x="${width-padding.right+8}" y="${(barBottom+2).toFixed(1)}" class="monthly-goal-axis-label">-${tonsShort(maxAbsSaldo)}</text>`;
-  container.innerHTML=`<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Toneladas previstas e realizadas acumuladas no mês, com saldo diário" class="monthly-goal-svg">${gridLines}<line x1="${padding.left}" x2="${width-padding.right}" y1="${barCenter.toFixed(1)}" y2="${barCenter.toFixed(1)}" class="monthly-goal-bar-zero"></line>${bars}${barAxisLabels}<path d="${previstoPath}" class="monthly-goal-line monthly-goal-line-previsto"></path>${realizadoPath?`<path d="${realizadoPath}" class="monthly-goal-line monthly-goal-line-realizado"></path>`:""}</svg><div class="monthly-goal-legend"><span><i class="monthly-goal-swatch previsto"></i>Previsto acumulado</span><span><i class="monthly-goal-swatch realizado"></i>Realizado acumulado</span><span><i class="monthly-goal-swatch saldo"></i>Saldo do dia</span></div>`;
+  container.innerHTML=`<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Toneladas previstas e realizadas acumuladas no mês, com saldo diário" class="monthly-goal-svg">${gridLines}${areaSegments}<line x1="${padding.left}" x2="${width-padding.right}" y1="${barCenter.toFixed(1)}" y2="${barCenter.toFixed(1)}" class="monthly-goal-bar-zero"></line>${bars}${barAxisLabels}<path d="${previstoPath}" class="monthly-goal-line monthly-goal-line-previsto"></path>${realizadoPath?`<path d="${realizadoPath}" class="monthly-goal-line monthly-goal-line-realizado"></path>`:""}</svg><div class="monthly-goal-legend"><span><i class="monthly-goal-swatch previsto"></i>Previsto acumulado</span><span><i class="monthly-goal-swatch realizado"></i>Realizado acumulado</span><span><i class="monthly-goal-swatch saldo"></i>Acima/abaixo do previsto</span></div>`;
 }
 function renderMonthlyGoalSummary(metaMensal,serie){
   const container=q("#monthly-goal-summary");if(!container)return;
