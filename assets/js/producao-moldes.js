@@ -4,7 +4,7 @@ const productionPage = document.body.dataset.productionPage;
 // — sem isso, sair pro checklist e voltar perdia o modo de edição, que só
 // existe na memória da página. Consumido uma única vez.
 let pendingAutoEdit = new URLSearchParams(location.search).get("editar") === "1";
-const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], scheduledStops:[], records:[], stops:[], materialByProduct:new Map(), cycleTimeByProduct:new Map(), tempoDisponivelMinutosMes:0, currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, draftSaveTimer:null, draftSaveInFlight:false, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
+const productionState = { user:null, permissions:new Set(), products:[], lines:[], categories:[], sectors:[], scheduledStops:[], records:[], stops:[], materialByProduct:new Map(), cycleTimeByProduct:new Map(), tempoDisponivelMinutosMes:0, capacidadeMenosProgramadaMinutosMes:0, currentShift:null, previousProductId:null, editingClosed:false, originalShiftData:null, statusRequestId:0, draftSaveTimer:null, draftSaveInFlight:false, querySort:{key:null,direction:"asc"}, stopSort:{key:null,direction:"asc"}, visibleProductionRows:[], visibleStopRows:[] };
 const q = (selector) => document.querySelector(selector);
 const esc = (value="") => String(value).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const number = (value) => Number(value || 0);
@@ -332,19 +332,25 @@ function renderOEE(){
     const key=`${record.data_operacional}|${record.turno}`;
     if(!turnos.has(key))turnos.set(key,{data_operacional:record.data_operacional,turno:record.turno});
   }
-  let totalMinutosTurno=0,totalMinutosParadaLiquida=0;
+  let totalMinutosTurno=0,totalMinutosParadaLiquida=0,totalMinutosParadaProgramada=0;
   for(const{data_operacional,turno}of turnos.values()){
     const minutosTurno=window.LIDUTEC_TURNOS.shifts[turno]?.minutos||0;if(!minutosTurno)continue;
     const bounds=window.LIDUTEC_TURNOS.shiftBounds(data_operacional,turno);
     const stopsDoTurno=productionState.stops.filter(stop=>stop.data_operacional===data_operacional&&stop.turno===turno);
     const minutosParada=stopsDoTurno.reduce((sum,stop)=>sum+number(stop.duracao_minutos),0);
     const overlapProgramado=stopsDoTurno.reduce((sum,stop)=>sum+window.LIDUTEC_PARADAS_PROGRAMADAS.overlapMinutos({janelas:productionState.scheduledStops||[],turnoInicio:bounds.start,paradaInicio:stop.inicio,paradaFim:stop.fim,turno,dataOperacional:data_operacional}),0);
+    // Parada programada do turno inteiro (refeição, manutenção preventiva
+    // etc.), independente de ter parada real registrada ou não — usada como
+    // base pro % de paradas por setor (horas disponíveis - paradas programadas).
+    const minutosProgramadoTurno=window.LIDUTEC_PARADAS_PROGRAMADAS.overlapMinutos({janelas:productionState.scheduledStops||[],turnoInicio:bounds.start,paradaInicio:bounds.start,paradaFim:bounds.end,turno,dataOperacional:data_operacional});
     totalMinutosTurno+=minutosTurno;
     totalMinutosParadaLiquida+=Math.max(0,minutosParada-overlapProgramado);
+    totalMinutosParadaProgramada+=minutosProgramadoTurno;
   }
   const disponibilidade=window.LIDUTEC_TURNOS.calcularTaxaEquipamento({minutosPeriodo:totalMinutosTurno,minutosParada:totalMinutosParadaLiquida});
   const tempoDisponivel=Math.max(0,totalMinutosTurno-totalMinutosParadaLiquida);
   productionState.tempoDisponivelMinutosMes=tempoDisponivel;
+  productionState.capacidadeMenosProgramadaMinutosMes=Math.max(0,totalMinutosTurno-totalMinutosParadaProgramada);
   const tempoTeorico=productionState.records.reduce((sum,record)=>{
     const tempoCiclo=productionState.cycleTimeByProduct.get(String(record.produto_id))||0;
     return sum+window.LIDUTEC_TURNOS.calcularTempoTeorico({pecasLiberadas:record.moldes_vazados,pecasRefugadas:record.moldes_quebrados,tempoCicloSegundos:tempoCiclo});
@@ -357,9 +363,26 @@ function renderOEE(){
   renderGauge("#gauge-qualidade",qualidade,"Qualidade");
   renderGauge("#gauge-oee",oee,"OEE");
 }
+// % por setor sobre a capacidade líquida do mês (horas disponíveis dos
+// turnos menos as horas de parada PROGRAMADA — não a soma das paradas reais),
+// mesma base já calculada em renderOEE.
+function renderStopsBySector(){
+  const container=q("#stops-by-sector-chart");if(!container)return;
+  const grouped=new Map();
+  for(const stop of productionState.stops){
+    const nome=stop.setores_responsaveis_parada?.nome||"Não informado";
+    grouped.set(nome,(grouped.get(nome)||0)+number(stop.duracao_minutos));
+  }
+  const base=productionState.capacidadeMenosProgramadaMinutosMes;
+  const rows=[...grouped].sort((a,b)=>b[1]-a[1]);
+  container.innerHTML=base>0?rows.map(([nome,minutos])=>{
+    const percent=minutos/base*100;
+    return`<div class="production-bar"><strong>${esc(nome)}</strong><div class="production-bar-track"><div class="production-bar-fill" style="width:${Math.min(100,percent)}%"></div></div><span>${percent.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span></div>`;
+  }).join(""):'<p class="production-muted">Sem paradas no período.</p>';
+}
 function renderCharts(){
   renderOEE();
-  renderDonut("#material-tons-chart",record=>record.toneladas_produzidas,value=>`${value.toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3})} t`);
+  renderStopsBySector();
   renderDonut("#material-molds-chart",record=>record.moldes_vazados,value=>value.toLocaleString("pt-BR"));
 }
 // ---------------------------------------------------------------------------
