@@ -453,9 +453,14 @@ if (window.location.pathname.endsWith("/administracao/codigos-parada.html")) {
   document.head.append(importScript);
 }
 
+// O apontamento de Moldagem já tem seu próprio alerta embutido
+// (producao-checklist-alerts.js), cobrindo inclusive os checklists de setup
+// que o widget flutuante abaixo não sabe calcular — por isso fica de fora
+// daqui, senão os dois mecanismos disputam a mesma tela e duplicam alertas.
+const checklistAlertPagePath = window.location.pathname.replace(/\\/g, "/");
 const isChecklistAlertPage = /\/pages\/(producao-moldes|producao-acabamento|controle-processo)\//.test(
-  window.location.pathname.replace(/\\/g, "/")
-);
+  checklistAlertPagePath
+) && !/\/pages\/producao-moldes\/lancamento\.html$/.test(checklistAlertPagePath);
 
 if (document.body?.classList.contains("app-page") && isChecklistAlertPage) {
   const globalChecklistScript = document.createElement("script");
