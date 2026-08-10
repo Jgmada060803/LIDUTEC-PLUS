@@ -1,7 +1,7 @@
 (function initializeCycleTimeEditor() {
   const panel = document.querySelector("#cycle-time-panel");
   if (!panel) return;
-  const productId = new URLSearchParams(window.location.search).get("produto");
+  const productId = new URLSearchParams(window.location.search).get("id");
   if (!productId) return;
 
   const message = (text, type = "error") => {
