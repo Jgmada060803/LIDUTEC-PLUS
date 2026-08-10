@@ -375,9 +375,12 @@ function renderStopsBySector(){
   }
   const base=productionState.capacidadeMenosProgramadaMinutosMes;
   const rows=[...grouped].sort((a,b)=>b[1]-a[1]);
-  container.innerHTML=base>0?rows.map(([nome,minutos])=>{
+  // A barra em si é escalada pelo maior valor (pra sempre aproveitar 100% da
+  // largura); o % mostrado no texto continua sendo sobre a capacidade líquida.
+  const max=Math.max(1,...rows.map(([,minutos])=>minutos));
+  container.innerHTML=base>0&&rows.length?rows.map(([nome,minutos])=>{
     const percent=minutos/base*100;
-    return`<div class="production-bar"><strong>${esc(nome)}</strong><div class="production-bar-track"><div class="production-bar-fill" style="width:${Math.min(100,percent)}%"></div></div><span>${percent.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span></div>`;
+    return`<div class="production-bar"><strong>${esc(nome)}</strong><div class="production-bar-track"><div class="production-bar-fill" style="width:${minutos/max*100}%"></div></div><span>${percent.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span></div>`;
   }).join(""):'<p class="production-muted">Sem paradas no período.</p>';
 }
 function renderCharts(){
