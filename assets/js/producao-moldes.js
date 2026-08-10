@@ -319,7 +319,7 @@ function renderGauge(selector,fraction,label){
   const container=q(selector);if(!container)return;
   const percent=Math.max(0,Math.min(1,fraction||0))*100;
   const color=percent>=85?"#218c4b":percent>=65?"#b7791f":"#b90e2c";
-  container.innerHTML=`<div class="production-donut" style="--donut-segments:${color} 0deg ${percent*3.6}deg,#e2e8f0 ${percent*3.6}deg 360deg" role="img" aria-label="${esc(label)}"><div><strong>${percent.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</strong><span>${esc(label)}</span></div></div>`;
+  container.innerHTML=`<div class="production-donut" style="--donut-segments:${color} 0deg ${percent*3.6}deg,#e2e8f0 ${percent*3.6}deg 360deg" role="img" aria-label="${esc(label)}"><div><strong>${percent.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</strong></div></div>`;
 }
 // OEE do período: só existem registros/paradas de turnos já fechados (a
 // produção de um turno aberto ainda vive só no rascunho, não em
