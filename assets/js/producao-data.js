@@ -62,6 +62,13 @@
       .eq("turno", turno).eq("status", "ABERTO").lt("data_operacional", date)
       .order("data_operacional", { ascending: true }).limit(60)),
     calendarEvents: (from, to, shift) => result(client().from("calendario_operacional").select("id,nome,tipo,escopo,data_inicio,data_fim,turno,observacao").eq("ativo",true).lte("data_inicio",to).gte("data_fim",from).or(`turno.eq.TODOS,turno.eq.${shift}`).order("data_inicio").limit(200)),
+    // Sem filtro de turno — usado pra calcular capacidade prevista do mês
+    // (soma dos 3 turnos), que precisa saber de todo evento, não só um turno.
+    calendarEventsAll: (from, to) => result(client().from("calendario_operacional").select("tipo,data_inicio,data_fim,turno").eq("ativo",true).lte("data_inicio",to).gte("data_fim",from).limit(500)),
+    monthlyGoal: async (indicadorCodigo, date) => result(client().rpc("meta_vigente", {
+      p_area_id: await areaId(), p_linha_maquina_id: null, p_turno: null,
+      p_indicador_codigo: indicadorCodigo, p_data: date
+    }), null),
     previousProduction: (from, before) => result(client().from("registros_producao_moldes").select("produto_id,inicio").gte("inicio", from).lt("inicio", before).order("inicio", { ascending: false }).limit(1).maybeSingle(), null),
     shiftProductions: (id) => result(client().from("registros_producao_moldes").select("produto_id,inicio,fim,rastreabilidade,moldes_vazados,moldes_quebrados,observacao").eq("turno_producao_id", id).order("inicio")),
     shiftStops: (id) => result(client().from("paradas_producao_moldes").select("inicio,fim,setor_responsavel_id,categoria_id,observacao").eq("turno_producao_id", id).order("inicio")),

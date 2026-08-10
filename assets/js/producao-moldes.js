@@ -360,6 +360,106 @@ function renderCharts(){
   renderOEE();
   renderDonut("#material-tons-chart",record=>record.toneladas_produzidas,value=>`${value.toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3})} t`);
   renderDonut("#material-molds-chart",record=>record.moldes_vazados,value=>value.toLocaleString("pt-BR"));
+  if(q("#monthly-goal-chart"))initializeMonthlyGoal();
+}
+// ---------------------------------------------------------------------------
+// Meta mensal de toneladas: distribui a meta do mês pela capacidade prevista
+// de cada dia (turnos previstos, descontando feriado/férias/folga programada
+// e o tempo de parada programada de cada turno), acumula dia a dia e compara
+// com o realizado — pra saber se está adiantado ou atrasado.
+// ---------------------------------------------------------------------------
+const isoDateStr=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+function monthBounds(monthValue){
+  const[year,month]=monthValue.split("-").map(Number);
+  return{start:new Date(year,month-1,1),end:new Date(year,month,0),daysInMonth:new Date(year,month,0).getDate()};
+}
+function calendarBlocksShift(events,date,turno){
+  const doDia=events.filter(event=>event.data_inicio<=date&&event.data_fim>=date&&(event.turno==="TODOS"||event.turno===turno));
+  const bloqueia=doDia.some(event=>["FERIADO","FERIAS_COLETIVAS","FOLGA_PROGRAMADA"].includes(event.tipo));
+  const excecao=doDia.some(event=>event.tipo==="TRABALHO_EXCEPCIONAL");
+  return bloqueia&&!excecao;
+}
+async function loadMonthlyGoal(monthValue){
+  const{start,end,daysInMonth}=monthBounds(monthValue),from=isoDateStr(start),to=isoDateStr(end);
+  const[metaMensal,events,records]=await Promise.all([
+    window.LIDUTEC_PRODUCAO_DATA.monthlyGoal("TONELADAS_PECAS_MES",from),
+    window.LIDUTEC_PRODUCAO_DATA.calendarEventsAll(from,to),
+    window.LIDUTEC_PRODUCAO_DATA.records({from,to,limit:5000})
+  ]);
+  const shifts=["MANHA","TARDE","NOITE"],realizadoPorDia=new Map();
+  for(const record of records)realizadoPorDia.set(record.data_operacional,(realizadoPorDia.get(record.data_operacional)||0)+number(record.toneladas_produzidas));
+  const hoje=isoDateStr(new Date());
+  const dias=[];let capacidadeTotal=0;
+  for(let day=1;day<=daysInMonth;day++){
+    const date=`${monthValue}-${String(day).padStart(2,"0")}`;
+    let minutosDisponiveis=0;
+    for(const turno of shifts){
+      if(!window.LIDUTEC_TURNOS.isScheduledShiftDay(date,turno))continue;
+      if(calendarBlocksShift(events,date,turno))continue;
+      const bounds=window.LIDUTEC_TURNOS.shiftBounds(date,turno),minutosTurno=window.LIDUTEC_TURNOS.shifts[turno].minutos;
+      const minutosProgramados=window.LIDUTEC_PARADAS_PROGRAMADAS.overlapMinutos({janelas:productionState.scheduledStops||[],turnoInicio:bounds.start,paradaInicio:bounds.start,paradaFim:bounds.end,turno,dataOperacional:date});
+      minutosDisponiveis+=Math.max(0,minutosTurno-minutosProgramados);
+    }
+    dias.push({date,minutosDisponiveis,temDado:date<=hoje});
+    capacidadeTotal+=minutosDisponiveis;
+  }
+  let previstoAcum=0,realizadoAcum=0;
+  const serie=dias.map(dia=>{
+    const metaDia=capacidadeTotal>0?(metaMensal||0)*(dia.minutosDisponiveis/capacidadeTotal):0;
+    previstoAcum+=metaDia;
+    const realizadoDia=realizadoPorDia.get(dia.date)||0;
+    if(dia.temDado)realizadoAcum+=realizadoDia;
+    return{date:dia.date,metaDia,previstoAcum,realizadoAcum,realizadoDia,saldoDia:realizadoDia-metaDia,temDado:dia.temDado};
+  });
+  return{metaMensal:metaMensal||0,serie};
+}
+const tonsShort=value=>value.toLocaleString("pt-BR",{maximumFractionDigits:1});
+// Um único gráfico: as linhas acumuladas (previsto x realizado) na escala
+// principal, em cima, e uma barra por dia (saldo daquele dia, não acumulado)
+// numa faixa com escala própria embaixo, verde/vermelho — mesmo eixo de dias,
+// escalas independentes já que os valores têm ordens de grandeza diferentes.
+function renderMonthlyGoalChart(serie){
+  const container=q("#monthly-goal-chart");if(!container)return;
+  if(!serie.length){container.innerHTML='<p class="production-muted">Sem dados neste mês.</p>';return}
+  const width=760,height=300,padding={top:16,right:56,bottom:10,left:56},gap=26,barBandHeight=90;
+  const plotWidth=width-padding.left-padding.right;
+  const lineTop=padding.top,lineBottom=height-padding.bottom-barBandHeight;
+  const barTop=lineBottom+gap,barBottom=height-padding.bottom,barCenter=(barTop+barBottom)/2;
+  const x=index=>padding.left+(serie.length>1?index/(serie.length-1)*plotWidth:0);
+  const maxAcumulado=Math.max(1,...serie.map(d=>Math.max(d.previstoAcum,d.realizadoAcum)));
+  const y1=value=>lineTop+(lineBottom-lineTop)-(value/maxAcumulado*(lineBottom-lineTop));
+  const linePath=values=>values.map((value,index)=>`${index===0?"M":"L"}${x(index).toFixed(1)},${y1(value).toFixed(1)}`).join(" ");
+  const previstoPath=linePath(serie.map(d=>d.previstoAcum));
+  const diasComDado=serie.filter(d=>d.temDado);
+  const realizadoPath=diasComDado.length?linePath(diasComDado.map(d=>d.realizadoAcum)):"";
+  const gridLines=[0,.25,.5,.75,1].map(fraction=>{const value=maxAcumulado*fraction,yPos=y1(value);return`<line x1="${padding.left}" x2="${width-padding.right}" y1="${yPos.toFixed(1)}" y2="${yPos.toFixed(1)}" class="monthly-goal-grid"></line><text x="${padding.left-8}" y="${(yPos+3).toFixed(1)}" class="monthly-goal-axis-label" text-anchor="end">${tonsShort(value)}</text>`}).join("");
+  const maxAbsSaldo=Math.max(1,...diasComDado.map(d=>Math.abs(d.saldoDia)));
+  const y2=value=>barCenter-(value/maxAbsSaldo*((barBottom-barTop)/2));
+  const barWidth=Math.max(2,plotWidth/serie.length-2);
+  const bars=diasComDado.map((dia,index)=>{
+    const positivo=dia.saldoDia>=0,yStart=Math.min(barCenter,y2(dia.saldoDia)),barHeight=Math.max(1,Math.abs(y2(dia.saldoDia)-barCenter));
+    return`<rect x="${(x(index)-barWidth/2).toFixed(1)}" y="${yStart.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" class="monthly-goal-bar ${positivo?"positivo":"negativo"}"><title>${new Date(`${dia.date}T12:00:00`).toLocaleDateString("pt-BR")}: ${positivo?"+":""}${tonsShort(dia.saldoDia)} t no dia</title></rect>`;
+  }).join("");
+  const barAxisLabels=`<text x="${width-padding.right+8}" y="${(barTop+4).toFixed(1)}" class="monthly-goal-axis-label">+${tonsShort(maxAbsSaldo)}</text><text x="${width-padding.right+8}" y="${(barCenter+3).toFixed(1)}" class="monthly-goal-axis-label">0</text><text x="${width-padding.right+8}" y="${(barBottom+2).toFixed(1)}" class="monthly-goal-axis-label">-${tonsShort(maxAbsSaldo)}</text>`;
+  container.innerHTML=`<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Toneladas previstas e realizadas acumuladas no mês, com saldo diário" class="monthly-goal-svg">${gridLines}<line x1="${padding.left}" x2="${width-padding.right}" y1="${barCenter.toFixed(1)}" y2="${barCenter.toFixed(1)}" class="monthly-goal-bar-zero"></line>${bars}${barAxisLabels}<path d="${previstoPath}" class="monthly-goal-line monthly-goal-line-previsto"></path>${realizadoPath?`<path d="${realizadoPath}" class="monthly-goal-line monthly-goal-line-realizado"></path>`:""}</svg><div class="monthly-goal-legend"><span><i class="monthly-goal-swatch previsto"></i>Previsto acumulado</span><span><i class="monthly-goal-swatch realizado"></i>Realizado acumulado</span><span><i class="monthly-goal-swatch saldo"></i>Saldo do dia</span></div>`;
+}
+function renderMonthlyGoalSummary(metaMensal,serie){
+  const container=q("#monthly-goal-summary");if(!container)return;
+  const diasComDado=serie.filter(d=>d.temDado),ultimo=diasComDado.at(-1);
+  if(!metaMensal){container.innerHTML='<p class="production-muted">Nenhuma meta cadastrada para este mês em Metas Gerenciais.</p>';return}
+  const previstoAteHoje=ultimo?ultimo.previstoAcum:0,realizadoAteHoje=ultimo?ultimo.realizadoAcum:0,saldo=realizadoAteHoje-previstoAteHoje;
+  container.innerHTML=`<div><dt>Meta do mês</dt><dd>${tonsShort(metaMensal)} t</dd></div><div><dt>Previsto até hoje</dt><dd>${tonsShort(previstoAteHoje)} t</dd></div><div><dt>Realizado até hoje</dt><dd>${tonsShort(realizadoAteHoje)} t</dd></div><div><dt>Saldo</dt><dd class="${saldo>=0?"positivo":"negativo"}">${saldo>=0?"+":""}${tonsShort(saldo)} t</dd></div>`;
+}
+async function renderMonthlyGoal(monthValue){
+  const{metaMensal,serie}=await loadMonthlyGoal(monthValue);
+  renderMonthlyGoalSummary(metaMensal,serie);
+  renderMonthlyGoalChart(serie);
+}
+function initializeMonthlyGoal(){
+  const input=q("#monthly-goal-month");if(!input||input.dataset.wired)return;input.dataset.wired="1";
+  input.value=isoDateStr(new Date()).slice(0,7);
+  input.addEventListener("change",()=>renderMonthlyGoal(input.value).catch(error=>message(error.message,"error")));
+  renderMonthlyGoal(input.value).catch(error=>message(error.message,"error"));
 }
 function applyCurrentShift(form){
   const params=new URLSearchParams(location.search),paramDate=params.get("data"),paramTurno=params.get("turno");
