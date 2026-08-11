@@ -1,7 +1,7 @@
-.macharia-grid .checklist-grid-slot,
-.macharia-grid .checklist-grid-cell { width: 150px; min-width: 150px; max-width: 150px; }
-.macharia-cell { text-align: center; }
-.macharia-cell-inner { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.macharia-grid th.macharia-estacao-header { background: #e9efff; color: var(--color-primary); text-align: center; }
+.macharia-grid th.macharia-subheader { background: #eef3f8; color: var(--color-text-muted); font-size: .62rem; font-weight: 900; text-transform: uppercase; text-align: center; }
+.macharia-grid td.macharia-macho-cell { width: 170px; min-width: 170px; max-width: 170px; }
+.macharia-grid td.macharia-sopros-cell { width: 64px; min-width: 64px; max-width: 64px; text-align: center; }
 .macharia-macho { width: 100%; min-height: 28px; padding: 2px 3px; border: 1px solid var(--color-border); border-radius: 5px; font-size: .66rem; }
 .macharia-sopros { width: 100%; min-height: 28px; padding: 2px 3px; border: 1px solid var(--color-border); border-radius: 5px; text-align: center; font-size: .78rem; font-weight: 800; }
 

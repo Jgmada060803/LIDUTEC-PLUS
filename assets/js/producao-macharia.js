@@ -80,23 +80,30 @@ function renderGrid() {
     container.innerHTML = '<p class="checklist-grid-locked">Ainda não há horário previsto vencido para este turno.</p>';
     return;
   }
-  const headerCells = estacoes.map((estacao) => `<th class="checklist-grid-slot"><strong>Estação ${estacao}</strong></th>`).join("");
+  const estacaoHeaderCells = estacoes.map((estacao) => `<th class="macharia-estacao-header" colspan="2"><strong>Estação ${estacao}</strong></th>`).join("");
+  const subHeaderCells = estacoes.map(() => `<th class="macharia-subheader">Macho</th><th class="macharia-subheader">Sopros</th>`).join("");
+  // A identificação do macho repete da hora anterior por padrão (o operador
+  // normalmente segue produzindo a mesma coisa) — só a quantidade de sopros
+  // começa sempre zerada a cada hora. Se mudou de macho, o operador troca.
+  const lastMachoByEstacao = new Map();
   const rows = slots.map((slot) => {
     const cells = estacoes.map((estacao) => {
       const key = `${estacao}|${slot.toISOString()}`;
       const entry = lookup.get(key);
       const disabled = canEdit ? "" : "disabled";
-      return `<td class="checklist-grid-cell macharia-cell"><div class="macharia-cell-inner">
-        <select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot.toISOString()}" ${disabled}><option value="">—</option>${machoOptions}</select>
-        <input type="number" class="macharia-sopros" min="0" step="1" value="${entry?.quantidade_sopros ?? 0}" data-estacao="${estacao}" data-slot="${slot.toISOString()}" ${disabled}>
-      </div></td>`;
+      const defaultMachoId = entry?.macho_id ?? lastMachoByEstacao.get(estacao) ?? "";
+      if (defaultMachoId) lastMachoByEstacao.set(estacao, defaultMachoId);
+      return `<td class="checklist-grid-cell macharia-macho-cell"><select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot.toISOString()}" data-default="${defaultMachoId}" ${disabled}><option value="">—</option>${machoOptions}</select></td>`
+        + `<td class="checklist-grid-cell macharia-sopros-cell"><input type="number" class="macharia-sopros" min="0" step="1" value="${entry?.quantidade_sopros ?? 0}" data-estacao="${estacao}" data-slot="${slot.toISOString()}" ${disabled}></td>`;
     }).join("");
     return `<tr><th class="checklist-grid-itemcol">${hourLabel(slot)}</th>${cells}</tr>`;
   }).join("");
-  container.innerHTML = `<table class="checklist-grid macharia-grid"><thead><tr><th class="checklist-grid-itemcol">Hora</th>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
+  container.innerHTML = `<table class="checklist-grid macharia-grid"><thead>
+    <tr><th class="checklist-grid-itemcol" rowspan="2">Hora</th>${estacaoHeaderCells}</tr>
+    <tr>${subHeaderCells}</tr>
+  </thead><tbody>${rows}</tbody></table>`;
   for (const select of container.querySelectorAll(".macharia-macho")) {
-    const entry = lookup.get(`${select.dataset.estacao}|${select.dataset.slot}`);
-    if (entry?.macho_id) select.value = String(entry.macho_id);
+    if (select.dataset.default) select.value = select.dataset.default;
   }
 }
 function collectMachineEntries() {
