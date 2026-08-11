@@ -37,13 +37,16 @@
       .eq("modelo_id", modeloId).eq("data_operacional", date).eq("turno", turno)
       .order("horario_previsto")),
     // Moldagem e Acabamento têm apontamento de produção com turno aberto/
-    // fechado; os demais setores ainda não migraram (retorna null pra eles).
-    shiftStatus: (date, turno, areaCode) => areaCode === "ACABAMENTO"
-      ? unwrap(client().from("turnos_producao_acabamento")
-          .select("status,rascunho_producoes,rascunho_paradas,turnos_acabamento_linhas(linha_maquina_id)")
-          .eq("data_operacional", date).eq("turno", turno).maybeSingle(), null)
-      : unwrap(client().from("turnos_producao_moldes")
-          .select("status,rascunho_producoes,rascunho_paradas").eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
+    // fechado; os demais setores ainda não migraram (retorna null pra eles,
+    // já que não existe tabela de turno pra consultar).
+    shiftStatus: (date, turno, areaCode) => {
+      if (areaCode === "ACABAMENTO") return unwrap(client().from("turnos_producao_acabamento")
+        .select("status,rascunho_producoes,rascunho_paradas,turnos_acabamento_linhas(linha_maquina_id)")
+        .eq("data_operacional", date).eq("turno", turno).maybeSingle(), null);
+      if (areaCode === "MOLDAGEM") return unwrap(client().from("turnos_producao_moldes")
+        .select("status,rascunho_producoes,rascunho_paradas").eq("data_operacional", date).eq("turno", turno).maybeSingle(), null);
+      return Promise.resolve(null);
+    },
     // Usado pra identificar postos marcados como parados por absenteísmo
     // (categoria Absenteísmo / setor ADM) no checklist por posto do Acabamento.
     categoriaParadaByCodigo: (codigo) => unwrap(client().from("categorias_parada_producao")

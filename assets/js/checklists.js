@@ -168,14 +168,14 @@ function gridProductMarkup(colIndex,produto,products,editable){
   if(!editable)return '<span class="checklist-grid-product-label muted">—</span>';
   return `<select class="checklist-grid-produto" data-col="${colIndex}"><option value="">Produto</option>${products.map(p=>`<option value="${p.id}">${cesc(p.codigo)}</option>`).join("")}</select>`;
 }
-function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,frequenciaTipo,stopped=[]){
+function renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,frequenciaTipo,stopped=[],produtoObrigatorio=true){
   const previousBoundaries=[bounds.start,...slots.slice(0,-1)];
   const columns=slots.map((slot,index)=>({slot,index,execution:findExecutionForSlot(slot,previousBoundaries[index],executions),producao:productions[index],parada:!!stopped[index]}));
   const headerCells=columns.map(col=>{
     const meta=col.execution?`<small>${gridTimeLabel(new Date(col.execution.iniciado_em))} · ${cesc(col.execution.usuarios?.nome||"—")}</small>`:col.parada?'<small>Máquina parada</small>':'<small>Pendente</small>';
     const produto=col.execution?col.execution.produtos:col.producao?.produtos;
-    const productMarkup=gridProductMarkup(col.index,produto,products,canEdit&&!col.execution&&!col.parada);
-    return `<th class="checklist-grid-slot${col.parada&&!col.execution?" checklist-grid-slot-stopped":""}"><strong>${gridTimeLabel(col.slot)}</strong><div class="checklist-grid-product">${productMarkup}</div>${meta}</th>`;
+    const productMarkup=produtoObrigatorio?gridProductMarkup(col.index,produto,products,canEdit&&!col.execution&&!col.parada):"";
+    return `<th class="checklist-grid-slot${col.parada&&!col.execution?" checklist-grid-slot-stopped":""}"><strong>${gridTimeLabel(col.slot)}</strong>${productMarkup?`<div class="checklist-grid-product">${productMarkup}</div>`:""}${meta}</th>`;
   }).join("");
   const rows=items.map(item=>{
     const cells=columns.map(col=>{
@@ -240,28 +240,42 @@ function slotStoppedByParadas(previousBoundary,slot,paradas){
 }
 async function loadChecklistGrid(model,modelId){
   const date=cq("#execution-date").value,turno=cq("#execution-shift").value;
+  const areaCode=model.areas_checklist?.codigo;
   const bounds=window.LIDUTEC_TURNOS.shiftBounds(date,turno);
   const [items,executions,shift,products]=await Promise.all([
     checklistData.items(modelId),
     checklistData.executionsForSlots(Number(modelId),date,turno),
-    checklistData.shiftStatus(date,turno),
+    checklistData.shiftStatus(date,turno,areaCode),
     checklistData.products()
   ]);
   let slots,productions,stopped=[];
   if(model.frequencia_tipo==="SETUP"){
-    ({slots,productions}=await setupSlots(date,turno,shift,products));
+    // Setup por sequência de produção só existe hoje pra Moldagem — é a
+    // única área com apontamento detalhado por linha/horário que sustenta
+    // essa regra.
+    ({slots,productions}=areaCode==="MOLDAGEM"?await setupSlots(date,turno,shift,products):{slots:[],productions:[]});
   }else{
     slots=window.LIDUTEC_TURNOS.checklistDueSlots(model.frequencia_tipo,bounds.start,bounds.end,model.intervalo_minutos,new Date());
-    // O produto é identificado por coluna — qual produto estava em produção
-    // naquele horário planejado — em vez de um único campo para o turno todo.
-    productions=await Promise.all(slots.map(slot=>checklistData.productionAt(date,turno,slot)));
-    const paradas=await stopIntervalsForShift(date,turno,shift);
-    const previousBoundaries=[bounds.start,...slots.slice(0,-1)];
-    stopped=slots.map((slot,index)=>slotStoppedByParadas(previousBoundaries[index],slot,paradas));
+    if(areaCode==="MOLDAGEM"){
+      // O produto é identificado por coluna — qual produto estava em produção
+      // naquele horário planejado — em vez de um único campo para o turno
+      // todo. E a coluna fica dispensada se a máquina estava parada. Ambos
+      // dependem das tabelas de produção/parada de Moldagem.
+      productions=await Promise.all(slots.map(slot=>checklistData.productionAt(date,turno,slot)));
+      const paradas=await stopIntervalsForShift(date,turno,shift);
+      const previousBoundaries=[bounds.start,...slots.slice(0,-1)];
+      stopped=slots.map((slot,index)=>slotStoppedByParadas(previousBoundaries[index],slot,paradas));
+    }else{
+      productions=slots.map(()=>null);
+    }
   }
-  const open=shift?.status==="ABERTO",canEdit=open||checklistEditingClosedShift;
-  const unlockable=!open&&shift?.status==="FECHADO"&&!checklistEditingClosedShift&&checklistState.permissions.has("producao_moldes.editar");
-  renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,model.frequencia_tipo,stopped);
+  // Só Moldagem e Acabamento têm apontamento com turno aberto/fechado; nos
+  // demais setores o checklist fica sempre editável (não há turno pra travar).
+  const hasShiftTracking=areaCode==="MOLDAGEM"||areaCode==="ACABAMENTO";
+  const open=!hasShiftTracking||shift?.status==="ABERTO",canEdit=open||checklistEditingClosedShift;
+  const editPermission=areaCode==="ACABAMENTO"?"producao_acabamento.editar":"producao_moldes.editar";
+  const unlockable=hasShiftTracking&&!open&&shift?.status==="FECHADO"&&!checklistEditingClosedShift&&checklistState.permissions.has(editPermission);
+  renderChecklistGrid(items,slots,executions,bounds,canEdit,productions,products,unlockable,model.frequencia_tipo,stopped,model.produto_obrigatorio);
 }
 
 // Checklist por posto (ex.: A01 - Máquinas de rebarbação): uma coluna por
