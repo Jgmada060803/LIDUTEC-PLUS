@@ -95,7 +95,7 @@ function renderGrid() {
   // usa "+ macho" pra registrar mais de um lançamento na mesma hora.
   const lastMachoByEstacao = new Map();
   const disabledAttr = canEdit ? "" : "disabled";
-  const addButtonHtml = canEdit ? '<button type="button" class="macharia-add-entry" title="Adicionar outro macho nesta hora">+ macho</button>' : "";
+  const addButtonHtml = canEdit ? '<button type="button" class="macharia-add-entry" aria-label="Adicionar outro macho nesta hora" title="Adicionar outro macho nesta hora">+</button>' : "";
   const rows = slots.map((slot) => {
     const cells = estacoes.map((estacao) => {
       const key = `${estacao}|${slot.toISOString()}`;
@@ -106,10 +106,10 @@ function renderGrid() {
       const items = list.length ? list : [{}];
       const machoEntries = items.map((item, index) => {
         const value = index === 0 ? (item.macho_id ?? defaultMachoId) : (item.macho_id ?? "");
-        return `<div class="macharia-entry"><select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot.toISOString()}" data-value="${value || ""}" ${disabledAttr}><option value="">—</option>${machoOptions}</select></div>`;
+        return `<div class="macharia-entry"><select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot.toISOString()}" data-value="${value || ""}" ${disabledAttr}><option value="">—</option>${machoOptions}</select>${addButtonHtml}</div>`;
       }).join("");
       const soprosEntries = items.map((item) => `<div class="macharia-entry"><input type="number" class="macharia-sopros" min="0" step="1" value="${item.quantidade_sopros ?? 0}" data-estacao="${estacao}" data-slot="${slot.toISOString()}" ${disabledAttr}><button type="button" class="macharia-remove-entry" aria-label="Remover lançamento" ${disabledAttr}>×</button></div>`).join("");
-      return `<td class="checklist-grid-cell macharia-macho-cell" data-estacao="${estacao}" data-slot="${slot.toISOString()}"><div class="macharia-multi">${machoEntries}${addButtonHtml}</div></td>`
+      return `<td class="checklist-grid-cell macharia-macho-cell" data-estacao="${estacao}" data-slot="${slot.toISOString()}"><div class="macharia-multi">${machoEntries}</div></td>`
         + `<td class="checklist-grid-cell macharia-sopros-cell" data-estacao="${estacao}" data-slot="${slot.toISOString()}"><div class="macharia-multi">${soprosEntries}</div></td>`;
     }).join("");
     return `<tr><th class="checklist-grid-itemcol">${hourLabel(slot)}</th>${cells}</tr>`;
@@ -157,8 +157,8 @@ function addMachoEntryRow(addButton) {
   const soprosCell = tr.querySelector(`td.macharia-sopros-cell[data-estacao="${estacao}"]`);
   const machoEntry = document.createElement("div");
   machoEntry.className = "macharia-entry";
-  machoEntry.innerHTML = `<select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot}"><option value="">—</option>${machariaState.machoOptionsHtml || ""}</select>`;
-  machoCell.querySelector(".macharia-multi").insertBefore(machoEntry, addButton);
+  machoEntry.innerHTML = `<select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot}"><option value="">—</option>${machariaState.machoOptionsHtml || ""}</select><button type="button" class="macharia-add-entry" aria-label="Adicionar outro macho nesta hora" title="Adicionar outro macho nesta hora">+</button>`;
+  machoCell.querySelector(".macharia-multi").append(machoEntry);
   const soprosEntry = document.createElement("div");
   soprosEntry.className = "macharia-entry";
   soprosEntry.innerHTML = `<input type="number" class="macharia-sopros" min="0" step="1" value="0" data-estacao="${estacao}" data-slot="${slot}"><button type="button" class="macharia-remove-entry" aria-label="Remover lançamento">×</button>`;
