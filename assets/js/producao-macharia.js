@@ -86,10 +86,10 @@ function renderGrid() {
       const key = `${estacao}|${slot.toISOString()}`;
       const entry = lookup.get(key);
       const disabled = canEdit ? "" : "disabled";
-      return `<td class="checklist-grid-cell macharia-cell">
+      return `<td class="checklist-grid-cell macharia-cell"><div class="macharia-cell-inner">
         <select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot.toISOString()}" ${disabled}><option value="">—</option>${machoOptions}</select>
         <input type="number" class="macharia-sopros" min="0" step="1" value="${entry?.quantidade_sopros ?? 0}" data-estacao="${estacao}" data-slot="${slot.toISOString()}" ${disabled}>
-      </td>`;
+      </div></td>`;
     }).join("");
     return `<tr><th class="checklist-grid-itemcol">${hourLabel(slot)}</th>${cells}</tr>`;
   }).join("");
