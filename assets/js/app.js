@@ -265,6 +265,11 @@ function syncSidebarNavigation() {
          data-permission="ficha.importar,ficha.conferir_importacao,ficha.validar_importacao">
         Importar PDF
       </a>
+      <a href="${prefix}producao-macharia/ficha-macho.html"
+         class="${activeClass(isActive("producao-macharia", "ficha-macho.html"))}"
+         data-permission="produto.editar,producao_macharia.avaliar_ficha_macho">
+        Ficha de Macho
+      </a>
     `)}
 
     ${navSection("Controle de Processo", `
@@ -300,11 +305,6 @@ function syncSidebarNavigation() {
          class="${activeClass(isActive("producao-macharia") && !isActive("producao-macharia", "ficha-macho.html"))}"
          data-permission="producao_macharia.visualizar">
         Macharia
-      </a>
-      <a href="${prefix}producao-macharia/ficha-macho.html"
-         class="${activeClass(isActive("producao-macharia", "ficha-macho.html"))}"
-         data-permission="produto.editar,producao_macharia.avaliar_ficha_macho">
-        Ficha de Macho
       </a>
     `)}
 
