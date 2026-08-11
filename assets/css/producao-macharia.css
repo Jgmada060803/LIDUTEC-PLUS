@@ -13,6 +13,7 @@
 
 .import-toolbar { display: flex; gap: 8px; margin: 10px 0; }
 #import-textarea { width: 100%; font-family: monospace; font-size: .78rem; }
+.import-produto-missing { color: #9f1710; font-weight: 900; text-decoration: underline wavy; }
 
 .ficha-macho-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .64rem; font-weight: 900; }
 .ficha-macho-status.status-rascunho { background: #eef3f5; color: var(--color-text-muted); }

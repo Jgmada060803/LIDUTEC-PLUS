@@ -359,19 +359,25 @@ async function loadFichaTab(tab) {
   machariaState.fichaRows = rows;
   renderFichaList(tab === "aprovado" ? rows.filter((row) => row.ativo) : rows);
 }
+// Formato da planilha de referência: Produto, Caixa, Macho, Machos por
+// sopro, Peso do macho, Kg areia/sopro, Sopro/hora — 7 colunas, sem "machos
+// por peça" (a planilha real não traz essa coluna; assume-se 1 por padrão,
+// ajustável depois na ficha).
 function parseImportText(text) {
   return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
     const cols = (line.includes("\t") ? line.split("\t") : line.split(/\s{2,}/)).map((v) => (v || "").trim());
-    const [produto, caixa, macho, machosPorSopro, peso, areia, machosPorPeca, soproHora] = cols;
+    const [produto, caixa, macho, machosPorSopro, peso, areia, soproHora] = cols;
     const parseNum = (value) => { const n = Number(String(value || "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
-    const pecaQtd = Math.max(1, Math.round(parseNum(machosPorPeca) || 1));
     return {
       caixa: caixa || "", macho: macho || "",
       machos_por_sopro: Math.max(0, Math.round(parseNum(machosPorSopro) || 0)),
       peso_macho_kg: parseNum(peso), kg_areia_por_sopro: parseNum(areia), sopro_por_hora: parseNum(soproHora),
-      produtos: splitProdutoCodes(produto).map((codigo) => ({ produto_codigo: codigo, machos_por_peca: pecaQtd }))
+      produtos: splitProdutoCodes(produto).map((codigo) => ({ produto_codigo: codigo, machos_por_peca: 1 }))
     };
   }).filter((row) => row.caixa && row.macho && row.machos_por_sopro > 0);
+}
+function produtoCodeKnown(codigo) {
+  return machariaState.fichaProdutos.some((p) => p.codigo.toUpperCase() === String(codigo).toUpperCase());
 }
 async function initializeFichaMacho() {
   machariaState.fichaProdutos = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.produtos();
@@ -448,16 +454,31 @@ async function initializeFichaMacho() {
     } catch (error) { machariaMessage(error.message, "error"); }
   });
   aq("#import-preview-button")?.addEventListener("click", () => {
+    const lines = aq("#import-textarea").value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).length;
     const parsed = parseImportText(aq("#import-textarea").value);
     machariaState.importPreview = parsed;
-    aq("#import-preview-rows").innerHTML = parsed.map((row) => `<tr><td>${aesc(row.caixa)}</td><td>${aesc(row.macho)}</td><td>${row.machos_por_sopro}</td><td>${row.produtos.map((p) => aesc(p.produto_codigo)).join(", ") || "—"}</td></tr>`).join("");
+    const invalidCount = lines - parsed.length;
+    aq("#import-preview-rows").innerHTML = parsed.map((row) => {
+      const produtos = row.produtos.map((p) => {
+        const known = produtoCodeKnown(p.produto_codigo);
+        return `<span${known ? "" : ' class="import-produto-missing" title="Produto não cadastrado"'}>${aesc(p.produto_codigo)}</span>`;
+      }).join(", ") || "—";
+      return `<tr><td>${aesc(row.caixa)}</td><td>${aesc(row.macho)}</td><td>${row.machos_por_sopro}</td><td>${row.peso_macho_kg ?? "—"}</td><td>${row.kg_areia_por_sopro ?? "—"}</td><td>${row.sopro_por_hora ?? "—"}</td><td>${produtos}</td></tr>`;
+    }).join("");
     aq("#import-preview").hidden = !parsed.length;
     aq("#import-confirm-button").hidden = !parsed.length;
+    machariaMessage(invalidCount > 0
+      ? `${parsed.length} linha(s) reconhecida(s); ${invalidCount} linha(s) não puderam ser lidas (confira caixa/macho/machos por sopro).`
+      : `${parsed.length} linha(s) reconhecida(s).`, invalidCount > 0 ? "error" : "success");
   });
   aq("#import-confirm-button")?.addEventListener("click", async () => {
     try {
-      const total = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.importarFichas(machariaState.importPreview);
-      machariaMessage(`${total} ficha(s) importada(s) como rascunho.`);
+      const summary = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.importarFichas(machariaState.importPreview);
+      const missing = summary?.produtos_nao_encontrados || [];
+      const parts = [`${summary?.importadas ?? 0} ficha(s) importada(s) como rascunho.`];
+      if (summary?.linhas_invalidas) parts.push(`${summary.linhas_invalidas} linha(s) ignorada(s) por dados inválidos.`);
+      if (missing.length) parts.push(`Produtos não encontrados no cadastro (vínculo não criado, crie o produto e edite a ficha depois): ${missing.join(", ")}.`);
+      machariaMessage(parts.join(" "), missing.length || summary?.linhas_invalidas ? "error" : "success");
       aq("#import-textarea").value = "";
       aq("#import-preview").hidden = true;
       aq("#import-confirm-button").hidden = true;

@@ -39,13 +39,13 @@
 
         <section id="import-panel" class="panel" data-permission="produto.editar" hidden>
           <div class="panel-header"><h2>Importar da planilha</h2></div>
-          <p class="production-muted">Cole as linhas copiadas da planilha (Caixa, Macho, Machos por sopro, Peso do macho, Kg areia/sopro, Sopro/hora, Produtos separados por "/" quando compartilhados) — uma linha por macho.</p>
+          <p class="production-muted">Cole as linhas copiadas da planilha, na ordem Produto, Caixa, Macho, Machos por sopro, Peso do macho, Kg areia/sopro, Sopro/hora (produtos com "/", ex. MS0103/0105, viram vínculos separados) — uma linha por macho. "Machos por peça" não vem da planilha; entra como 1 e pode ser ajustado depois na ficha.</p>
           <textarea id="import-textarea" rows="6" placeholder="MS0080&#9;CX1&#9;M1&#9;16&#9;0,353&#9;5,648&#9;54"></textarea>
           <div class="import-toolbar">
             <button id="import-preview-button" type="button" class="button button-secondary">Pré-visualizar</button>
             <button id="import-confirm-button" type="button" class="button button-primary" hidden>Confirmar importação</button>
           </div>
-          <div id="import-preview" class="table-wrapper" hidden><table class="products-table"><thead><tr><th>Caixa</th><th>Macho</th><th>Machos/sopro</th><th>Produtos</th></tr></thead><tbody id="import-preview-rows"></tbody></table></div>
+          <div id="import-preview" class="table-wrapper" hidden><table class="products-table"><thead><tr><th>Caixa</th><th>Macho</th><th>Machos/sopro</th><th>Peso (kg)</th><th>Areia/sopro (kg)</th><th>Sopro/hora</th><th>Produtos</th></tr></thead><tbody id="import-preview-rows"></tbody></table></div>
         </section>
       </div>
 
