@@ -28,10 +28,17 @@ function machariaMessage(text, type = "success") {
   el.hidden = false;
 }
 
+// "Caixa"/"Macho" sozinhos não identificam nada (o mesmo "CX1/M1" se repete
+// em dezenas de produtos sem relação entre si) — o produto vinculado é que dá
+// a identidade prática, tanto pra exibir quanto pra localizar na importação.
+function machoLabel(macho) {
+  const produtos = (macho.machos_macharia_produtos || []).map((v) => v.produtos?.codigo).filter(Boolean);
+  return `${produtos.length ? produtos.join("/") : "sem produto"} · ${macho.caixa}/${macho.macho}`;
+}
 async function loadMachariaSupport() {
   const { maquinas, machos } = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.support();
   machariaState.maquinas = maquinas;
-  machariaState.machos = machos;
+  machariaState.machos = machos.slice().sort((a, b) => machoLabel(a).localeCompare(machoLabel(b), "pt-BR"));
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +74,7 @@ function renderGrid() {
   const lookup = new Map(entries
     .filter((item) => String(item.linha_id ?? item.linha_maquina_id) === String(maquina.id))
     .map((item) => [`${item.estacao}|${new Date(item.horario_previsto).toISOString()}`, item]));
-  const machoOptions = machariaState.machos.map((m) => `<option value="${m.id}">${aesc(m.caixa)} / ${aesc(m.macho)}</option>`).join("");
+  const machoOptions = machariaState.machos.map((m) => `<option value="${m.id}">${aesc(machoLabel(m))}</option>`).join("");
 
   if (!slots.length) {
     container.innerHTML = '<p class="checklist-grid-locked">Ainda não há horário previsto vencido para este turno.</p>';
@@ -275,7 +282,7 @@ function renderMachariaDashboard() {
       <td>${aesc(item.turno)}</td>
       <td>${aesc(item.linhas_maquinas_producao?.nome || "—")}</td>
       <td>${anumber(item.estacao)}</td>
-      <td>${aesc(item.machos_macharia?.caixa || "—")} / ${aesc(item.machos_macharia?.macho || "—")}</td>
+      <td>${item.machos_macharia ? aesc(machoLabel(item.machos_macharia)) : "—"}</td>
       <td>${anumber(item.quantidade_sopros)}</td>
     </tr>`).join("");
   aq("#dashboard-production-empty").hidden = records.length > 0;

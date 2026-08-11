@@ -16,7 +16,7 @@
     support: async () => {
       const [maquinas, machos] = await Promise.all([
         result(client().from("linhas_maquinas_producao").select("id,codigo,nome,numero_estacoes,areas_checklist!inner(codigo)").eq("areas_checklist.codigo", "MACHARIA").eq("ativo", true).order("codigo")),
-        result(client().from("machos_macharia").select("id,caixa,macho").eq("status", "APROVADO").eq("ativo", true).order("caixa").order("macho"))
+        result(client().from("machos_macharia").select("id,caixa,macho,machos_macharia_produtos(produtos(codigo))").eq("status", "APROVADO").eq("ativo", true).order("caixa").order("macho"))
       ]);
       return { maquinas, machos };
     },
@@ -29,7 +29,7 @@
     importarFichas: (linhas) => result(client().rpc("importar_machos_macharia", { p_linhas: linhas }), null),
     records: (filters = {}) => result(applyFilters(client()
       .from("registros_producao_macharia")
-      .select("*,linhas_maquinas_producao(codigo,nome),machos_macharia(caixa,macho,machos_por_sopro)")
+      .select("*,linhas_maquinas_producao(codigo,nome),machos_macharia(caixa,macho,machos_por_sopro,machos_macharia_produtos(produtos(codigo)))")
       .order("horario_previsto", { ascending: false }), filters)),
     shift: (date, turno) => result(client().from("turnos_producao_macharia")
       .select("id,status,versao,rascunho_producoes,atualizado_por,atualizado_em,usuarios!turnos_producao_macharia_atualizado_por_fkey(nome)")
