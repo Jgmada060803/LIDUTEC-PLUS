@@ -137,6 +137,25 @@
     }
     return slots;
   }
+  // Limites de hora cheia dentro do turno (07:00, 08:00...), usados no
+  // apontamento hora a hora da Macharia. Diferente de checklistDueSlots, que
+  // ancora no horário de início do turno — aqui o slot é a hora cheia do
+  // relógio. Cada slot representa o FIM do bucket daquela hora; nunca
+  // ultrapassa "end" nem "now", e nunca inclui um slot igual ou anterior a
+  // "start" (o primeiro bucket completo é sempre depois do início do turno).
+  function hourlySlots(startValue, endValue, nowValue = new Date()) {
+    const start = new Date(startValue), end = new Date(endValue), now = new Date(nowValue);
+    if ([start, end, now].some((value) => Number.isNaN(value.getTime())) || end <= start) return [];
+    const cap = Math.min(now.getTime(), end.getTime());
+    const first = new Date(start);
+    first.setMinutes(0, 0, 0);
+    if (first <= start) first.setHours(first.getHours() + 1);
+    const slots = [];
+    for (let time = first.getTime(); time <= cap; time += 3600000) {
+      slots.push(new Date(time));
+    }
+    return slots;
+  }
   function productionCalculation(moldesVazados, moldesQuebrados, pecasPorMolde, pesoPecaKg) {
     const poured = Math.max(0, Number(moldesVazados || 0));
     const broken = Math.max(0, Number(moldesQuebrados || 0));
@@ -255,6 +274,7 @@
     isScheduledShiftDay,
     checklistIntervalStatus,
     checklistDueSlots,
+    hourlySlots,
     productionCalculation,
     stopDurationMinutes,
     effectiveMinutes,

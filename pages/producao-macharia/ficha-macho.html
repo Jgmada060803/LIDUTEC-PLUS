@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ficha de Macho | Metalsider</title>
+  <link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/produtos.css"><link rel="stylesheet" href="../../assets/css/producao-macharia.css">
+</head>
+<body class="app-page" data-production-page="ficha-macho">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+  <div class="app-shell">
+    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Ficha de Macho</h1><p>Composição de machos por caixa — Macharia</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+    <main class="main-content">
+      <div id="production-loading" class="loading-state">Carregando...</div>
+      <div id="ficha-macho-content" hidden>
+        <section class="page-heading">
+          <div>
+            <span class="eyebrow">Engenharia propõe · Produção avaliza</span>
+            <h2>Fichas de macho</h2>
+            <p>Cada ficha descreve quantos machos saem por sopro de uma caixa, e a quais produtos eles se destinam.</p>
+          </div>
+          <button id="new-ficha-button" type="button" class="button button-primary" data-permission="produto.editar">Nova ficha</button>
+        </section>
+
+        <nav class="ficha-tabs">
+          <button type="button" class="ficha-tab active" data-tab="rascunho">Rascunhos / aguardando aval</button>
+          <button type="button" class="ficha-tab" data-tab="aprovado">Vigentes</button>
+          <button type="button" class="ficha-tab" data-tab="reprovado">Reprovadas</button>
+        </nav>
+
+        <section class="panel">
+          <div class="table-wrapper">
+            <table class="products-table ficha-macho-table">
+              <thead><tr><th>Caixa</th><th>Macho</th><th>Machos/sopro</th><th>Peso (kg)</th><th>Areia/sopro (kg)</th><th>Sopro/hora</th><th>Produtos</th><th>Criado por</th><th></th></tr></thead>
+              <tbody id="ficha-macho-rows"></tbody>
+            </table>
+          </div>
+          <p id="ficha-macho-empty" class="production-muted" hidden>Nenhuma ficha nesta lista.</p>
+        </section>
+
+        <section id="import-panel" class="panel" data-permission="produto.editar" hidden>
+          <div class="panel-header"><h2>Importar da planilha</h2></div>
+          <p class="production-muted">Cole as linhas copiadas da planilha (Caixa, Macho, Machos por sopro, Peso do macho, Kg areia/sopro, Sopro/hora, Produtos separados por "/" quando compartilhados) — uma linha por macho.</p>
+          <textarea id="import-textarea" rows="6" placeholder="MS0080&#9;CX1&#9;M1&#9;16&#9;0,353&#9;5,648&#9;54"></textarea>
+          <div class="import-toolbar">
+            <button id="import-preview-button" type="button" class="button button-secondary">Pré-visualizar</button>
+            <button id="import-confirm-button" type="button" class="button button-primary" hidden>Confirmar importação</button>
+          </div>
+          <div id="import-preview" class="table-wrapper" hidden><table class="products-table"><thead><tr><th>Caixa</th><th>Macho</th><th>Machos/sopro</th><th>Produtos</th></tr></thead><tbody id="import-preview-rows"></tbody></table></div>
+        </section>
+      </div>
+
+      <dialog id="ficha-dialog" class="shift-calendar">
+        <div class="shift-calendar-header"><strong id="ficha-dialog-title">Nova ficha de macho</strong><button type="button" data-calendar-close aria-label="Fechar">×</button></div>
+        <form id="ficha-form" class="product-form-grid">
+          <label>Caixa<input name="caixa" required placeholder="CX1"></label>
+          <label>Macho<input name="macho" required placeholder="M1"></label>
+          <label>Machos por sopro<input name="machos_por_sopro" type="number" min="1" step="1" required></label>
+          <label>Peso do macho (kg)<input name="peso_macho_kg" type="number" min="0" step="0.001"></label>
+          <label>Areia por sopro (kg)<input name="kg_areia_por_sopro" type="number" min="0" step="0.001"></label>
+          <label>Sopro por hora<input name="sopro_por_hora" type="number" min="0" step="0.01"></label>
+          <div class="ficha-produtos-field">
+            <span>Produtos que este macho alimenta</span>
+            <div id="ficha-produtos-rows"></div>
+            <button type="button" id="add-ficha-produto-row" class="row-add-button" aria-label="Adicionar produto">+</button>
+          </div>
+          <div id="ficha-form-message" class="form-message" hidden></div>
+          <div class="molding-actions">
+            <button type="button" data-calendar-close class="button button-secondary">Cancelar</button>
+            <button type="submit" class="button button-primary">Salvar rascunho</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="reprovar-dialog" class="shift-calendar">
+        <div class="shift-calendar-header"><strong>Reprovar ficha</strong><button type="button" data-calendar-close aria-label="Fechar">×</button></div>
+        <form id="reprovar-form">
+          <label>Motivo da reprovação<textarea name="justificativa" rows="3" required></textarea></label>
+          <div class="molding-actions">
+            <button type="button" data-calendar-close class="button button-secondary">Cancelar</button>
+            <button type="submit" class="button button-danger">Reprovar</button>
+          </div>
+        </form>
+      </dialog>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-macharia-data.js"></script><script src="../../assets/js/producao-macharia.js"></script>
+</body></html>

@@ -230,6 +230,40 @@ assert.equal(
   0
 );
 
+// hourlySlots: buckets de hora cheia (apontamento hora a hora da Macharia),
+// diferente de checklistDueSlots que ancora no início do turno.
+// Turno MANHA (06:00-13:20): primeiro bucket completo fecha às 07:00; o
+// resto (13:00-13:20) não fecha hora cheia, fica de fora.
+assert.deepEqual(
+  shifts.hourlySlots("2026-07-24T06:00:00", "2026-07-24T13:20:00", new Date("2026-07-24T23:00:00")).map((d) => d.toISOString()),
+  ["07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00"].map((h) => new Date(`2026-07-24T${h}:00`).toISOString())
+);
+// Turno TARDE (13:20-21:30): não começa na hora cheia, primeiro bucket fecha às 14:00.
+assert.deepEqual(
+  shifts.hourlySlots("2026-07-24T13:20:00", "2026-07-24T21:30:00", new Date("2026-07-24T23:00:00")).map((d) => d.toISOString()),
+  ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00"].map((h) => new Date(`2026-07-24T${h}:00`).toISOString())
+);
+// Turno NOITE (21:30-06:00 do dia seguinte): cobre a virada de dia, e como o
+// turno termina exatamente na hora cheia (06:00), esse último bucket entra.
+assert.deepEqual(
+  shifts.hourlySlots("2026-07-24T21:30:00", "2026-07-25T06:00:00", new Date("2026-07-25T08:00:00")).map((d) => d.toISOString()),
+  [
+    "2026-07-24T22:00:00", "2026-07-24T23:00:00",
+    "2026-07-25T00:00:00", "2026-07-25T01:00:00", "2026-07-25T02:00:00",
+    "2026-07-25T03:00:00", "2026-07-25T04:00:00", "2026-07-25T05:00:00", "2026-07-25T06:00:00"
+  ].map((v) => new Date(v).toISOString())
+);
+// "Agora" no meio do turno: só os buckets já vencidos.
+assert.deepEqual(
+  shifts.hourlySlots("2026-07-24T06:00:00", "2026-07-24T13:20:00", new Date("2026-07-24T09:15:00")).map((d) => d.toISOString()),
+  ["07:00", "08:00", "09:00"].map((h) => new Date(`2026-07-24T${h}:00`).toISOString())
+);
+// Antes do primeiro bucket fechar, nenhum slot ainda.
+assert.deepEqual(
+  shifts.hourlySlots("2026-07-24T06:00:00", "2026-07-24T13:20:00", new Date("2026-07-24T06:30:00")),
+  []
+);
+
 // findOverlappingInterval: usado para bloquear paradas com horário
 // sobreposto (Moldagem: turno inteiro; Acabamento: mesmo posto/equipamento).
 assert.equal(

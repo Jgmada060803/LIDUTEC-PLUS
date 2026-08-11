@@ -11,6 +11,7 @@ function getLoginPath() {
     window.location.pathname.includes("/producao/") ||
     window.location.pathname.includes("/producao-moldes/") ||
     window.location.pathname.includes("/producao-acabamento/") ||
+    window.location.pathname.includes("/producao-macharia/") ||
     window.location.pathname.includes("/qualidade/") ||
     window.location.pathname.includes("/reclamacoes/") ||
     window.location.pathname.includes("/clientes/") ||
@@ -295,6 +296,16 @@ function syncSidebarNavigation() {
          data-permission="producao_acabamento.visualizar">
         Paradas de Acabamento
       </a>
+      <a href="${prefix}producao-macharia/index.html"
+         class="${activeClass(isActive("producao-macharia") && !isActive("producao-macharia", "ficha-macho.html"))}"
+         data-permission="producao_macharia.visualizar">
+        Macharia
+      </a>
+      <a href="${prefix}producao-macharia/ficha-macho.html"
+         class="${activeClass(isActive("producao-macharia", "ficha-macho.html"))}"
+         data-permission="produto.editar,producao_macharia.avaliar_ficha_macho">
+        Ficha de Macho
+      </a>
     `)}
 
     ${navSection("Manutenção", `
@@ -458,7 +469,7 @@ if (window.location.pathname.endsWith("/administracao/codigos-parada.html")) {
 // que o widget flutuante abaixo não sabe calcular — por isso fica de fora
 // daqui, senão os dois mecanismos disputam a mesma tela e duplicam alertas.
 const checklistAlertPagePath = window.location.pathname.replace(/\\/g, "/");
-const isChecklistAlertPage = /\/pages\/(producao-moldes|producao-acabamento|controle-processo)\//.test(
+const isChecklistAlertPage = /\/pages\/(producao-moldes|producao-acabamento|producao-macharia|controle-processo)\//.test(
   checklistAlertPagePath
 ) && !/\/pages\/producao-moldes\/lancamento\.html$/.test(checklistAlertPagePath);
 
