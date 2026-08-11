@@ -26,11 +26,24 @@ function forwardedApontamentoParams(extra={}){
   for(const[key,value]of Object.entries(extra))if(value!=null)forward.set(key,value);
   return forward;
 }
-function backToApontamentoUrl(){
+// O link genérico "Voltar ao apontamento" (injetado pelo app.js em toda
+// página de controle de processo) nasce fixo em produção de Moldes — aqui a
+// gente aponta ele pro apontamento certo assim que sabe a área do checklist.
+function updateReturnToShiftEntryLink(areaCode){
+  const link=cq("#return-to-shift-entry");if(!link)return;
+  const acabamento=areaCode==="ACABAMENTO";
+  const params=new URLSearchParams(location.search),forward=new URLSearchParams();
+  for(const key of["data","turno","editar"])if(params.get(key))forward.set(key,params.get(key));
+  link.href=`${acabamento?"../producao-acabamento/lancamento.html":"../producao-moldes/lancamento.html"}${forward.toString()?`?${forward}`:""}`;
+  link.dataset.permission=acabamento?"producao_acabamento.lancar":"producao_moldes.lancar";
+  window.LIDUTEC_APP.applyPermissionVisibility(checklistState.permissions);
+}
+function backToApontamentoUrl(areaCode){
   const params=new URLSearchParams(location.search);
   if(params.get("origem")!=="apontamento")return"./checklists.html";
   const forward=forwardedApontamentoParams();
-  return `../producao-moldes/lancamento.html${forward.toString()?`?${forward}`:""}`;
+  const apontamentoPage=areaCode==="ACABAMENTO"?"../producao-acabamento/lancamento.html":"../producao-moldes/lancamento.html";
+  return `${apontamentoPage}${forward.toString()?`?${forward}`:""}`;
 }
 // Desbloqueio de edição do check de um turno já fechado, direto na tela do
 // próprio check (ex.: M02) — sem precisar navegar até o apontamento.
@@ -82,9 +95,9 @@ function renderApprovals(rows){
 async function loadDashboardData(){
   const[areas,models,executions,approvals]=await Promise.all([checklistData.areas(),checklistData.models(),checklistData.executions(),checklistData.pendingApprovals(),refreshCurrentShiftExists()]);checklistState.areas=areas;checklistState.models=models;checklistState.executions=executions;
   const today=checklistOperationalContext().date;cq("#models-count").textContent=models.length;cq("#today-count").textContent=executions.filter(row=>row.data_operacional===today).length;cq("#approval-count").textContent=approvals.length;cq("#deviation-count").textContent=executions.filter(row=>["NAO_CONFORME","BLOQUEADO"].includes(row.status)).length;
-  const paramArea=new URLSearchParams(location.search).get("area"),preferred=paramArea||activeProfileArea(),selected=checklistState.areas.some(area=>area.codigo===preferred)?preferred:checklistState.areas[0]?.codigo;renderAreaTabs(selected);renderModels(selected);renderApprovals(approvals);cq("#checklist-loading").hidden=true;
+  const paramArea=new URLSearchParams(location.search).get("area"),preferred=paramArea||activeProfileArea(),selected=checklistState.areas.some(area=>area.codigo===preferred)?preferred:checklistState.areas[0]?.codigo;renderAreaTabs(selected);renderModels(selected);renderApprovals(approvals);cq("#checklist-loading").hidden=true;updateReturnToShiftEntryLink(selected);
 }
-async function initializeDashboard(){await loadDashboardData();cq("#area-tabs").addEventListener("click",event=>{const button=event.target.closest("[data-area]");if(!button)return;renderAreaTabs(button.dataset.area);renderModels(button.dataset.area)});cq("#approval-list").addEventListener("click",event=>{const button=event.target.closest("[data-decision]");if(button)decideChecklist(Number(button.dataset.execution),button.dataset.decision).catch(error=>alert(error.message))})}
+async function initializeDashboard(){await loadDashboardData();cq("#area-tabs").addEventListener("click",event=>{const button=event.target.closest("[data-area]");if(!button)return;renderAreaTabs(button.dataset.area);renderModels(button.dataset.area);updateReturnToShiftEntryLink(button.dataset.area)});cq("#approval-list").addEventListener("click",event=>{const button=event.target.closest("[data-decision]");if(button)decideChecklist(Number(button.dataset.execution),button.dataset.decision).catch(error=>alert(error.message))})}
 
 function resultButtons(item){const na=item.permite_na?`<label><input type="radio" name="result-${item.id}" value="NAO_APLICAVEL"><span>Não aplicável</span></label>`:"";return`<div class="checklist-result-options"><label><input type="radio" name="result-${item.id}" value="CONFORME"><span>${item.tipo_resposta==="SIM_NAO"?"Sim":"Conforme"}</span></label><label><input type="radio" name="result-${item.id}" value="NAO_CONFORME"><span>${item.tipo_resposta==="SIM_NAO"?"Não":"Não conforme"}</span></label>${na}</div>`}
 function itemSpecification(item){const parts=[];if(item.valor_minimo!=null)parts.push(`Mín. ${item.valor_minimo}`);if(item.valor_alvo!=null)parts.push(`Alvo ${item.valor_alvo}`);if(item.valor_maximo!=null)parts.push(`Máx. ${item.valor_maximo}`);const source=item.fonte_limite_tipo==="INSTRUCAO_TRABALHO"?` · IT rev. ${item.fonte_limite_revisao||"—"}${item.fonte_limite_pagina?` pág. ${item.fonte_limite_pagina}`:""}`:item.fonte_limite_tipo==="FICHA_TECNICA"?" · Ficha Técnica vigente":"";return parts.length?`${parts.join(" · ")} ${item.unidade||""}${source}`:"Conforme ficha técnica/instrução vigente"}
@@ -341,7 +354,8 @@ async function initializeForm(){
   const automaticMoldProduct=model.areas_checklist?.codigo==="MOLDAGEM"&&model.codigo==="M02"&&model.frequencia_tipo==="INTERVALO"&&Number(model.intervalo_minutos)===30;
   cq("#form-title").textContent=model.nome;cq("#form-subtitle").textContent=model.descricao||model.nome;cq("#form-code").textContent=`${model.areas_checklist?.nome} · ${model.codigo} · ${modelFrequency(model)}`;cq("#form-name").textContent=model.nome;cq("#form-instruction").textContent=`Referência: ${model.instrucao_codigo||"não informada"} · revisão do modelo ${model.versao}`;
   const operationalContext=checklistOperationalContext();cq("#execution-date").value=params.get("data")||operationalContext.date;if(operationalContext.shift)cq("#execution-shift").value=params.get("turno")||operationalContext.shift;
-  cq("#checklist-back-link").href=backToApontamentoUrl();
+  cq("#checklist-back-link").href=backToApontamentoUrl(model.areas_checklist?.codigo);
+  updateReturnToShiftEntryLink(model.areas_checklist?.codigo);
   checklistEditingClosedShift=false;
   cq("#execution-product").insertAdjacentHTML("beforeend",products.map(product=>`<option value="${product.id}">${cesc(product.codigo)} — ${cesc(product.nome)}</option>`).join(""));let selectedProduct=params.get("produto");if(automaticMoldProduct&&!selectedProduct){const production=await checklistData.productionAt(cq("#execution-date").value,cq("#execution-shift").value);selectedProduct=production?.produto_id?String(production.produto_id):"";if(production?.produtos&&!products.some(product=>String(product.id)===selectedProduct))cq("#execution-product").insertAdjacentHTML("beforeend",`<option value="${production.produtos.id}">${cesc(production.produtos.codigo)} — ${cesc(production.produtos.nome)}</option>`)}if(selectedProduct)cq("#execution-product").value=selectedProduct;if(automaticMoldProduct&&selectedProduct){cq("#execution-product").disabled=true;cq("#product-field").dataset.automatic="true"}else if(automaticMoldProduct)checklistMessage("Não foi possível identificar automaticamente um produto em produção. Selecione o produto para continuar.");cq("#product-field").hidden=!model.produto_obrigatorio;cq("#equipment-field").hidden=automaticMoldProduct||!model.equipamento_obrigatorio;if(automaticMoldProduct)cq("#execution-equipment").value="";cq("#run-field").hidden=!model.corrida_obrigatoria;
   const postoGrid=model.areas_checklist?.codigo==="ACABAMENTO"&&model.codigo==="A01";
@@ -376,7 +390,7 @@ async function initializeForm(){
   }else{
     renderChecklistItems(items);
     cq("#checklist-sections").addEventListener("input",event=>{const article=event.target.closest(".checklist-item");if(article)syncItemState(article)});cq("#checklist-sections").addEventListener("change",event=>{const article=event.target.closest(".checklist-item");if(article)syncItemState(article)});cq("#checklist-sections").addEventListener("click",event=>{const button=event.target.closest("[data-confirm-section]");if(!button)return;for(const article of button.closest(".checklist-section").querySelectorAll(".checklist-item")){const radio=article.querySelector('input[value="CONFORME"]');if(radio){radio.checked=true;syncItemState(article)}}});
-    cq("#checklist-form").addEventListener("submit",async event=>{event.preventDefault();const submit=cq("#submit-checklist");submit.disabled=true;try{const productId=cq("#execution-product").value?Number(cq("#execution-product").value):null,id=await checklistData.save({p_modelo_id:Number(modelId),p_data_operacional:cq("#execution-date").value,p_turno:cq("#execution-shift").value,p_produto_id:productId,p_equipamento:cq("#execution-equipment").value||null,p_corrida:cq("#execution-run").value||null,p_observacao:cq("#execution-notes").value||null,p_respostas:serializeChecklistAnswers()}),completedAt=new Date().toISOString();sessionStorage.setItem("lidutec:checklists:ultima-conclusao",JSON.stringify({id,modelo_id:Number(modelId),produto_id:productId,data_operacional:cq("#execution-date").value,turno:cq("#execution-shift").value,status:"CONFORME",iniciado_em:completedAt,concluido_em:completedAt}));alert(`Checklist ${id} registrado com sucesso.`);location.replace(params.get("origem")==="apontamento"?backToApontamentoUrl():"./checklist-historico.html")}catch(error){checklistMessage(error.message);submit.disabled=false}});
+    cq("#checklist-form").addEventListener("submit",async event=>{event.preventDefault();const submit=cq("#submit-checklist");submit.disabled=true;try{const productId=cq("#execution-product").value?Number(cq("#execution-product").value):null,id=await checklistData.save({p_modelo_id:Number(modelId),p_data_operacional:cq("#execution-date").value,p_turno:cq("#execution-shift").value,p_produto_id:productId,p_equipamento:cq("#execution-equipment").value||null,p_corrida:cq("#execution-run").value||null,p_observacao:cq("#execution-notes").value||null,p_respostas:serializeChecklistAnswers()}),completedAt=new Date().toISOString();sessionStorage.setItem("lidutec:checklists:ultima-conclusao",JSON.stringify({id,modelo_id:Number(modelId),produto_id:productId,data_operacional:cq("#execution-date").value,turno:cq("#execution-shift").value,status:"CONFORME",iniciado_em:completedAt,concluido_em:completedAt}));alert(`Checklist ${id} registrado com sucesso.`);location.replace(params.get("origem")==="apontamento"?backToApontamentoUrl(model.areas_checklist?.codigo):"./checklist-historico.html")}catch(error){checklistMessage(error.message);submit.disabled=false}});
   }
   cq("#checklist-loading").hidden=true;cq("#checklist-form").hidden=false;
 }
