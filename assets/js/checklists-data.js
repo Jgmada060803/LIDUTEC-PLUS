@@ -40,10 +40,19 @@
     // fechado; os demais setores ainda não migraram (retorna null pra eles).
     shiftStatus: (date, turno, areaCode) => areaCode === "ACABAMENTO"
       ? unwrap(client().from("turnos_producao_acabamento")
-          .select("status,rascunho_producoes,turnos_acabamento_linhas(linha_maquina_id)")
+          .select("status,rascunho_producoes,rascunho_paradas,turnos_acabamento_linhas(linha_maquina_id)")
           .eq("data_operacional", date).eq("turno", turno).maybeSingle(), null)
       : unwrap(client().from("turnos_producao_moldes")
           .select("status,rascunho_producoes,rascunho_paradas").eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
+    // Usado pra identificar postos marcados como parados por absenteísmo
+    // (categoria Absenteísmo / setor ADM) no checklist por posto do Acabamento.
+    categoriaParadaByCodigo: (codigo) => unwrap(client().from("categorias_parada_producao")
+      .select("id").eq("codigo", codigo).maybeSingle(), null),
+    setorParadaByCodigo: (codigo) => unwrap(client().from("setores_responsaveis_parada")
+      .select("id").eq("codigo", codigo).maybeSingle(), null),
+    stopsForAcabamentoShift: (date, turno) => unwrap(client().from("paradas_producao_acabamento")
+      .select("posto_equipamento_id,categoria_id,setor_origem_id")
+      .eq("data_operacional", date).eq("turno", turno)),
     // Postos de linha do Acabamento (ex.: rebarbação) — usado pra montar as
     // colunas do checklist por posto (ex.: A01), já com a linha a que pertencem.
     postosAcabamento: () => unwrap(client().from("postos_equipamentos_acabamento")

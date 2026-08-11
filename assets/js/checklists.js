@@ -264,17 +264,35 @@ async function acabamentoPostoColumns(shiftRow){
 function findExecutionForPosto(posto,executions){
   return executions.find(exec=>exec.equipamento===posto.nome)||null;
 }
-function renderPostoChecklistGrid(items,postos,executions,canEdit,unlockable){
-  const columns=postos.map((posto,index)=>({posto,index,execution:findExecutionForPosto(posto,executions)}));
+// Postos marcados como parados por absenteísmo (categoria Absenteísmo /
+// setor ADM) na caixa de absenteísmo do apontamento — turno aberto lê do
+// rascunho, fechado lê do registro definitivo. Mesmo padrão já usado pra
+// identificar horário com máquina parada no checklist da Moldagem.
+async function absenteeismStoppedPostos(date,turno,shiftRow){
+  const[categoria,setor]=await Promise.all([checklistData.categoriaParadaByCodigo("ABSENTEISMO"),checklistData.setorParadaByCodigo("ADM")]);
+  if(!categoria||!setor)return new Set();
+  if(shiftRow?.status==="FECHADO"){
+    const rows=await checklistData.stopsForAcabamentoShift(date,turno);
+    return new Set(rows.filter(row=>Number(row.categoria_id)===categoria.id&&Number(row.setor_origem_id)===setor.id).map(row=>String(row.posto_equipamento_id)));
+  }
+  const rows=shiftRow?.rascunho_paradas||[];
+  return new Set(rows.filter(row=>Number(row.categoria_id)===categoria.id&&Number(row.setor_id)===setor.id).map(row=>String(row.posto_id)));
+}
+function renderPostoChecklistGrid(items,postos,executions,canEdit,unlockable,stoppedPostos=new Set()){
+  const columns=postos.map((posto,index)=>({posto,index,execution:findExecutionForPosto(posto,executions),parado:stoppedPostos.has(String(posto.id))}));
   const headerCells=columns.map(col=>{
-    const meta=col.execution?`<small>${gridTimeLabel(new Date(col.execution.iniciado_em))} · ${cesc(col.execution.usuarios?.nome||"—")}</small>`:'<small>Pendente</small>';
-    return `<th class="checklist-grid-slot"><strong>${cesc(col.posto.nome)}</strong>${meta}</th>`;
+    const meta=col.execution?`<small>${gridTimeLabel(new Date(col.execution.iniciado_em))} · ${cesc(col.execution.usuarios?.nome||"—")}</small>`:col.parado?'<small>Parado por falta de operador</small>':'<small>Pendente</small>';
+    return `<th class="checklist-grid-slot${col.parado&&!col.execution?" checklist-grid-slot-stopped":""}"><strong>${cesc(col.posto.nome)}</strong>${meta}</th>`;
   }).join("");
   const rows=items.map(item=>{
-    const cells=columns.map(col=>`<td class="checklist-grid-cell" data-item-id="${item.id}" data-col="${col.index}" data-type="${item.tipo_resposta}" data-min="${item.valor_minimo??""}" data-max="${item.valor_maximo??""}" data-apenas-valor="${item.apenas_valor?"1":""}">${gridCellMarkup(item,col.execution,col.index,canEdit&&!col.execution)}</td>`).join("");
+    const cells=columns.map(col=>{
+      const dispensado=col.parado&&!col.execution;
+      const markup=dispensado?'<span class="checklist-grid-answer result-pending">Parada</span>':gridCellMarkup(item,col.execution,col.index,canEdit&&!col.execution);
+      return `<td class="checklist-grid-cell" data-item-id="${item.id}" data-col="${col.index}" data-type="${item.tipo_resposta}" data-min="${item.valor_minimo??""}" data-max="${item.valor_maximo??""}" data-apenas-valor="${item.apenas_valor?"1":""}">${markup}</td>`;
+    }).join("");
     return `<tr><th class="checklist-grid-itemcol"><span class="checklist-grid-item-code">${cesc(item.codigo)}</span>${cesc(item.descricao)}${item.critico?' <i class="checklist-critical-dot" title="Item crítico"></i>':""}</th>${cells}</tr>`;
   }).join("");
-  const actionRow=`<tr class="checklist-grid-actions"><th></th>${columns.map(col=>`<td>${(!col.execution&&canEdit)?`<button type="button" class="button button-primary checklist-grid-confirm" data-col="${col.index}" data-posto-id="${col.posto.id}">Confirmar</button>`:""}</td>`).join("")}</tr>`;
+  const actionRow=`<tr class="checklist-grid-actions"><th></th>${columns.map(col=>`<td>${(!col.execution&&!col.parado&&canEdit)?`<button type="button" class="button button-primary checklist-grid-confirm" data-col="${col.index}" data-posto-id="${col.posto.id}">Confirmar</button>`:""}</td>`).join("")}</tr>`;
   const lockedMessage=!canEdit?`<p class="checklist-grid-locked">Este turno já foi fechado — somente consulta.${unlockable?' <button type="button" class="button button-secondary checklist-grid-unlock">Editar turno fechado</button>':""}</p>`:!columns.length?'<p class="checklist-grid-locked">Nenhum posto ativo encontrado para este turno.</p>':"";
   cq("#checklist-sections").innerHTML=`<section class="panel checklist-grid-panel"><div class="checklist-grid-wrapper"><table class="checklist-grid"><thead><tr><th class="checklist-grid-itemcol">Item</th>${headerCells}</tr></thead><tbody>${rows}${actionRow}</tbody></table></div>${lockedMessage}</section>`;
 }
@@ -286,9 +304,10 @@ async function loadPostoChecklistGrid(model,modelId){
     checklistData.shiftStatus(date,turno,"ACABAMENTO")
   ]);
   currentPostoColumns=await acabamentoPostoColumns(shift);
+  const stoppedPostos=await absenteeismStoppedPostos(date,turno,shift);
   const open=shift?.status==="ABERTO",canEdit=open||checklistEditingClosedShift;
   const unlockable=!open&&shift?.status==="FECHADO"&&!checklistEditingClosedShift&&checklistState.permissions.has("producao_acabamento.editar");
-  renderPostoChecklistGrid(items,currentPostoColumns,executions,canEdit,unlockable);
+  renderPostoChecklistGrid(items,currentPostoColumns,executions,canEdit,unlockable,stoppedPostos);
 }
 async function submitPostoGridColumn(button,modelId,model,posto){
   const colIndex=button.dataset.col;
