@@ -655,6 +655,16 @@ function applyLinha2Visibility() {
   }
 }
 
+function updateChecklistLink() {
+  const link = aq("#checklist-link"), form = aq("#shift-entry-form");
+  if (!link || !form) return;
+  const params = new URLSearchParams();
+  if (form.elements.data_operacional.value) params.set("data", form.elements.data_operacional.value);
+  if (form.elements.turno.value) params.set("turno", form.elements.turno.value);
+  params.set("origem", "apontamento");
+  if (acabamentoState.editingClosed) params.set("editar", "1");
+  link.href = `../controle-processo/checklists.html?area=ACABAMENTO&${params}`;
+}
 async function checkShiftStatus() {
   const form = aq("#shift-entry-form");
   const date = form.elements.data_operacional.value;
@@ -718,6 +728,7 @@ async function checkShiftStatus() {
   if (data?.id && closed) await loadShiftHistory(data.id); else aq("#shift-edit-history").hidden = true;
   renderAcabamentoIllustrations();
   updateAbsenteeismBoxes();
+  updateChecklistLink();
 }
 
 async function loadShiftHistory(turnId) {
@@ -742,6 +753,7 @@ async function editClosedShift() {
   aq("#close-shift-button").textContent = "Salvar alterações";
   aq("#shift-status").textContent = "Editando turno fechado";
   updateAbsenteeismBoxes();
+  updateChecklistLink();
 }
 async function deleteClosedShift() {
   const turnId = acabamentoState.currentShift?.id;
