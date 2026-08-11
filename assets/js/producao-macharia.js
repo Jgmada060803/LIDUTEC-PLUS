@@ -71,10 +71,17 @@ function renderGrid() {
   const slots = window.LIDUTEC_TURNOS.hourlySlots(bounds.start, bounds.end, closed ? bounds.end : new Date());
   const estacoes = Array.from({ length: maquina.numero_estacoes }, (_, i) => i + 1);
   const entries = machariaState.currentShift?.rascunho_producoes || [];
-  const lookup = new Map(entries
-    .filter((item) => String(item.linha_id ?? item.linha_maquina_id) === String(maquina.id))
-    .map((item) => [`${item.estacao}|${new Date(item.horario_previsto).toISOString()}`, item]));
+  // Uma hora/estação pode ter mais de um lançamento (troca de macho no meio
+  // da hora), então cada chave guarda uma lista, não um item único.
+  const lookup = new Map();
+  for (const item of entries) {
+    if (String(item.linha_id ?? item.linha_maquina_id) !== String(maquina.id)) continue;
+    const key = `${item.estacao}|${new Date(item.horario_previsto).toISOString()}`;
+    if (!lookup.has(key)) lookup.set(key, []);
+    lookup.get(key).push(item);
+  }
   const machoOptions = machariaState.machos.map((m) => `<option value="${m.id}">${aesc(machoLabel(m))}</option>`).join("");
+  machariaState.machoOptionsHtml = machoOptions;
 
   if (!slots.length) {
     container.innerHTML = '<p class="checklist-grid-locked">Ainda não há horário previsto vencido para este turno.</p>';
@@ -84,17 +91,26 @@ function renderGrid() {
   const subHeaderCells = estacoes.map(() => `<th class="macharia-subheader">Macho</th><th class="macharia-subheader">Sopros</th>`).join("");
   // A identificação do macho repete da hora anterior por padrão (o operador
   // normalmente segue produzindo a mesma coisa) — só a quantidade de sopros
-  // começa sempre zerada a cada hora. Se mudou de macho, o operador troca.
+  // começa sempre zerada a cada hora. Se mudou de macho, o operador troca ou
+  // usa "+ macho" pra registrar mais de um lançamento na mesma hora.
   const lastMachoByEstacao = new Map();
+  const disabledAttr = canEdit ? "" : "disabled";
+  const addButtonHtml = canEdit ? '<button type="button" class="macharia-add-entry" title="Adicionar outro macho nesta hora">+ macho</button>' : "";
   const rows = slots.map((slot) => {
     const cells = estacoes.map((estacao) => {
       const key = `${estacao}|${slot.toISOString()}`;
-      const entry = lookup.get(key);
-      const disabled = canEdit ? "" : "disabled";
-      const defaultMachoId = entry?.macho_id ?? lastMachoByEstacao.get(estacao) ?? "";
-      if (defaultMachoId) lastMachoByEstacao.set(estacao, defaultMachoId);
-      return `<td class="checklist-grid-cell macharia-macho-cell"><select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot.toISOString()}" data-default="${defaultMachoId}" ${disabled}><option value="">—</option>${machoOptions}</select></td>`
-        + `<td class="checklist-grid-cell macharia-sopros-cell"><input type="number" class="macharia-sopros" min="0" step="1" value="${entry?.quantidade_sopros ?? 0}" data-estacao="${estacao}" data-slot="${slot.toISOString()}" ${disabled}></td>`;
+      const list = lookup.get(key) || [];
+      const defaultMachoId = (list[0]?.macho_id) ?? lastMachoByEstacao.get(estacao) ?? "";
+      const lastMachoId = list.length ? list[list.length - 1].macho_id : defaultMachoId;
+      if (lastMachoId) lastMachoByEstacao.set(estacao, lastMachoId);
+      const items = list.length ? list : [{}];
+      const machoEntries = items.map((item, index) => {
+        const value = index === 0 ? (item.macho_id ?? defaultMachoId) : (item.macho_id ?? "");
+        return `<div class="macharia-entry"><select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot.toISOString()}" data-value="${value || ""}" ${disabledAttr}><option value="">—</option>${machoOptions}</select></div>`;
+      }).join("");
+      const soprosEntries = items.map((item) => `<div class="macharia-entry"><input type="number" class="macharia-sopros" min="0" step="1" value="${item.quantidade_sopros ?? 0}" data-estacao="${estacao}" data-slot="${slot.toISOString()}" ${disabledAttr}><button type="button" class="macharia-remove-entry" aria-label="Remover lançamento" ${disabledAttr}>×</button></div>`).join("");
+      return `<td class="checklist-grid-cell macharia-macho-cell" data-estacao="${estacao}" data-slot="${slot.toISOString()}"><div class="macharia-multi">${machoEntries}${addButtonHtml}</div></td>`
+        + `<td class="checklist-grid-cell macharia-sopros-cell" data-estacao="${estacao}" data-slot="${slot.toISOString()}"><div class="macharia-multi">${soprosEntries}</div></td>`;
     }).join("");
     return `<tr><th class="checklist-grid-itemcol">${hourLabel(slot)}</th>${cells}</tr>`;
   }).join("");
@@ -103,22 +119,71 @@ function renderGrid() {
     <tr>${subHeaderCells}</tr>
   </thead><tbody>${rows}</tbody></table>`;
   for (const select of container.querySelectorAll(".macharia-macho")) {
-    if (select.dataset.default) select.value = select.dataset.default;
+    if (select.dataset.value) select.value = select.dataset.value;
   }
 }
+// Pareia cada select de macho com o input de sopros na mesma posição dentro
+// da célula (podem existir vários pares na mesma hora/estação).
 function collectMachineEntries() {
   const maquina = currentMaquina();
   const container = aq("#macharia-grid-container");
   if (!maquina) return [];
   const entries = [];
-  for (const select of container.querySelectorAll(".macharia-macho")) {
-    if (!select.value) continue;
-    const estacao = anumber(select.dataset.estacao);
-    const slot = select.dataset.slot;
-    const sopros = container.querySelector(`.macharia-sopros[data-estacao="${estacao}"][data-slot="${slot}"]`);
-    entries.push({ linha_id: maquina.id, estacao, horario_previsto: slot, macho_id: anumber(select.value), quantidade_sopros: anumber(sopros?.value) });
+  for (const row of container.querySelectorAll("tbody tr")) {
+    for (const machoCell of row.querySelectorAll("td.macharia-macho-cell")) {
+      const estacao = machoCell.dataset.estacao;
+      const soprosCell = row.querySelector(`td.macharia-sopros-cell[data-estacao="${estacao}"]`);
+      const selects = [...machoCell.querySelectorAll(".macharia-macho")];
+      const inputs = soprosCell ? [...soprosCell.querySelectorAll(".macharia-sopros")] : [];
+      selects.forEach((select, index) => {
+        if (!select.value) return;
+        entries.push({
+          linha_id: maquina.id,
+          estacao: anumber(select.dataset.estacao),
+          horario_previsto: select.dataset.slot,
+          macho_id: anumber(select.value),
+          quantidade_sopros: anumber(inputs[index]?.value)
+        });
+      });
+    }
   }
   return entries;
+}
+function addMachoEntryRow(addButton) {
+  const machoCell = addButton.closest("td");
+  const tr = machoCell.closest("tr");
+  const estacao = machoCell.dataset.estacao;
+  const slot = machoCell.dataset.slot;
+  const soprosCell = tr.querySelector(`td.macharia-sopros-cell[data-estacao="${estacao}"]`);
+  const machoEntry = document.createElement("div");
+  machoEntry.className = "macharia-entry";
+  machoEntry.innerHTML = `<select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot}"><option value="">—</option>${machariaState.machoOptionsHtml || ""}</select>`;
+  machoCell.querySelector(".macharia-multi").insertBefore(machoEntry, addButton);
+  const soprosEntry = document.createElement("div");
+  soprosEntry.className = "macharia-entry";
+  soprosEntry.innerHTML = `<input type="number" class="macharia-sopros" min="0" step="1" value="0" data-estacao="${estacao}" data-slot="${slot}"><button type="button" class="macharia-remove-entry" aria-label="Remover lançamento">×</button>`;
+  soprosCell.querySelector(".macharia-multi").append(soprosEntry);
+  saveDraft();
+}
+function removeMachoEntryRow(removeButton) {
+  const entryDiv = removeButton.closest(".macharia-entry");
+  const soprosCell = removeButton.closest("td");
+  const tr = soprosCell.closest("tr");
+  const estacao = soprosCell.dataset.estacao;
+  const soprosEntries = [...soprosCell.querySelectorAll(".macharia-entry")];
+  const index = soprosEntries.indexOf(entryDiv);
+  const machoCell = tr.querySelector(`td.macharia-macho-cell[data-estacao="${estacao}"]`);
+  const machoEntries = [...machoCell.querySelectorAll(".macharia-entry")];
+  if (soprosEntries.length <= 1) {
+    const select = machoEntries[0]?.querySelector(".macharia-macho");
+    const input = entryDiv.querySelector(".macharia-sopros");
+    if (select) select.value = "";
+    if (input) input.value = "0";
+  } else {
+    machoEntries[index]?.remove();
+    entryDiv.remove();
+  }
+  saveDraft();
 }
 function mergedProducoes() {
   const maquina = currentMaquina();
@@ -256,6 +321,12 @@ async function initializeShiftEntry() {
   form.elements.turno.addEventListener("change", refresh);
   form.addEventListener("input", (event) => { if (event.target.matches(".macharia-sopros")) saveDraft(); });
   form.addEventListener("change", (event) => { if (event.target.matches(".macharia-macho")) saveDraft(); });
+  aq("#macharia-grid-container").addEventListener("click", (event) => {
+    const addButton = event.target.closest(".macharia-add-entry");
+    if (addButton) { addMachoEntryRow(addButton); return; }
+    const removeButton = event.target.closest(".macharia-remove-entry");
+    if (removeButton) removeMachoEntryRow(removeButton);
+  });
   form.addEventListener("submit", closeShift);
   aq("#edit-shift-button").addEventListener("click", editClosedShift);
   aq("#delete-shift-button").addEventListener("click", deleteClosedShift);
