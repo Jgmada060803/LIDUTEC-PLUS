@@ -2,6 +2,7 @@ const pq = (selector) => document.querySelector(selector);
 const pesc = (value = "") => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const DIA_SEMANA_LABEL = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 let ppPermissions = new Set();
+let ppListMode = "vigentes";
 
 function paradaProgramadaMessage(text, type = "success") {
   const el = pq("#parada-programada-message");
@@ -40,18 +41,29 @@ async function loadParadaProgramadaUnidades(areaId) {
 function formatHorario(value) {
   return String(value || "").slice(0, 5);
 }
+function formatVigencia(item) {
+  const inicio = new Date(`${item.vigencia_inicio}T12:00:00`).toLocaleDateString("pt-BR");
+  if (!item.vigencia_fim) return `desde ${inicio}`;
+  const fim = new Date(`${item.vigencia_fim}T12:00:00`).toLocaleDateString("pt-BR");
+  return `${inicio} até ${fim}`;
+}
 
 async function loadParadaProgramadaList() {
   pq("#parada-programada-list-loading").hidden = false;
   pq("#parada-programada-list-table").hidden = true;
-  const { data, error } = await window.supabaseClient
+  pq("#parada-programada-list-title").textContent = ppListMode === "vigentes"
+    ? "Paradas programadas vigentes" : "Paradas programadas encerradas";
+  let query = window.supabaseClient
     .from("paradas_programadas")
-    .select("id,linha_maquina_id,turno,horario_inicial,horario_final,dias_semana,vigencia_inicio,areas_checklist(nome),linhas_maquinas_producao(nome),equipamentos_planejamento(nome),tipos_parada_programada(nome)")
-    .is("vigencia_fim", null)
-    .order("area_id");
+    .select("id,linha_maquina_id,turno,horario_inicial,horario_final,dias_semana,vigencia_inicio,vigencia_fim,areas_checklist(nome),linhas_maquinas_producao(nome),equipamentos_planejamento(nome),tipos_parada_programada(nome)");
+  query = ppListMode === "vigentes"
+    ? query.is("vigencia_fim", null).order("area_id")
+    : query.not("vigencia_fim", "is", null).order("vigencia_fim", { ascending: false });
+  const { data, error } = await query;
   if (error) throw error;
   const rows = data || [];
-  const canEncerrar = ppPermissions.has("paradas_programadas.encerrar");
+  const canEncerrar = ppPermissions.has("paradas_programadas.encerrar") && ppListMode === "vigentes";
+  const canExcluir = ppPermissions.has("paradas_programadas.excluir");
   pq("#parada-programada-list-rows").innerHTML = rows.map((item) => `<tr data-parada-id="${item.id}">
       <td>${pesc(item.areas_checklist?.nome || "—")}</td>
       <td>${pesc(item.linhas_maquinas_producao?.nome || item.equipamentos_planejamento?.nome || "Geral")}</td>
@@ -59,8 +71,11 @@ async function loadParadaProgramadaList() {
       <td>${pesc(item.tipos_parada_programada?.nome || "—")}</td>
       <td>${formatHorario(item.horario_inicial)} às ${formatHorario(item.horario_final)}</td>
       <td>${(item.dias_semana || []).slice().sort().map((d) => DIA_SEMANA_LABEL[d]).join(", ")}</td>
-      <td>${new Date(`${item.vigencia_inicio}T12:00:00`).toLocaleDateString("pt-BR")}</td>
-      <td>${canEncerrar ? `<button type="button" class="button button-secondary parada-programada-encerrar" data-parada-id="${item.id}">Encerrar</button>` : ""}</td>
+      <td>${formatVigencia(item)}</td>
+      <td>
+        ${canEncerrar ? `<button type="button" class="button button-secondary parada-programada-encerrar" data-parada-id="${item.id}">Encerrar</button>` : ""}
+        ${canExcluir ? `<button type="button" class="button button-danger parada-programada-excluir" data-parada-id="${item.id}">Excluir</button>` : ""}
+      </td>
     </tr>`).join("");
   pq("#parada-programada-list-loading").hidden = true;
   pq("#parada-programada-list-table").hidden = false;
@@ -78,6 +93,23 @@ async function encerrarParadaProgramada(button) {
     row.remove();
     pq("#parada-programada-list-empty").hidden = pq("#parada-programada-list-rows").children.length > 0;
     paradaProgramadaMessage("Parada programada encerrada com sucesso.");
+  } catch (error) {
+    paradaProgramadaMessage(error.message, "error");
+    button.disabled = false;
+  }
+}
+
+async function excluirParadaProgramada(button) {
+  const row = button.closest("tr");
+  const id = Number(button.dataset.paradaId);
+  if (!confirm("Excluir definitivamente esta parada programada? Essa ação não pode ser desfeita.")) return;
+  button.disabled = true;
+  try {
+    const { error } = await window.supabaseClient.rpc("excluir_parada_programada", { p_id: id });
+    if (error) throw error;
+    row.remove();
+    pq("#parada-programada-list-empty").hidden = pq("#parada-programada-list-rows").children.length > 0;
+    paradaProgramadaMessage("Parada programada excluída com sucesso.");
   } catch (error) {
     paradaProgramadaMessage(error.message, "error");
     button.disabled = false;
@@ -106,9 +138,19 @@ async function initializeParadasProgramadasAdmin() {
   await loadParadaProgramadaList();
 
   pq("#pp-area").addEventListener("change", (event) => loadParadaProgramadaUnidades(event.target.value).catch((error) => paradaProgramadaMessage(error.message, "error")));
+  for (const tabButton of document.querySelectorAll(".pp-tab")) {
+    tabButton.addEventListener("click", () => {
+      if (tabButton.dataset.ppTab === ppListMode) return;
+      ppListMode = tabButton.dataset.ppTab;
+      for (const button of document.querySelectorAll(".pp-tab")) button.classList.toggle("active", button === tabButton);
+      loadParadaProgramadaList().catch((error) => paradaProgramadaMessage(error.message, "error"));
+    });
+  }
   pq("#parada-programada-list-rows").addEventListener("click", (event) => {
-    const button = event.target.closest(".parada-programada-encerrar");
-    if (button) encerrarParadaProgramada(button);
+    const encerrarButton = event.target.closest(".parada-programada-encerrar");
+    if (encerrarButton) { encerrarParadaProgramada(encerrarButton); return; }
+    const excluirButton = event.target.closest(".parada-programada-excluir");
+    if (excluirButton) excluirParadaProgramada(excluirButton);
   });
   pq("#parada-programada-form").addEventListener("submit", async (event) => {
     event.preventDefault();

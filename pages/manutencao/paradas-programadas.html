@@ -29,10 +29,14 @@
   </section>
 
   <section class="panel">
-    <div class="panel-header"><h3>Paradas programadas vigentes</h3></div>
+    <div class="panel-header"><h3 id="parada-programada-list-title">Paradas programadas vigentes</h3></div>
+    <nav class="pp-tabs">
+      <button type="button" class="pp-tab active" data-pp-tab="vigentes">Vigentes</button>
+      <button type="button" class="pp-tab" data-pp-tab="encerradas">Encerradas</button>
+    </nav>
     <div id="parada-programada-list-loading" class="loading-state">Carregando...</div>
-    <div class="table-wrapper"><table class="products-table" id="parada-programada-list-table" hidden><thead><tr><th>Setor</th><th>Unidade de trabalho</th><th>Turno</th><th>Tipo</th><th>Horário</th><th>Dias da semana</th><th>Vigente desde</th><th></th></tr></thead><tbody id="parada-programada-list-rows"></tbody></table></div>
-    <p id="parada-programada-list-empty" class="production-muted" hidden>Nenhuma parada programada cadastrada.</p>
+    <div class="table-wrapper"><table class="products-table" id="parada-programada-list-table" hidden><thead><tr><th>Setor</th><th>Unidade de trabalho</th><th>Turno</th><th>Tipo</th><th>Horário</th><th>Dias da semana</th><th>Vigência</th><th></th></tr></thead><tbody id="parada-programada-list-rows"></tbody></table></div>
+    <p id="parada-programada-list-empty" class="production-muted" hidden>Nenhuma parada programada encontrada.</p>
   </section>
 </main></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/paradas-programadas-admin.js"></script></body></html>
