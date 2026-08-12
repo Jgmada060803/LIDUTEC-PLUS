@@ -634,19 +634,23 @@ function renderMachariaDashboard() {
   aq('[data-metric="sopros"]').textContent = totalSopros.toLocaleString("pt-BR");
   aq('[data-metric="machos"]').textContent = totalMachos.toLocaleString("pt-BR");
 
-  // Consolidado por turno + máquina + caixa/macho — não precisa mostrar
-  // hora a hora nem por estação aqui, só o total do dia.
+  // Consolidado por data + turno + máquina + caixa/macho — não precisa
+  // mostrar hora a hora nem por estação aqui, só o total do dia.
   const groups = new Map();
   for (const item of records) {
-    const key = `${item.turno}|${item.linha_maquina_id}|${item.macho_id}`;
+    const key = `${item.data_operacional}|${item.turno}|${item.linha_maquina_id}|${item.macho_id}`;
     if (!groups.has(key)) {
-      groups.set(key, { turno: item.turno, maquina: item.linhas_maquinas_producao?.nome || "—", macho: item.machos_macharia || null, sopros: 0 });
+      groups.set(key, {
+        data: item.data_operacional, turno: item.turno,
+        maquina: item.linhas_maquinas_producao?.nome || "—", macho: item.machos_macharia || null, sopros: 0
+      });
     }
     groups.get(key).sopros += anumber(item.quantidade_sopros);
   }
   const rows = [...groups.values()].sort((a, b) =>
-    a.turno.localeCompare(b.turno) || a.maquina.localeCompare(b.maquina, "pt-BR", { numeric: true }));
+    a.data.localeCompare(b.data) || a.turno.localeCompare(b.turno) || a.maquina.localeCompare(b.maquina, "pt-BR", { numeric: true }));
   aq("#dashboard-production-records").innerHTML = rows.map((row) => `<tr>
+      <td>${displayDate(row.data)}</td>
       <td>${aesc(row.turno)}</td>
       <td>${aesc(row.maquina)}</td>
       <td>${row.macho ? aesc(machoLabel(row.macho)) : "—"}</td>
