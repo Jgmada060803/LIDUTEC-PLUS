@@ -29,7 +29,7 @@
     support: async () => {
       const [maquinas, machos, categories, sectors] = await Promise.all([
         result(client().from("linhas_maquinas_producao").select("id,codigo,nome,numero_estacoes,areas_checklist!inner(codigo)").eq("areas_checklist.codigo", "MACHARIA").eq("ativo", true).order("codigo")),
-        result(client().from("machos_macharia").select("id,caixa,macho,machos_macharia_produtos(produtos(codigo))").eq("status", "APROVADO").eq("ativo", true).order("caixa").order("macho")),
+        result(client().from("machos_macharia").select("id,caixa,macho,machos_por_sopro,machos_macharia_produtos(produtos(codigo))").eq("status", "APROVADO").eq("ativo", true).order("caixa").order("macho")),
         result(client().from("categorias_parada_producao").select("id,codigo,nome").eq("ativo", true).order("nome")),
         result(client().from("setores_responsaveis_parada").select("id,codigo,nome").eq("ativo", true).order("nome"))
       ]);
