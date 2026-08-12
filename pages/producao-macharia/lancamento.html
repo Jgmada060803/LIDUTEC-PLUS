@@ -13,10 +13,11 @@
       <div id="production-loading" class="loading-state">Carregando...</div>
       <form id="shift-entry-form" data-permission="producao_macharia.lancar" hidden>
         <div id="production-message" class="form-message" hidden role="status"></div>
+        <div id="maquina-banner" class="maquina-banner">Apontando em <strong id="maquina-banner-name">—</strong></div>
         <section class="panel shift-header-grid">
           <label>Turno<select name="turno" required><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
           <label>Data<input name="data_operacional" type="date" required></label>
-          <label>Máquina<select name="maquina_id" required></select></label>
+          <label class="maquina-field">Máquina<select name="maquina_id" required></select></label>
           <div class="shift-status"><span>Status</span><strong id="shift-status">Em apontamento</strong></div>
         </section>
 

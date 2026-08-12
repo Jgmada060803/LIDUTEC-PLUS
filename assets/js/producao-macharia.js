@@ -318,7 +318,13 @@ function mergedParadas(strict = false) {
     .filter((item) => String(item.linha_id ?? item.linha_maquina_id) !== String(maquina?.id));
   return [...others, ...collectMachineStops(strict)];
 }
+function updateMaquinaBanner() {
+  const maquina = currentMaquina();
+  const banner = aq("#maquina-banner-name");
+  if (banner) banner.textContent = maquina ? maquina.nome : "—";
+}
 function renderMachineView() {
+  updateMaquinaBanner();
   renderGrid();
   renderStopsTable();
 }
@@ -446,6 +452,12 @@ async function closeShift(event) {
     button.disabled = false;
   }
 }
+// A máquina escolhida fica presa a este navegador/usuário (não ao turno em
+// si): se voltasse sempre pra primeira da lista ao atualizar a página, o
+// operador poderia lançar sopros/paradas na máquina errada sem perceber.
+function maquinaStorageKey() {
+  return `lidutec:producao-macharia:maquina:${machariaState.user?.id || "anonimo"}`;
+}
 async function initializeShiftEntry() {
   const form = aq("#shift-entry-form");
   const params = new URLSearchParams(location.search);
@@ -453,9 +465,15 @@ async function initializeShiftEntry() {
   form.elements.data_operacional.value = /^\d{4}-\d{2}-\d{2}$/.test(params.get("data") || "") ? params.get("data") : shift.dataOperacional;
   form.elements.turno.value = window.LIDUTEC_TURNOS.shifts[params.get("turno")] ? params.get("turno") : shift.codigo;
   form.elements.maquina_id.innerHTML = machariaState.maquinas.map((m) => `<option value="${m.id}">${aesc(m.nome)}</option>`).join("");
-  if (machariaState.maquinas[0]) form.elements.maquina_id.value = machariaState.maquinas[0].id;
+  const savedMaquinaId = localStorage.getItem(maquinaStorageKey());
+  const savedMaquinaValid = savedMaquinaId && machariaState.maquinas.some((m) => String(m.id) === savedMaquinaId);
+  if (savedMaquinaValid) form.elements.maquina_id.value = savedMaquinaId;
+  else if (machariaState.maquinas[0]) form.elements.maquina_id.value = machariaState.maquinas[0].id;
 
-  form.elements.maquina_id.addEventListener("change", renderMachineView);
+  form.elements.maquina_id.addEventListener("change", () => {
+    localStorage.setItem(maquinaStorageKey(), form.elements.maquina_id.value);
+    renderMachineView();
+  });
   const refresh = () => checkShiftStatus().catch((error) => machariaMessage(error.message, "error"));
   form.elements.data_operacional.addEventListener("change", refresh);
   form.elements.turno.addEventListener("change", refresh);

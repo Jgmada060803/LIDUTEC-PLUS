@@ -17,6 +17,25 @@
 .macharia-add-entry { background: #e9efff; color: var(--color-primary); }
 .macharia-remove-entry { background: #eef3f5; color: var(--color-text-muted); }
 
+/* Destaque bem visível de qual máquina está selecionada — o operador não
+   pode confundir e apontar sopros/paradas na máquina errada. Fica sticky no
+   topo pra continuar visível mesmo rolando a grade/tabela de paradas. */
+.maquina-banner {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 14px; padding: 10px 18px;
+  background: var(--color-primary); color: #fff;
+  border-radius: 10px;
+  font-size: .82rem; font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0,0,0,.12);
+}
+.maquina-banner strong { font-size: 1.15rem; font-weight: 900; letter-spacing: .03em; }
+.maquina-field select {
+  border: 2px solid var(--color-primary);
+  font-weight: 800;
+  background: #eef3ff;
+}
+
 .ficha-tabs { display: flex; gap: 6px; margin: 12px 0; }
 .ficha-tab { padding: 8px 14px; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; font-size: .78rem; font-weight: 700; color: var(--color-text-muted); cursor: pointer; }
 .ficha-tab.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
