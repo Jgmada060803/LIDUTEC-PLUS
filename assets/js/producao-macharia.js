@@ -11,6 +11,7 @@ const machariaState = {
   draftSaveTimer: null,
   draftSaveInFlight: false,
   records: [],
+  descartes: [],
   fichaProdutos: [],
   fichaRows: [],
   fichaTab: "rascunho",
@@ -335,6 +336,82 @@ function mergedParadas(strict = false) {
     .filter((item) => String(item.linha_id ?? item.linha_maquina_id) !== String(maquina?.id));
   return [...others, ...collectMachineStops(strict)];
 }
+function findMachoById(id) {
+  return machariaState.machos.find((m) => String(m.id) === String(id)) || null;
+}
+// Descarte — lançado no fechamento do turno, não hora a hora: normalmente só
+// se percebe depois do sopro (retirada, manuseio, estufa). Uma linha por
+// macho já produzido nesta máquina no turno (lida direto da grade em tela,
+// pra ficar sempre em dia mesmo antes do rascunho salvar); "líquido" =
+// estimado - descartado.
+function renderDescarteTable() {
+  const maquina = currentMaquina();
+  const title = aq("#descarte-maquina-title");
+  const tbody = aq("#descarte-entry-rows");
+  const empty = aq("#descarte-empty");
+  if (title) title.textContent = maquina ? `Descarte — ${maquina.nome}` : "Descarte";
+  if (!tbody) return;
+  if (!maquina) { tbody.replaceChildren(); if (empty) empty.hidden = true; return; }
+  const closed = machariaState.currentShift?.status === "FECHADO";
+  const canEdit = !closed || machariaState.editingClosed;
+  const soprosPorMacho = new Map();
+  for (const item of collectMachineEntries()) {
+    soprosPorMacho.set(item.macho_id, (soprosPorMacho.get(item.macho_id) || 0) + anumber(item.quantidade_sopros));
+  }
+  const descartesExistentes = new Map((machariaState.currentShift?.rascunho_descartes || [])
+    .filter((item) => String(item.linha_id ?? item.linha_maquina_id) === String(maquina.id))
+    .map((item) => [String(item.macho_id), item]));
+  const machoIds = [...soprosPorMacho.keys()].filter((id) => soprosPorMacho.get(id) > 0);
+  tbody.replaceChildren();
+  if (empty) empty.hidden = machoIds.length > 0;
+  const disabledAttr = canEdit ? "" : "disabled";
+  for (const machoId of machoIds) {
+    const macho = findMachoById(machoId);
+    const sopros = soprosPorMacho.get(machoId);
+    const estimado = sopros * anumber(macho?.machos_por_sopro);
+    const existente = descartesExistentes.get(String(machoId));
+    const descartado = anumber(existente?.quantidade_descartada);
+    const row = document.createElement("tr");
+    row.className = "descarte-entry-row";
+    row.dataset.machoId = machoId;
+    row.innerHTML = `
+      <td>${aesc(macho ? machoLabel(macho) : "—")}</td>
+      <td>${sopros}</td>
+      <td data-estimado="${estimado}">${estimado}</td>
+      <td><input name="quantidade_descartada" type="number" min="0" step="1" value="${descartado}" ${disabledAttr}></td>
+      <td><output data-liquido>${Math.max(0, estimado - descartado)}</output></td>
+      <td><input name="observacao" type="text" maxlength="500" value="${aesc(existente?.observacao || "")}" ${disabledAttr}></td>`;
+    tbody.append(row);
+  }
+}
+function updateDescarteRow(row) {
+  const estimado = anumber(row.querySelector("[data-estimado]")?.dataset.estimado);
+  const descartado = anumber(row.querySelector('[name="quantidade_descartada"]')?.value);
+  const output = row.querySelector("[data-liquido]");
+  if (output) output.textContent = Math.max(0, estimado - descartado);
+}
+function collectMachineDescartes() {
+  const maquina = currentMaquina();
+  if (!maquina) return [];
+  const entries = [];
+  for (const row of document.querySelectorAll(".descarte-entry-row")) {
+    const quantidade = anumber(row.querySelector('[name="quantidade_descartada"]')?.value);
+    if (quantidade <= 0) continue;
+    entries.push({
+      linha_id: maquina.id,
+      macho_id: anumber(row.dataset.machoId),
+      quantidade_descartada: quantidade,
+      observacao: row.querySelector('[name="observacao"]')?.value || ""
+    });
+  }
+  return entries;
+}
+function mergedDescartes() {
+  const maquina = currentMaquina();
+  const others = (machariaState.currentShift?.rascunho_descartes || [])
+    .filter((item) => String(item.linha_id ?? item.linha_maquina_id) !== String(maquina?.id));
+  return [...others, ...collectMachineDescartes()];
+}
 function updateMaquinaBanner() {
   const maquina = currentMaquina();
   const banner = aq("#maquina-banner-name");
@@ -420,6 +497,7 @@ function renderMachineView() {
   updateMaquinaBanner();
   renderGrid();
   renderStopsTable();
+  renderDescarteTable();
   renderShiftTimeline();
 }
 function saveDraft() {
@@ -433,14 +511,16 @@ async function persistDraft() {
   try {
     const producoes = mergedProducoes();
     const paradas = mergedParadas(false);
+    const descartes = mergedDescartes();
     const saved = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.saveShiftDraft({
       p_data_operacional: form.elements.data_operacional.value,
       p_turno: form.elements.turno.value,
       p_producoes: producoes,
       p_paradas: paradas,
+      p_descartes: descartes,
       p_versao: machariaState.currentShift?.versao ?? null
     });
-    machariaState.currentShift = { ...(machariaState.currentShift || {}), ...saved, rascunho_producoes: producoes, rascunho_paradas: paradas, status: "ABERTO" };
+    machariaState.currentShift = { ...(machariaState.currentShift || {}), ...saved, rascunho_producoes: producoes, rascunho_paradas: paradas, rascunho_descartes: descartes, status: "ABERTO" };
     aq("#shift-status").textContent = "Em apontamento · salvo agora";
   } catch (error) {
     if (/CONFLITO_RASCUNHO|40001/i.test(`${error.message || ""} ${error.code || ""}`)) {
@@ -471,10 +551,12 @@ async function checkShiftStatus() {
   if (closed) {
     const productions = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.shiftProductions(data.id);
     const stops = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.shiftStops(data.id);
+    const descartes = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.shiftDescartes(data.id);
     machariaState.currentShift = {
       ...data,
       rascunho_producoes: productions.map((item) => ({ ...item, linha_id: item.linha_maquina_id })),
-      rascunho_paradas: stops.map((item) => ({ ...item, linha_id: item.linha_maquina_id }))
+      rascunho_paradas: stops.map((item) => ({ ...item, linha_id: item.linha_maquina_id })),
+      rascunho_descartes: descartes.map((item) => ({ ...item, linha_id: item.linha_maquina_id }))
     };
   } else {
     machariaState.currentShift = data ? { ...data } : null;
@@ -525,9 +607,10 @@ async function closeShift(event) {
     const producoes = mergedProducoes();
     if (!producoes.length) throw new Error("Informe ao menos um lançamento de sopro.");
     const paradas = mergedParadas(true);
+    const descartes = mergedDescartes();
     const form = aq("#shift-entry-form");
     if (machariaState.editingClosed) {
-      await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.editShift({ p_turno_id: machariaState.currentShift.id, p_producoes: producoes, p_paradas: paradas });
+      await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.editShift({ p_turno_id: machariaState.currentShift.id, p_producoes: producoes, p_paradas: paradas, p_descartes: descartes });
       machariaMessage("Alterações do turno salvas com sucesso.");
     } else {
       await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.closeShift({
@@ -535,6 +618,7 @@ async function closeShift(event) {
         p_turno: form.elements.turno.value,
         p_producoes: producoes,
         p_paradas: paradas,
+        p_descartes: descartes,
         p_versao: machariaState.currentShift?.versao ?? null
       });
       machariaMessage("Turno fechado com sucesso.");
@@ -572,23 +656,30 @@ async function initializeShiftEntry() {
   form.elements.data_operacional.addEventListener("change", refresh);
   form.elements.turno.addEventListener("change", refresh);
   form.addEventListener("input", (event) => {
-    if (event.target.matches(".macharia-sopros")) saveDraft();
+    if (event.target.matches(".macharia-sopros")) { saveDraft(); renderDescarteTable(); }
     const stopRowEl = event.target.closest(".shift-stop-row");
     if (stopRowEl) {
       try { updateStopRow(stopRowEl); } catch { /* horário incompleto, ignora até ambos preenchidos */ }
+      saveDraft();
+    }
+    const descarteRowEl = event.target.closest(".descarte-entry-row");
+    if (descarteRowEl) {
+      if (event.target.matches('[name="quantidade_descartada"]')) updateDescarteRow(descarteRowEl);
       saveDraft();
     }
     renderShiftTimeline();
   });
   form.addEventListener("change", (event) => {
     if (event.target.matches(".macharia-macho") || event.target.closest(".shift-stop-row")) saveDraft();
+    if (event.target.matches(".macharia-macho")) renderDescarteTable();
+    if (event.target.closest(".descarte-entry-row")) saveDraft();
     renderShiftTimeline();
   });
   aq("#macharia-grid-container").addEventListener("click", (event) => {
     const addButton = event.target.closest(".macharia-add-entry");
-    if (addButton) { addMachoEntryRow(addButton); renderShiftTimeline(); return; }
+    if (addButton) { addMachoEntryRow(addButton); renderDescarteTable(); renderShiftTimeline(); return; }
     const removeButton = event.target.closest(".macharia-remove-entry");
-    if (removeButton) { removeMachoEntryRow(removeButton); renderShiftTimeline(); }
+    if (removeButton) { removeMachoEntryRow(removeButton); renderDescarteTable(); renderShiftTimeline(); }
   });
   aq("#add-stop-row").addEventListener("click", () => { aq("#stop-entry-rows").append(stopRow()); saveDraft(); renderShiftTimeline(); });
   aq("#stop-entry-rows").addEventListener("click", (event) => {
@@ -625,38 +716,57 @@ async function initializeShiftEntry() {
 // ---------------------------------------------------------------------------
 async function loadMachariaDashboard() {
   const today = window.LIDUTEC_TURNOS.determineShift().dataOperacional;
-  machariaState.records = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.records({ from: today, to: today, limit: 1000 });
+  const [records, descartes] = await Promise.all([
+    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.records({ from: today, to: today, limit: 1000 }),
+    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.descartes({ from: today, to: today, limit: 1000 })
+  ]);
+  machariaState.records = records;
+  machariaState.descartes = descartes;
 }
 function renderMachariaDashboard() {
   const records = machariaState.records;
   const totalSopros = records.reduce((sum, item) => sum + anumber(item.quantidade_sopros), 0);
   const totalMachos = records.reduce((sum, item) => sum + anumber(item.quantidade_sopros) * anumber(item.machos_macharia?.machos_por_sopro), 0);
+  const totalDescartado = (machariaState.descartes || []).reduce((sum, item) => sum + anumber(item.quantidade_descartada), 0);
   aq('[data-metric="sopros"]').textContent = totalSopros.toLocaleString("pt-BR");
   aq('[data-metric="machos"]').textContent = totalMachos.toLocaleString("pt-BR");
+  aq('[data-metric="machos-liquido"]').textContent = Math.max(0, totalMachos - totalDescartado).toLocaleString("pt-BR");
 
   // Consolidado por data + turno + máquina + caixa/macho — não precisa
-  // mostrar hora a hora nem por estação aqui, só o total do dia.
+  // mostrar hora a hora nem por estação aqui, só o total do dia. O descarte
+  // é lançado por (turno, máquina, macho) — mesma granularidade da chave.
+  const descartesPorChave = new Map();
+  for (const item of machariaState.descartes || []) {
+    const key = `${item.data_operacional}|${item.turno}|${item.linha_maquina_id}|${item.macho_id}`;
+    descartesPorChave.set(key, (descartesPorChave.get(key) || 0) + anumber(item.quantidade_descartada));
+  }
   const groups = new Map();
   for (const item of records) {
     const key = `${item.data_operacional}|${item.turno}|${item.linha_maquina_id}|${item.macho_id}`;
     if (!groups.has(key)) {
       groups.set(key, {
         data: item.data_operacional, turno: item.turno,
-        maquina: item.linhas_maquinas_producao?.nome || "—", macho: item.machos_macharia || null, sopros: 0
+        maquina: item.linhas_maquinas_producao?.nome || "—", macho: item.machos_macharia || null, sopros: 0,
+        descartado: descartesPorChave.get(key) || 0
       });
     }
     groups.get(key).sopros += anumber(item.quantidade_sopros);
   }
   const rows = [...groups.values()].sort((a, b) =>
     a.data.localeCompare(b.data) || a.turno.localeCompare(b.turno) || a.maquina.localeCompare(b.maquina, "pt-BR", { numeric: true }));
-  aq("#dashboard-production-records").innerHTML = rows.map((row) => `<tr>
+  aq("#dashboard-production-records").innerHTML = rows.map((row) => {
+    const estimado = row.macho ? row.sopros * anumber(row.macho.machos_por_sopro) : 0;
+    return `<tr>
       <td>${displayDate(row.data)}</td>
       <td>${aesc(row.turno)}</td>
       <td>${aesc(row.maquina)}</td>
       <td>${row.macho ? aesc(machoLabel(row.macho)) : "—"}</td>
       <td>${row.sopros}</td>
-      <td>${row.macho ? row.sopros * anumber(row.macho.machos_por_sopro) : 0}</td>
-    </tr>`).join("");
+      <td>${estimado}</td>
+      <td>${row.descartado}</td>
+      <td>${Math.max(0, estimado - row.descartado)}</td>
+    </tr>`;
+  }).join("");
   aq("#dashboard-production-empty").hidden = rows.length > 0;
 }
 

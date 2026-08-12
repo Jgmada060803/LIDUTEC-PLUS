@@ -38,6 +38,12 @@
           <button id="add-stop-row" type="button" class="row-add-button" aria-label="Adicionar linha de parada" title="Adicionar linha">+</button>
         </section>
 
+        <section class="panel shift-table-panel">
+          <div class="shift-section-heading"><div><h2 id="descarte-maquina-title">Descarte</h2><p class="production-muted">Preencha só o que foi descartado — sem preenchimento, considera 0.</p></div></div>
+          <div class="table-wrapper"><table class="products-table shift-entry-table"><thead><tr><th>Caixa/Macho</th><th>Sopros</th><th>Estimado</th><th>Descartados</th><th>Líquido</th><th>Observações</th></tr></thead><tbody id="descarte-entry-rows"></tbody></table></div>
+          <p id="descarte-empty" class="production-muted" hidden>Nenhum macho lançado nesta máquina ainda.</p>
+        </section>
+
         <div class="shift-close-actions"><a href="./index.html" class="button button-secondary">Voltar</a><button id="delete-shift-button" type="button" class="button button-danger" hidden>Excluir turno</button><button id="edit-shift-button" type="button" class="button button-secondary" hidden>Editar turno</button><button id="close-shift-button" class="button button-primary">Fechar turno</button></div>
         <section id="shift-edit-history" class="panel shift-history-panel" hidden><h2>Alterações após o fechamento</h2><div class="table-wrapper"><table class="products-table shift-history-table"><thead><tr><th>Data e hora</th><th>Alteração</th></tr></thead><tbody id="shift-edit-history-rows"></tbody></table></div></section>
       </form>

@@ -56,8 +56,12 @@
       .from("paradas_producao_macharia")
       .select("*,linhas_maquinas_producao(codigo,nome),categorias_parada_producao(nome),setores_responsaveis_parada(nome)")
       .order("data_operacional", { ascending: false }), filters)),
+    descartes: (filters = {}) => result(applyFilters(client()
+      .from("descartes_producao_macharia")
+      .select("*,linhas_maquinas_producao(codigo,nome),machos_macharia(caixa,macho,machos_por_sopro,machos_macharia_produtos(produtos(codigo)))")
+      .order("data_operacional", { ascending: false }), filters)),
     shift: (date, turno) => result(client().from("turnos_producao_macharia")
-      .select("id,status,versao,rascunho_producoes,rascunho_paradas,atualizado_por,atualizado_em,usuarios!turnos_producao_macharia_atualizado_por_fkey(nome)")
+      .select("id,status,versao,rascunho_producoes,rascunho_paradas,rascunho_descartes,atualizado_por,atualizado_em,usuarios!turnos_producao_macharia_atualizado_por_fkey(nome)")
       .eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
     shiftProductions: (id) => result(client().from("registros_producao_macharia")
       .select("linha_maquina_id,estacao,horario_previsto,macho_id,quantidade_sopros")
@@ -65,6 +69,9 @@
     shiftStops: (id) => result(client().from("paradas_producao_macharia")
       .select("linha_maquina_id,setor_responsavel_id,categoria_id,inicio,fim,observacao")
       .eq("turno_producao_id", id).order("linha_maquina_id").order("inicio")),
+    shiftDescartes: (id) => result(client().from("descartes_producao_macharia")
+      .select("linha_maquina_id,macho_id,quantidade_descartada,observacao")
+      .eq("turno_producao_id", id).order("linha_maquina_id").order("macho_id")),
     history: (id) => result(client().from("historico_edicoes_turno_macharia")
       .select("alterado_em,descricao,dados_anteriores,dados_novos,usuarios(nome)")
       .eq("turno_producao_id", id).order("alterado_em", { ascending: false })),
