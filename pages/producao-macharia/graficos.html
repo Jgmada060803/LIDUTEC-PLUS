@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Indicadores de Macharia | Metalsider</title>
+  <link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/producao-moldes.css"><link rel="stylesheet" href="../../assets/css/producao-macharia.css">
+</head>
+<body class="app-page" data-production-page="charts">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+  <div class="app-shell">
+    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Indicadores de Macharia</h1><p>Disponibilidade, eficiência, qualidade e OEE por máquina</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+    <main class="main-content">
+      <div id="production-loading" class="loading-state">Carregando...</div>
+      <section class="page-heading">
+        <div><span class="eyebrow">Turno atual</span><h2 id="charts-shift-subtitle">—</h2><p>A qualidade é considerada fixa em 97% por sopro — a Macharia ainda não registra refugo/retrabalho por macho.</p></div>
+        <a href="./index.html" class="button button-secondary">Voltar</a>
+      </section>
+      <section class="macharia-oee-grid" id="macharia-oee-cards"></section>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-macharia-data.js"></script><script src="../../assets/js/producao-macharia.js"></script>
+</body></html>

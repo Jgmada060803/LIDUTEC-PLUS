@@ -19,7 +19,10 @@ const machariaState = {
   scheduledStops: [],
   stops: [],
   stopSort: { key: null, direction: "asc" },
-  visibleStopRows: []
+  visibleStopRows: [],
+  chartsShift: null,
+  chartsRecords: [],
+  chartsStops: []
 };
 
 const aq = (selector) => document.querySelector(selector);
@@ -642,6 +645,67 @@ function renderMachariaDashboard() {
 }
 
 // ---------------------------------------------------------------------------
+// Indicadores (tela "charts") — 5 cards (um por máquina) com Disponibilidade,
+// Eficiência, Qualidade e OEE do turno atual. Disponibilidade e Eficiência
+// reaproveitam as mesmas fórmulas de turnos.js usadas em Moldagem/Acabamento
+// (calcularTaxaEquipamento/calcularEficiencia/calcularOEE); Qualidade é fixa
+// em 97%, já que a Macharia ainda não registra refugo/retrabalho por macho.
+// ---------------------------------------------------------------------------
+const MACHARIA_QUALIDADE_PADRAO = 0.97;
+async function loadMachariaCharts() {
+  const shift = window.LIDUTEC_TURNOS.determineShift();
+  machariaState.chartsShift = shift;
+  const [records, stops] = await Promise.all([
+    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.records({ from: shift.dataOperacional, to: shift.dataOperacional, shift: shift.codigo, limit: 5000 }),
+    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.stops({ from: shift.dataOperacional, to: shift.dataOperacional, shift: shift.codigo, limit: 5000 })
+  ]);
+  machariaState.chartsRecords = records;
+  machariaState.chartsStops = stops;
+}
+function renderMachariaMetricBar(label, fraction) {
+  const percent = Math.max(0, Math.min(1, fraction || 0)) * 100;
+  const color = percent >= 85 ? "#218c4b" : percent >= 65 ? "#b7791f" : "#b90e2c";
+  return `<div class="macharia-oee-bar">
+      <span>${aesc(label)}</span>
+      <div class="macharia-oee-track"><div class="macharia-oee-fill" style="width:${percent}%;background:${color}"></div></div>
+      <strong>${percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong>
+    </div>`;
+}
+function renderMachariaCharts() {
+  const shift = machariaState.chartsShift;
+  const shiftInfo = shift ? window.LIDUTEC_TURNOS.shifts[shift.codigo] : null;
+  const subtitle = aq("#charts-shift-subtitle");
+  if (subtitle && shift && shiftInfo) {
+    subtitle.textContent = `${shiftInfo.nome} · ${new Date(`${shift.dataOperacional}T12:00:00`).toLocaleDateString("pt-BR")}`;
+  }
+  const container = aq("#macharia-oee-cards");
+  if (!container || !shiftInfo) return;
+  container.innerHTML = machariaState.maquinas.map((maquina) => {
+    const records = machariaState.chartsRecords.filter((item) => String(item.linha_maquina_id) === String(maquina.id));
+    const stops = machariaState.chartsStops.filter((item) => String(item.linha_maquina_id) === String(maquina.id));
+    const minutosParada = stops.reduce((sum, item) => sum + anumber(item.duracao_minutos), 0);
+    const minutosPeriodo = shiftInfo.minutos;
+    const disponibilidade = window.LIDUTEC_TURNOS.calcularTaxaEquipamento({ minutosPeriodo, minutosParada });
+    const minutosDisponivel = Math.max(0, minutosPeriodo - minutosParada);
+    const tempoTeoricoMinutos = records.reduce((sum, item) => {
+      const soproPorHora = anumber(item.machos_macharia?.sopro_por_hora);
+      if (!soproPorHora) return sum;
+      return sum + anumber(item.quantidade_sopros) * (60 / soproPorHora);
+    }, 0);
+    const eficiencia = window.LIDUTEC_TURNOS.calcularEficiencia({ tempoTeoricoMinutos, tempoDisponivelMinutos: minutosDisponivel });
+    const qualidade = MACHARIA_QUALIDADE_PADRAO;
+    const oee = window.LIDUTEC_TURNOS.calcularOEE({ disponibilidade, eficiencia, qualidade });
+    return `<article class="panel macharia-oee-card">
+        <h3>${aesc(maquina.nome)}</h3>
+        ${renderMachariaMetricBar("Disponibilidade", disponibilidade)}
+        ${renderMachariaMetricBar("Eficiência", eficiencia)}
+        ${renderMachariaMetricBar("Qualidade", qualidade)}
+        ${renderMachariaMetricBar("OEE", oee)}
+      </article>`;
+  }).join("");
+}
+
+// ---------------------------------------------------------------------------
 // Paradas — consulta (tela "stops"), mesmo modelo da tela de paradas da
 // Moldagem: filtros com recarga em debounce, colunas ordenáveis, exportação
 // Excel/SVG. Diferença: coluna "Máquina" no lugar de "Produto" (paradas de
@@ -1023,6 +1087,7 @@ async function initializeMachariaProduction() {
   await loadMachariaSupport();
   aq("#production-loading")?.setAttribute("hidden", "");
   if (machariaPage === "dashboard") { await loadMachariaDashboard(); renderMachariaDashboard(); }
+  if (machariaPage === "charts") { await loadMachariaCharts(); renderMachariaCharts(); }
   if (machariaPage === "stops") {
     await loadMachariaStopsData();
     renderMachariaStopsQuery();
