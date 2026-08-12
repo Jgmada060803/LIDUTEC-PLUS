@@ -21,6 +21,12 @@
           <div class="shift-status"><span>Status</span><strong id="shift-status">Em apontamento</strong></div>
         </section>
 
+        <section class="panel shift-timeline-panel" aria-label="Linha do tempo do turno">
+          <div class="shift-timeline-heading"><strong>Linha do tempo — <span id="timeline-maquina-name">—</span></strong><span><i class="timeline-key production"></i>Sopro</span><span><i class="timeline-key stop"></i>Parada</span><span><i class="timeline-key planned"></i>Parada planejada</span></div>
+          <div class="shift-timeline-labels"><span id="timeline-start">—</span><span id="timeline-end">—</span></div>
+          <div id="shift-timeline" class="shift-timeline"><div class="shift-timeline-production"></div><div id="shift-production-segments"></div><div id="shift-stop-segments"></div></div>
+        </section>
+
         <section class="panel checklist-grid-panel">
           <div class="panel-header"><h2 id="grid-maquina-title">Sopros por estação</h2></div>
           <div id="macharia-grid-container" class="checklist-grid-wrapper"></div>
@@ -37,5 +43,5 @@
       </form>
     </main>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-macharia-data.js"></script><script src="../../assets/js/producao-macharia.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/paradas-programadas.js"></script><script src="../../assets/js/producao-macharia-data.js"></script><script src="../../assets/js/producao-macharia.js"></script>
 </body></html>

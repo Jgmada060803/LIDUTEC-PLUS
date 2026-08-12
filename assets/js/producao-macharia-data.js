@@ -12,6 +12,14 @@
     if (filters.linhaId) query = query.eq("linha_maquina_id", filters.linhaId);
     return query.limit(Math.min(Math.max(Number(filters.limit) || 1000, 1), 5000));
   }
+  let areaIdCache = null;
+  const areaId = async () => {
+    if (areaIdCache) return areaIdCache;
+    const { data, error } = await client().from("areas_checklist").select("id").eq("codigo", "MACHARIA").single();
+    if (error) throw error;
+    areaIdCache = data.id;
+    return areaIdCache;
+  };
   root.LIDUTEC_PRODUCAO_MACHARIA_DATA = {
     support: async () => {
       const [maquinas, machos, categories, sectors] = await Promise.all([
@@ -23,6 +31,12 @@
       return { maquinas, machos, categories, sectors };
     },
     produtos: () => result(client().from("produtos").select("id,codigo,nome").eq("status", "ATIVO").order("codigo")),
+    scheduledStopsAll: async () => {
+      const rows = await result(client().from("paradas_programadas")
+        .select("linha_maquina_id,turno,tipo_parada_codigo,horario_inicial,horario_final,dias_semana,vigencia_inicio,vigencia_fim,equipamentos_planejamento(codigo)")
+        .eq("area_id", await areaId()));
+      return rows.map((row) => ({ ...row, equipamento_codigo: row.equipamentos_planejamento?.codigo ?? null }));
+    },
     fichas: (status) => result(client().from("machos_macharia")
       .select("id,caixa,macho,machos_por_sopro,peso_macho_kg,kg_areia_por_sopro,sopro_por_hora,status,ativo,substitui_id,motivo_reprovacao,criado_em,usuarios!machos_macharia_criado_por_fkey(nome),machos_macharia_produtos(produto_id,machos_por_peca,produtos(codigo,nome))")
       .eq("status", status).order("criado_em", { ascending: false })),

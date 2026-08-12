@@ -15,7 +15,8 @@ const machariaState = {
   fichaRows: [],
   fichaTab: "rascunho",
   reprovandoId: null,
-  importPreview: []
+  importPreview: [],
+  scheduledStops: []
 };
 
 const aq = (selector) => document.querySelector(selector);
@@ -43,6 +44,7 @@ async function loadMachariaSupport() {
   machariaState.machos = machos.slice().sort((a, b) => machoLabel(a).localeCompare(machoLabel(b), "pt-BR"));
   machariaState.categories = categories;
   machariaState.sectors = sectors;
+  machariaState.scheduledStops = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.scheduledStopsAll();
 }
 function formatMinutes(value) {
   return `${Math.floor(anumber(value) / 60)}h ${String(anumber(value) % 60).padStart(2, "0")}min`;
@@ -323,10 +325,87 @@ function updateMaquinaBanner() {
   const banner = aq("#maquina-banner-name");
   if (banner) banner.textContent = maquina ? maquina.nome : "—";
 }
+// Linha do tempo do turno (mesmo padrão visual da Moldagem, CSS
+// reaproveitado de producao-moldes.css) — sempre lida da máquina
+// selecionada. "Sopro" não é um intervalo contínuo como na Moldagem, então
+// cada hora com algum sopro lançado (em qualquer estação) vira um segmento
+// cobrindo a hora inteira, rotulado com o total de sopros daquela hora.
+function renderShiftTimeline() {
+  const form = aq("#shift-entry-form");
+  const productionContainer = aq("#shift-production-segments");
+  const container = aq("#shift-stop-segments");
+  if (!form || !productionContainer || !container) return;
+  const maquina = currentMaquina();
+  const nameEl = aq("#timeline-maquina-name");
+  if (nameEl) nameEl.textContent = maquina ? maquina.nome : "—";
+  const date = form.elements.data_operacional.value, turno = form.elements.turno.value;
+  const shift = window.LIDUTEC_TURNOS.shifts[turno];
+  if (!date || !shift || !maquina) { productionContainer.innerHTML = ""; container.innerHTML = ""; return; }
+  const bounds = window.LIDUTEC_TURNOS.shiftBounds(date, turno);
+  const start = bounds.start, end = bounds.end;
+  aq("#timeline-start").textContent = shift.inicio;
+  aq("#timeline-end").textContent = `${shift.fim}${end.getDate() !== start.getDate() ? " (+1 dia)" : ""}`;
+  const duration = end - start;
+  const spanFor = (interval, className, title = "") => {
+    const left = (interval.start.getTime() - start.getTime()) / duration * 100;
+    const width = (interval.end.getTime() - interval.start.getTime()) / duration * 100;
+    return `<span class="${className}" style="left:${left}%;width:${width}%"${title ? ` title="${title}"` : ""}></span>`;
+  };
+  const segments = [];
+  const planejados = window.LIDUTEC_PARADAS_PROGRAMADAS.overlapIntervals({
+    janelas: machariaState.scheduledStops || [], turnoInicio: start,
+    paradaInicio: start, paradaFim: end, turno, dataOperacional: date, linhaId: maquina.id
+  });
+  segments.push(...planejados.map((interval) => spanFor(interval, "shift-planned-segment", "Parada programada")));
+
+  const productionSegments = [];
+  const gridContainer = aq("#macharia-grid-container");
+  const hourTotals = new Map();
+  if (gridContainer) {
+    for (const machoCell of gridContainer.querySelectorAll("td.macharia-macho-cell")) {
+      const slotIso = machoCell.dataset.slot;
+      const soprosCell = machoCell.closest("tr")?.querySelector(`td.macharia-sopros-cell[data-estacao="${machoCell.dataset.estacao}"]`);
+      const selects = [...machoCell.querySelectorAll(".macharia-macho")];
+      const inputs = soprosCell ? [...soprosCell.querySelectorAll(".macharia-sopros")] : [];
+      selects.forEach((select, index) => {
+        if (!select.value) return;
+        const sopros = anumber(inputs[index]?.value);
+        if (sopros <= 0) return;
+        hourTotals.set(slotIso, (hourTotals.get(slotIso) || 0) + sopros);
+      });
+    }
+  }
+  for (const [slotIso, total] of hourTotals) {
+    const slotEnd = new Date(slotIso);
+    const slotStart = new Date(slotEnd.getTime() - 3600000);
+    const visibleStart = Math.max(start.getTime(), slotStart.getTime());
+    const visibleEnd = Math.min(end.getTime(), slotEnd.getTime());
+    if (visibleEnd <= visibleStart) continue;
+    const left = (visibleStart - start) / duration * 100, width = (visibleEnd - visibleStart) / duration * 100;
+    const center = left + width / 2;
+    productionSegments.push(`<span class="shift-production-segment" style="left:${left}%;width:${width}%" title="${total} sopro(s)"></span><span class="shift-production-label" style="left:${center}%">${total}</span>`);
+  }
+
+  for (const row of document.querySelectorAll(".shift-stop-row")) {
+    const startValue = row.querySelector('[name="inicio"]').value, endValue = row.querySelector('[name="fim"]').value;
+    if (!startValue || !endValue) continue;
+    const stopStart = resolveShiftTime(startValue), stopEnd = resolveShiftTime(endValue);
+    if (!stopStart || !stopEnd || stopEnd <= stopStart) continue;
+    const visibleStart = Math.max(start.getTime(), stopStart.getTime()), visibleEnd = Math.min(end.getTime(), stopEnd.getTime());
+    if (visibleEnd <= visibleStart) continue;
+    const sector = row.querySelector('[name="setor_id"] option:checked')?.textContent || "Parada";
+    const reason = row.querySelector('[name="categoria_id"] option:checked')?.textContent || "Motivo não informado";
+    const title = `${aesc(sector)} — ${aesc(reason)} — ${formatMinutes(Math.round((visibleEnd - visibleStart) / 60000))}`;
+    segments.push(spanFor({ start: new Date(visibleStart), end: new Date(visibleEnd) }, "shift-stop-segment", title));
+  }
+  productionContainer.innerHTML = productionSegments.join("");
+  container.innerHTML = segments.join("");
+}
 function renderMachineView() {
   updateMaquinaBanner();
   renderGrid();
   renderStopsTable();
+  renderShiftTimeline();
 }
 function saveDraft() {
   clearTimeout(machariaState.draftSaveTimer);
@@ -484,17 +563,19 @@ async function initializeShiftEntry() {
       try { updateStopRow(stopRowEl); } catch { /* horário incompleto, ignora até ambos preenchidos */ }
       saveDraft();
     }
+    renderShiftTimeline();
   });
   form.addEventListener("change", (event) => {
     if (event.target.matches(".macharia-macho") || event.target.closest(".shift-stop-row")) saveDraft();
+    renderShiftTimeline();
   });
   aq("#macharia-grid-container").addEventListener("click", (event) => {
     const addButton = event.target.closest(".macharia-add-entry");
-    if (addButton) { addMachoEntryRow(addButton); return; }
+    if (addButton) { addMachoEntryRow(addButton); renderShiftTimeline(); return; }
     const removeButton = event.target.closest(".macharia-remove-entry");
-    if (removeButton) removeMachoEntryRow(removeButton);
+    if (removeButton) { removeMachoEntryRow(removeButton); renderShiftTimeline(); }
   });
-  aq("#add-stop-row").addEventListener("click", () => { aq("#stop-entry-rows").append(stopRow()); saveDraft(); });
+  aq("#add-stop-row").addEventListener("click", () => { aq("#stop-entry-rows").append(stopRow()); saveDraft(); renderShiftTimeline(); });
   aq("#stop-entry-rows").addEventListener("click", (event) => {
     const button = event.target.closest(".row-remove");
     if (!button) return;
@@ -507,6 +588,7 @@ async function initializeShiftEntry() {
       row.remove();
     }
     saveDraft();
+    renderShiftTimeline();
   });
   form.addEventListener("submit", closeShift);
   aq("#edit-shift-button").addEventListener("click", editClosedShift);
