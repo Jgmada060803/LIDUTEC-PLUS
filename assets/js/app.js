@@ -282,24 +282,14 @@ function syncSidebarNavigation() {
 
     ${navSection("Produção", `
       <a href="${prefix}producao-moldes/index.html"
-         class="${activeClass(isActive("producao-moldes") && !isActive("producao-moldes", "paradas.html"))}"
+         class="${activeClass(isActive("producao-moldes"))}"
          data-permission="producao_moldes.visualizar">
         DISA
       </a>
-      <a href="${prefix}producao-moldes/paradas.html"
-         class="${activeClass(isActive("producao-moldes", "paradas.html"))}"
-         data-permission="producao_moldes.visualizar">
-        Paradas de Produção
-      </a>
       <a href="${prefix}producao-acabamento/index.html"
-         class="${activeClass(isActive("producao-acabamento") && !isActive("producao-acabamento", "paradas.html"))}"
+         class="${activeClass(isActive("producao-acabamento"))}"
          data-permission="producao_acabamento.visualizar">
         Acabamento
-      </a>
-      <a href="${prefix}producao-acabamento/paradas.html"
-         class="${activeClass(isActive("producao-acabamento", "paradas.html"))}"
-         data-permission="producao_acabamento.visualizar">
-        Paradas de Acabamento
       </a>
       <a href="${prefix}producao-macharia/index.html"
          class="${activeClass(isActive("producao-macharia") && !isActive("producao-macharia", "ficha-macho.html"))}"

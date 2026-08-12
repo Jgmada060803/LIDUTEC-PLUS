@@ -10,6 +10,11 @@
     if (filters.to) query = query.lte("data_operacional", filters.to);
     if (filters.shift) query = query.eq("turno", filters.shift);
     if (filters.linhaId) query = query.eq("linha_maquina_id", filters.linhaId);
+    if (filters.sectorId) query = query.eq("setor_responsavel_id", filters.sectorId);
+    if (filters.categoryId) query = query.eq("categoria_id", filters.categoryId);
+    for (const term of String(filters.search || "").split(/\s+/).filter(Boolean)) {
+      query = query.ilike("observacao", `%${term}%`);
+    }
     return query.limit(Math.min(Math.max(Number(filters.limit) || 1000, 1), 5000));
   }
   let areaIdCache = null;
@@ -47,6 +52,10 @@
       .from("registros_producao_macharia")
       .select("*,linhas_maquinas_producao(codigo,nome),machos_macharia(caixa,macho,machos_por_sopro,machos_macharia_produtos(produtos(codigo)))")
       .order("horario_previsto", { ascending: false }), filters)),
+    stops: (filters = {}) => result(applyFilters(client()
+      .from("paradas_producao_macharia")
+      .select("*,linhas_maquinas_producao(codigo,nome),categorias_parada_producao(nome),setores_responsaveis_parada(nome)")
+      .order("data_operacional", { ascending: false }), filters)),
     shift: (date, turno) => result(client().from("turnos_producao_macharia")
       .select("id,status,versao,rascunho_producoes,rascunho_paradas,atualizado_por,atualizado_em,usuarios!turnos_producao_macharia_atualizado_por_fkey(nome)")
       .eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),

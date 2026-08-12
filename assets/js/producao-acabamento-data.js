@@ -18,6 +18,12 @@
     if (filters.to) query = query.lte("data_operacional", filters.to);
     if (filters.shift) query = query.eq("turno", filters.shift);
     if (filters.productId) query = query.eq("produto_id", filters.productId);
+    if (filters.postoId) query = query.eq("posto_equipamento_id", filters.postoId);
+    if (filters.sectorId) query = query.eq("setor_origem_id", filters.sectorId);
+    if (filters.categoryId) query = query.eq("categoria_id", filters.categoryId);
+    for (const term of String(filters.search || "").split(/\s+/).filter(Boolean)) {
+      query = query.ilike("observacao", `%${term}%`);
+    }
     return query.limit(Math.min(Math.max(Number(filters.limit) || 1000, 1), 5000));
   }
   root.LIDUTEC_PRODUCAO_ACABAMENTO_DATA = {

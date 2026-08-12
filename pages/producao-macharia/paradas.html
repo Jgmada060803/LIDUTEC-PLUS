@@ -2,13 +2,13 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Paradas de Acabamento | Metalsider</title>
-  <link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/producao-moldes.css"><link rel="stylesheet" href="../../assets/css/producao-acabamento.css">
+  <title>Registros de Paradas de Macharia | Metalsider</title>
+  <link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/producao-moldes.css"><link rel="stylesheet" href="../../assets/css/producao-macharia.css">
 </head>
 <body class="app-page" data-production-page="stops">
   <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
   <div class="app-shell">
-    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Paradas de Acabamento</h1><p>Consulta de interrupções da produção</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Registros de Paradas</h1><p>Consulta de interrupções da produção de Macharia</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
     <main class="main-content">
       <div id="production-loading" class="loading-state">Carregando...</div>
       <section class="panel production-query-panel">
@@ -26,8 +26,8 @@
         <form id="stop-query-filters" class="production-query-filters">
           <label>Período inicial<input name="inicio" type="date"></label>
           <label>Período final<input name="fim" type="date"></label>
-          <label>Posto/Equipamento<select name="posto_id" data-postos><option value="">Todos</option></select></label>
-          <label>Setor de origem<select name="setor_id" data-sectors><option value="">Todos</option></select></label>
+          <label>Máquina<select name="linha_id" data-maquinas><option value="">Todas</option></select></label>
+          <label>Setor responsável<select name="setor_id" data-sectors><option value="">Todos</option></select></label>
           <label>Motivo<select name="categoria_id" data-categories><option value="">Todos</option></select></label>
           <label>Turno<select name="turno"><option value="">Todos</option><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
           <label class="observation-search">Buscar nas observações<input name="observacao" type="search" placeholder="Digite uma ou mais palavras" autocomplete="off"></label>
@@ -35,17 +35,17 @@
         <div class="table-wrapper"><table class="products-table production-query-table stop-query-table"><thead><tr>
           <th><button type="button" class="table-sort" data-sort="date">Data</button></th>
           <th><button type="button" class="table-sort" data-sort="shift">Turno</button></th>
-          <th><button type="button" class="table-sort" data-sort="start">Início</button></th>
-          <th><button type="button" class="table-sort" data-sort="end">Fim</button></th>
+          <th><button type="button" class="table-sort" data-sort="start">Data e hora início</button></th>
+          <th><button type="button" class="table-sort" data-sort="end">Data e hora fim</button></th>
           <th><button type="button" class="table-sort" data-sort="duration">Tempo total</button></th>
-          <th><button type="button" class="table-sort" data-sort="posto">Posto/Equipamento</button></th>
-          <th><button type="button" class="table-sort" data-sort="sector">Setor de origem</button></th>
-          <th><button type="button" class="table-sort" data-sort="reason">Motivo</button></th>
+          <th><button type="button" class="table-sort" data-sort="maquina">Máquina</button></th>
+          <th><button type="button" class="table-sort" data-sort="sector">Setor responsável</button></th>
+          <th><button type="button" class="table-sort" data-sort="reason">Motivo da parada</button></th>
           <th><button type="button" class="table-sort" data-sort="notes">Observações</button></th>
         </tr></thead><tbody id="stop-records"></tbody></table></div>
         <p id="stop-records-empty" class="production-muted" hidden>Nenhuma parada encontrada.</p>
       </section>
     </main>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/paradas-programadas.js"></script><script src="../../assets/js/producao-acabamento-data.js"></script><script src="../../assets/js/producao-acabamento.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-macharia-data.js"></script><script src="../../assets/js/producao-macharia.js"></script>
 </body></html>

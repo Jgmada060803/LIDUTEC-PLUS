@@ -16,7 +16,10 @@ const machariaState = {
   fichaTab: "rascunho",
   reprovandoId: null,
   importPreview: [],
-  scheduledStops: []
+  scheduledStops: [],
+  stops: [],
+  stopSort: { key: null, direction: "asc" },
+  visibleStopRows: []
 };
 
 const aq = (selector) => document.querySelector(selector);
@@ -45,6 +48,15 @@ async function loadMachariaSupport() {
   machariaState.categories = categories;
   machariaState.sectors = sectors;
   machariaState.scheduledStops = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.scheduledStopsAll();
+  for (const select of document.querySelectorAll("[data-maquinas]")) {
+    select.insertAdjacentHTML("beforeend", maquinas.map((m) => `<option value="${m.id}">${aesc(m.nome)}</option>`).join(""));
+  }
+  for (const select of document.querySelectorAll("[data-sectors]")) {
+    select.insertAdjacentHTML("beforeend", sectors.map((s) => `<option value="${s.id}">${aesc(s.nome)}</option>`).join(""));
+  }
+  for (const select of document.querySelectorAll("[data-categories]")) {
+    select.insertAdjacentHTML("beforeend", categories.map((c) => `<option value="${c.id}">${aesc(c.nome)}</option>`).join(""));
+  }
 }
 function formatMinutes(value) {
   return `${Math.floor(anumber(value) / 60)}h ${String(anumber(value) % 60).padStart(2, "0")}min`;
@@ -630,6 +642,151 @@ function renderMachariaDashboard() {
 }
 
 // ---------------------------------------------------------------------------
+// Paradas — consulta (tela "stops"), mesmo modelo da tela de paradas da
+// Moldagem: filtros com recarga em debounce, colunas ordenáveis, exportação
+// Excel/SVG. Diferença: coluna "Máquina" no lugar de "Produto" (paradas de
+// Macharia são por máquina, não por produto).
+// ---------------------------------------------------------------------------
+const isoDate = (date) => date.toISOString().slice(0, 10);
+const daysBefore = (date, days) => { const value = new Date(`${date}T12:00:00`); value.setDate(value.getDate() - days); return isoDate(value); };
+const displayDate = (value) => (value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : "—");
+const formatDateTime = (value) => (value ? new Date(value).toLocaleString("pt-BR") : "—");
+function machariaStopFilters(form) {
+  return {
+    from: form?.elements.inicio.value || null,
+    to: form?.elements.fim.value || null,
+    shift: form?.elements.turno.value || null,
+    linhaId: form?.elements.linha_id?.value || null,
+    sectorId: form?.elements.setor_id?.value || null,
+    categoryId: form?.elements.categoria_id?.value || null,
+    search: form?.elements.observacao?.value.trim() || null,
+    limit: 1000
+  };
+}
+async function loadMachariaStopsData() {
+  const today = window.LIDUTEC_TURNOS.determineShift().dataOperacional;
+  const form = aq("#stop-query-filters");
+  form.elements.inicio.value = daysBefore(today, 30);
+  form.elements.fim.value = today;
+  machariaState.stops = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.stops(machariaStopFilters(form));
+}
+async function reloadMachariaStopsQuery() {
+  const form = aq("#stop-query-filters");
+  machariaState.stops = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.stops(machariaStopFilters(form));
+  renderMachariaStopsQuery();
+}
+function filteredByMachariaPeriod(rows, form) {
+  const start = form?.elements.inicio.value, end = form?.elements.fim.value, shift = form?.elements.turno.value;
+  return rows.filter((item) => (!start || item.data_operacional >= start) && (!end || item.data_operacional <= end) && (!shift || item.turno === shift));
+}
+function updateMachariaStopSortHeaders() {
+  for (const button of document.querySelectorAll(".stop-query-table .table-sort")) {
+    const active = button.dataset.sort === machariaState.stopSort.key;
+    const direction = active ? machariaState.stopSort.direction : "";
+    button.dataset.direction = direction;
+    button.closest("th").setAttribute("aria-sort", direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none");
+    button.title = active ? `Classificação ${direction === "asc" ? "crescente" : "decrescente"}. Clique para inverter.` : "Clique para classificar em ordem crescente.";
+  }
+}
+const machariaStopExportHeaders = ["Data", "Turno", "Data e hora início", "Data e hora fim", "Tempo total", "Máquina", "Setor responsável", "Motivo da parada", "Observações"];
+function machariaStopExportValues(item) {
+  return [
+    displayDate(item.data_operacional), item.turno, formatDateTime(item.inicio), formatDateTime(item.fim),
+    formatMinutes(item.duracao_minutos), item.linhas_maquinas_producao?.nome || "—",
+    item.setores_responsaveis_parada?.nome || "—", item.categorias_parada_producao?.nome || item.motivo || "—",
+    item.observacao || "—"
+  ].map(String);
+}
+function updateMachariaStopExportControls() {
+  const rows = machariaState.visibleStopRows, button = aq("#stop-export-button"), counter = aq("#stop-export-count");
+  if (counter) counter.textContent = `${rows.length} registro${rows.length === 1 ? "" : "s"}`;
+  if (button) button.disabled = !rows.length;
+}
+function downloadMachariaFile(content, type, extension, baseName) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${baseName}-${new Date().toISOString().slice(0, 10)}.${extension}`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportMachariaStopsExcel(rows) {
+  const tableRows = rows.map((item) => `<tr>${machariaStopExportValues(item).map((value) => `<td>${aesc(value)}</td>`).join("")}</tr>`).join("");
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr>${machariaStopExportHeaders.map((value) => `<th>${aesc(value)}</th>`).join("")}</tr></thead><tbody>${tableRows}</tbody></table></body></html>`;
+  downloadMachariaFile(`﻿${html}`, "application/vnd.ms-excel;charset=utf-8", "xls", "paradas-macharia");
+}
+function exportMachariaStopsSvg(rows) {
+  const widths = [90, 90, 170, 170, 100, 130, 190, 250, 300];
+  const rowHeight = 28;
+  const width = widths.reduce((sum, value) => sum + value, 0);
+  const height = (rows.length + 1) * rowHeight + 2;
+  const truncate = (value, size) => (value.length > size ? `${value.slice(0, Math.max(1, size - 1))}…` : value);
+  const text = (value, x, y, maxChars, weight = "400", fill = "#263238") =>
+    `<text x="${x}" y="${y}" font-family="Arial,sans-serif" font-size="11" font-weight="${weight}" fill="${fill}">${aesc(truncate(String(value), maxChars))}</text>`;
+  let content = `<rect width="100%" height="100%" fill="#fff"/>`, x = 0;
+  machariaStopExportHeaders.forEach((header, index) => {
+    content += `<rect x="${x}" y="1" width="${widths[index]}" height="${rowHeight}" fill="#b71c1c" stroke="#fff"/>${text(header, x + 5, 19, Math.floor(widths[index] / 7), "700", "#fff")}`;
+    x += widths[index];
+  });
+  rows.forEach((item, rowIndex) => {
+    const values = machariaStopExportValues(item);
+    const y = (rowIndex + 1) * rowHeight + 1;
+    x = 0;
+    values.forEach((value, index) => {
+      content += `<rect x="${x}" y="${y}" width="${widths[index]}" height="${rowHeight}" fill="${rowIndex % 2 ? "#f3f5f6" : "#fff"}" stroke="#d8dee2"/>${text(value, x + 5, y + 18, Math.floor(widths[index] / 7))}`;
+      x += widths[index];
+    });
+  });
+  downloadMachariaFile(`<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${content}</svg>`, "image/svg+xml;charset=utf-8", "svg", "paradas-macharia");
+}
+function exportVisibleMachariaStops() {
+  const rows = machariaState.visibleStopRows;
+  if (!rows.length) return;
+  aq("#stop-export-format")?.value === "svg" ? exportMachariaStopsSvg(rows) : exportMachariaStopsExcel(rows);
+}
+function renderMachariaStopsQuery() {
+  const form = aq("#stop-query-filters");
+  const linhaId = form?.elements.linha_id.value, sectorId = form?.elements.setor_id.value, categoryId = form?.elements.categoria_id.value;
+  const normalizeText = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const terms = normalizeText(form?.elements.observacao.value).split(/\s+/).filter(Boolean);
+  const filtered = filteredByMachariaPeriod(machariaState.stops, form).filter((item) =>
+    (!linhaId || String(item.linha_maquina_id) === linhaId) &&
+    (!sectorId || String(item.setor_responsavel_id) === sectorId) &&
+    (!categoryId || String(item.categoria_id) === categoryId) &&
+    terms.every((term) => normalizeText(item.observacao).includes(term)));
+  const getters = {
+    start: (item) => item.inicio, end: (item) => item.fim, duration: (item) => anumber(item.duracao_minutos),
+    maquina: (item) => item.linhas_maquinas_producao?.nome, sector: (item) => item.setores_responsaveis_parada?.nome,
+    reason: (item) => item.categorias_parada_producao?.nome || item.motivo, notes: (item) => item.observacao,
+    date: (item) => item.data_operacional, shift: (item) => item.turno
+  };
+  const getValue = getters[machariaState.stopSort.key];
+  const factor = machariaState.stopSort.direction === "asc" ? 1 : -1;
+  const rows = getValue
+    ? filtered.map((item, index) => ({ item, index })).sort((left, right) => {
+        const a = getValue(left.item), b = getValue(right.item);
+        const result = typeof a === "number" && typeof b === "number" ? a - b : String(a ?? "").localeCompare(String(b ?? ""), "pt-BR", { numeric: true, sensitivity: "base" });
+        return result ? result * factor : left.index - right.index;
+      }).map((entry) => entry.item)
+    : filtered;
+  machariaState.visibleStopRows = rows;
+  aq("#stop-records").innerHTML = rows.map((x) => `<tr>
+      <td>${displayDate(x.data_operacional)}</td><td>${aesc(x.turno)}</td>
+      <td>${formatDateTime(x.inicio)}</td><td>${formatDateTime(x.fim)}</td>
+      <td>${formatMinutes(x.duracao_minutos)}</td><td>${aesc(x.linhas_maquinas_producao?.nome || "—")}</td>
+      <td>${aesc(x.setores_responsaveis_parada?.nome || "—")}</td>
+      <td>${aesc(x.categorias_parada_producao?.nome || x.motivo || "—")}</td>
+      <td>${aesc(x.observacao || "—")}</td>
+    </tr>`).join("");
+  aq("#stop-records-empty").hidden = rows.length > 0;
+  updateMachariaStopSortHeaders();
+  updateMachariaStopExportControls();
+}
+
+// ---------------------------------------------------------------------------
 // Ficha de macho — cadastro (Engenharia), aval (Produção), importação
 // ---------------------------------------------------------------------------
 function splitProdutoCodes(raw) {
@@ -866,6 +1023,23 @@ async function initializeMachariaProduction() {
   await loadMachariaSupport();
   aq("#production-loading")?.setAttribute("hidden", "");
   if (machariaPage === "dashboard") { await loadMachariaDashboard(); renderMachariaDashboard(); }
+  if (machariaPage === "stops") {
+    await loadMachariaStopsData();
+    renderMachariaStopsQuery();
+    let filterTimer;
+    aq("#stop-query-filters")?.addEventListener("input", () => {
+      clearTimeout(filterTimer);
+      filterTimer = setTimeout(() => reloadMachariaStopsQuery().catch((error) => machariaMessage(error.message, "error")), 300);
+    });
+    aq(".stop-query-table")?.addEventListener("click", (event) => {
+      const button = event.target.closest(".table-sort");
+      if (!button) return;
+      const same = machariaState.stopSort.key === button.dataset.sort;
+      machariaState.stopSort = { key: button.dataset.sort, direction: same && machariaState.stopSort.direction === "asc" ? "desc" : "asc" };
+      renderMachariaStopsQuery();
+    });
+    aq("#stop-export-button")?.addEventListener("click", exportVisibleMachariaStops);
+  }
   if (machariaPage === "entry") {
     if (!permissions.has("producao_macharia.lancar")) throw new Error("Usuário sem permissão para lançar produção de macharia.");
     aq("#shift-entry-form").hidden = false;

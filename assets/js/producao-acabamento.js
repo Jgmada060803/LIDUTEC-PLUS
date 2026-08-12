@@ -22,7 +22,9 @@ const acabamentoState = {
   originalShiftData: null,
   statusRequestId: 0,
   draftSaveTimer: null,
-  draftSaveInFlight: false
+  draftSaveInFlight: false,
+  stopSort: { key: null, direction: "asc" },
+  visibleStopRows: []
 };
 
 const aq = (selector) => document.querySelector(selector);
@@ -75,6 +77,9 @@ async function loadAcabamentoSupport() {
   }
   for (const select of document.querySelectorAll("[data-sectors]")) {
     select.insertAdjacentHTML("beforeend", sectors.map((s) => `<option value="${s.id}">${aesc(s.nome)}</option>`).join(""));
+  }
+  for (const select of document.querySelectorAll("[data-postos]")) {
+    select.insertAdjacentHTML("beforeend", postoOptionsHtml());
   }
 }
 
@@ -1035,6 +1040,10 @@ function productionFilters(form) {
     to: form?.elements.fim.value || null,
     shift: form?.elements.turno?.value || null,
     productId: form?.elements.produto_id?.value || null,
+    postoId: form?.elements.posto_id?.value || null,
+    sectorId: form?.elements.setor_id?.value || null,
+    categoryId: form?.elements.categoria_id?.value || null,
+    search: form?.elements.observacao?.value.trim() || null,
     limit: 1000
   };
 }
@@ -1137,10 +1146,116 @@ function renderAcabamentoRecordsTable() {
   if (empty) empty.hidden = rows.length > 0;
 }
 
+// Mesmo modelo da tela de paradas da Moldagem (filtros com recarga em
+// debounce, colunas ordenáveis, exportação Excel/SVG), mantendo a coluna de
+// Posto/Equipamento que já existia aqui (paradas de Acabamento são por
+// posto, diferente de Moldagem).
+function filteredByAcabamentoPeriod(rows, form) {
+  const start = form?.elements.inicio.value, end = form?.elements.fim.value, shift = form?.elements.turno.value;
+  return rows.filter((item) => (!start || item.data_operacional >= start) && (!end || item.data_operacional <= end) && (!shift || item.turno === shift));
+}
+async function reloadAcabamentoStops() {
+  const form = aq("#stop-query-filters");
+  acabamentoState.stops = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.stops(productionFilters(form));
+  renderAcabamentoStops();
+}
+function updateAcabamentoStopSortHeaders() {
+  for (const button of document.querySelectorAll(".stop-query-table .table-sort")) {
+    const active = button.dataset.sort === acabamentoState.stopSort.key;
+    const direction = active ? acabamentoState.stopSort.direction : "";
+    button.dataset.direction = direction;
+    button.closest("th").setAttribute("aria-sort", direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none");
+    button.title = active ? `Classificação ${direction === "asc" ? "crescente" : "decrescente"}. Clique para inverter.` : "Clique para classificar em ordem crescente.";
+  }
+}
+const acabamentoStopExportHeaders = ["Data", "Turno", "Início", "Fim", "Tempo total", "Posto/Equipamento", "Setor de origem", "Motivo", "Observações"];
+function acabamentoStopExportValues(item) {
+  return [
+    aDisplayDate(item.data_operacional), item.turno, aFormatDateTime(item.inicio), aFormatDateTime(item.fim),
+    aFormatMinutes(item.duracao_minutos), item.postos_equipamentos_acabamento?.nome || "—",
+    item.setores_responsaveis_parada?.nome || "—", item.categorias_parada_producao?.nome || "—",
+    item.observacao || "—"
+  ].map(String);
+}
+function updateAcabamentoStopExportControls() {
+  const rows = acabamentoState.visibleStopRows, button = aq("#stop-export-button"), counter = aq("#stop-export-count");
+  if (counter) counter.textContent = `${rows.length} registro${rows.length === 1 ? "" : "s"}`;
+  if (button) button.disabled = !rows.length;
+}
+function downloadAcabamentoFile(content, type, extension, baseName) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${baseName}-${new Date().toISOString().slice(0, 10)}.${extension}`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportAcabamentoStopsExcel(rows) {
+  const tableRows = rows.map((item) => `<tr>${acabamentoStopExportValues(item).map((value) => `<td>${aesc(value)}</td>`).join("")}</tr>`).join("");
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr>${acabamentoStopExportHeaders.map((value) => `<th>${aesc(value)}</th>`).join("")}</tr></thead><tbody>${tableRows}</tbody></table></body></html>`;
+  downloadAcabamentoFile(`﻿${html}`, "application/vnd.ms-excel;charset=utf-8", "xls", "paradas-acabamento");
+}
+function exportAcabamentoStopsSvg(rows) {
+  const widths = [90, 90, 170, 170, 100, 190, 190, 190, 300];
+  const rowHeight = 28;
+  const width = widths.reduce((sum, value) => sum + value, 0);
+  const height = (rows.length + 1) * rowHeight + 2;
+  const truncate = (value, size) => (value.length > size ? `${value.slice(0, Math.max(1, size - 1))}…` : value);
+  const text = (value, x, y, maxChars, weight = "400", fill = "#263238") =>
+    `<text x="${x}" y="${y}" font-family="Arial,sans-serif" font-size="11" font-weight="${weight}" fill="${fill}">${aesc(truncate(String(value), maxChars))}</text>`;
+  let content = `<rect width="100%" height="100%" fill="#fff"/>`, x = 0;
+  acabamentoStopExportHeaders.forEach((header, index) => {
+    content += `<rect x="${x}" y="1" width="${widths[index]}" height="${rowHeight}" fill="#b71c1c" stroke="#fff"/>${text(header, x + 5, 19, Math.floor(widths[index] / 7), "700", "#fff")}`;
+    x += widths[index];
+  });
+  rows.forEach((item, rowIndex) => {
+    const values = acabamentoStopExportValues(item);
+    const y = (rowIndex + 1) * rowHeight + 1;
+    x = 0;
+    values.forEach((value, index) => {
+      content += `<rect x="${x}" y="${y}" width="${widths[index]}" height="${rowHeight}" fill="${rowIndex % 2 ? "#f3f5f6" : "#fff"}" stroke="#d8dee2"/>${text(value, x + 5, y + 18, Math.floor(widths[index] / 7))}`;
+      x += widths[index];
+    });
+  });
+  downloadAcabamentoFile(`<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${content}</svg>`, "image/svg+xml;charset=utf-8", "svg", "paradas-acabamento");
+}
+function exportVisibleAcabamentoStops() {
+  const rows = acabamentoState.visibleStopRows;
+  if (!rows.length) return;
+  aq("#stop-export-format")?.value === "svg" ? exportAcabamentoStopsSvg(rows) : exportAcabamentoStopsExcel(rows);
+}
 function renderAcabamentoStops() {
   const body = aq("#stop-records");
   if (!body) return;
-  body.innerHTML = acabamentoState.stops.map((x) => `<tr>
+  const form = aq("#stop-query-filters");
+  const postoId = form?.elements.posto_id?.value, sectorId = form?.elements.setor_id?.value, categoryId = form?.elements.categoria_id?.value;
+  const normalizeText = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const terms = normalizeText(form?.elements.observacao?.value).split(/\s+/).filter(Boolean);
+  const filtered = filteredByAcabamentoPeriod(acabamentoState.stops, form).filter((item) =>
+    (!postoId || String(item.posto_equipamento_id) === postoId) &&
+    (!sectorId || String(item.setor_origem_id) === sectorId) &&
+    (!categoryId || String(item.categoria_id) === categoryId) &&
+    terms.every((term) => normalizeText(item.observacao).includes(term)));
+  const getters = {
+    start: (item) => item.inicio, end: (item) => item.fim, duration: (item) => anumber(item.duracao_minutos),
+    posto: (item) => item.postos_equipamentos_acabamento?.nome, sector: (item) => item.setores_responsaveis_parada?.nome,
+    reason: (item) => item.categorias_parada_producao?.nome, notes: (item) => item.observacao,
+    date: (item) => item.data_operacional, shift: (item) => item.turno
+  };
+  const getValue = getters[acabamentoState.stopSort.key];
+  const factor = acabamentoState.stopSort.direction === "asc" ? 1 : -1;
+  const rows = getValue
+    ? filtered.map((item, index) => ({ item, index })).sort((left, right) => {
+        const a = getValue(left.item), b = getValue(right.item);
+        const result = typeof a === "number" && typeof b === "number" ? a - b : String(a ?? "").localeCompare(String(b ?? ""), "pt-BR", { numeric: true, sensitivity: "base" });
+        return result ? result * factor : left.index - right.index;
+      }).map((entry) => entry.item)
+    : filtered;
+  acabamentoState.visibleStopRows = rows;
+  body.innerHTML = rows.map((x) => `<tr>
       <td>${aDisplayDate(x.data_operacional)}</td>
       <td>${aesc(x.turno)}</td>
       <td>${aFormatDateTime(x.inicio)}</td>
@@ -1152,7 +1267,9 @@ function renderAcabamentoStops() {
       <td>${aesc(x.observacao || "—")}</td>
     </tr>`).join("");
   const empty = aq("#stop-records-empty");
-  if (empty) empty.hidden = acabamentoState.stops.length > 0;
+  if (empty) empty.hidden = rows.length > 0;
+  updateAcabamentoStopSortHeaders();
+  updateAcabamentoStopExportControls();
 }
 
 function renderGauge(selector, fraction, label) {
@@ -1293,7 +1410,22 @@ async function initializeAcabamentoProduction() {
   aq("#production-loading")?.setAttribute("hidden", "");
 
   if (acabamentoPage === "dashboard") renderAcabamentoDashboard();
-  if (acabamentoPage === "stops") renderAcabamentoStops();
+  if (acabamentoPage === "stops") {
+    renderAcabamentoStops();
+    let filterTimer;
+    aq("#stop-query-filters")?.addEventListener("input", () => {
+      clearTimeout(filterTimer);
+      filterTimer = setTimeout(() => reloadAcabamentoStops().catch((error) => acabamentoMessage(error.message, "error")), 300);
+    });
+    aq(".stop-query-table")?.addEventListener("click", (event) => {
+      const button = event.target.closest(".table-sort");
+      if (!button) return;
+      const same = acabamentoState.stopSort.key === button.dataset.sort;
+      acabamentoState.stopSort = { key: button.dataset.sort, direction: same && acabamentoState.stopSort.direction === "asc" ? "desc" : "asc" };
+      renderAcabamentoStops();
+    });
+    aq("#stop-export-button")?.addEventListener("click", exportVisibleAcabamentoStops);
+  }
   if (acabamentoPage === "charts") renderAcabamentoCharts();
   if (acabamentoPage === "entry") {
     if (!permissions.has("producao_acabamento.lancar")) throw new Error("Usuário sem permissão para lançar produção de acabamento.");
