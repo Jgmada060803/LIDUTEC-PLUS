@@ -14,11 +14,13 @@
   }
   root.LIDUTEC_PRODUCAO_MACHARIA_DATA = {
     support: async () => {
-      const [maquinas, machos] = await Promise.all([
+      const [maquinas, machos, categories, sectors] = await Promise.all([
         result(client().from("linhas_maquinas_producao").select("id,codigo,nome,numero_estacoes,areas_checklist!inner(codigo)").eq("areas_checklist.codigo", "MACHARIA").eq("ativo", true).order("codigo")),
-        result(client().from("machos_macharia").select("id,caixa,macho,machos_macharia_produtos(produtos(codigo))").eq("status", "APROVADO").eq("ativo", true).order("caixa").order("macho"))
+        result(client().from("machos_macharia").select("id,caixa,macho,machos_macharia_produtos(produtos(codigo))").eq("status", "APROVADO").eq("ativo", true).order("caixa").order("macho")),
+        result(client().from("categorias_parada_producao").select("id,codigo,nome").eq("ativo", true).order("nome")),
+        result(client().from("setores_responsaveis_parada").select("id,codigo,nome").eq("ativo", true).order("nome"))
       ]);
-      return { maquinas, machos };
+      return { maquinas, machos, categories, sectors };
     },
     produtos: () => result(client().from("produtos").select("id,codigo,nome").eq("status", "ATIVO").order("codigo")),
     fichas: (status) => result(client().from("machos_macharia")
@@ -32,11 +34,14 @@
       .select("*,linhas_maquinas_producao(codigo,nome),machos_macharia(caixa,macho,machos_por_sopro,machos_macharia_produtos(produtos(codigo)))")
       .order("horario_previsto", { ascending: false }), filters)),
     shift: (date, turno) => result(client().from("turnos_producao_macharia")
-      .select("id,status,versao,rascunho_producoes,atualizado_por,atualizado_em,usuarios!turnos_producao_macharia_atualizado_por_fkey(nome)")
+      .select("id,status,versao,rascunho_producoes,rascunho_paradas,atualizado_por,atualizado_em,usuarios!turnos_producao_macharia_atualizado_por_fkey(nome)")
       .eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
     shiftProductions: (id) => result(client().from("registros_producao_macharia")
       .select("linha_maquina_id,estacao,horario_previsto,macho_id,quantidade_sopros")
       .eq("turno_producao_id", id).order("linha_maquina_id").order("estacao").order("horario_previsto")),
+    shiftStops: (id) => result(client().from("paradas_producao_macharia")
+      .select("linha_maquina_id,setor_responsavel_id,categoria_id,inicio,fim,observacao")
+      .eq("turno_producao_id", id).order("linha_maquina_id").order("inicio")),
     history: (id) => result(client().from("historico_edicoes_turno_macharia")
       .select("alterado_em,descricao,dados_anteriores,dados_novos,usuarios(nome)")
       .eq("turno_producao_id", id).order("alterado_em", { ascending: false })),

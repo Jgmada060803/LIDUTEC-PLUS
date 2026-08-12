@@ -4,6 +4,8 @@ const machariaState = {
   permissions: new Set(),
   maquinas: [],
   machos: [],
+  categories: [],
+  sectors: [],
   currentShift: null,
   editingClosed: false,
   draftSaveTimer: null,
@@ -36,9 +38,23 @@ function machoLabel(macho) {
   return `${produtos.length ? produtos.join("/") : "sem produto"} · ${macho.caixa}/${macho.macho}`;
 }
 async function loadMachariaSupport() {
-  const { maquinas, machos } = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.support();
+  const { maquinas, machos, categories, sectors } = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.support();
   machariaState.maquinas = maquinas;
   machariaState.machos = machos.slice().sort((a, b) => machoLabel(a).localeCompare(machoLabel(b), "pt-BR"));
+  machariaState.categories = categories;
+  machariaState.sectors = sectors;
+}
+function formatMinutes(value) {
+  return `${Math.floor(anumber(value) / 60)}h ${String(anumber(value) % 60).padStart(2, "0")}min`;
+}
+function resolveShiftTime(value) {
+  const form = aq("#shift-entry-form");
+  return window.LIDUTEC_TURNOS.resolveShiftTime(form?.elements.data_operacional.value, form?.elements.turno.value, value);
+}
+function applyRowValues(row, values = {}) {
+  for (const control of row.querySelectorAll("input,select")) {
+    if (Object.hasOwn(values, control.name)) control.value = values[control.name] ?? "";
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +207,121 @@ function mergedProducoes() {
     .filter((item) => String(item.linha_id ?? item.linha_maquina_id) !== String(maquina?.id));
   return [...others, ...collectMachineEntries()];
 }
+
+// ---------------------------------------------------------------------------
+// Paradas — mesmo modelo da Moldagem (Hora início/fim, Setor responsável,
+// Motivo, Observações), mas cada parada carrega a máquina selecionada no
+// menu superior no momento em que foi lançada: como cada máquina tem seu
+// próprio operador, a tabela mostra e salva só as paradas da máquina atual
+// (igual à grade de sopros), preservando as paradas de outras máquinas via
+// mergedParadas() na hora de salvar.
+// ---------------------------------------------------------------------------
+function stopRow() {
+  const row = document.createElement("tr");
+  row.className = "shift-stop-row";
+  const sectorOptions = machariaState.sectors.map((s) => `<option value="${s.id}">${aesc(s.nome)}</option>`).join("");
+  const categoryOptions = machariaState.categories.map((c) => `<option value="${c.id}">${aesc(c.nome)}</option>`).join("");
+  row.innerHTML = `
+    <td><input name="inicio" type="time" step="60"></td>
+    <td><input name="fim" type="time" step="60"></td>
+    <td><output data-duration>0h 00min</output></td>
+    <td><select name="setor_id"><option value="">Selecione</option>${sectorOptions}</select></td>
+    <td><select name="categoria_id"><option value="">Selecione</option>${categoryOptions}</select></td>
+    <td><input name="observacao" type="text" maxlength="500"></td>
+    <td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
+  return row;
+}
+function updateStopRow(row) {
+  const start = row.querySelector('[name="inicio"]').value;
+  const end = row.querySelector('[name="fim"]').value;
+  let minutes = 0;
+  if (start && end) {
+    const resolvedStart = resolveShiftTime(start);
+    const resolvedEnd = resolveShiftTime(end);
+    if (!resolvedStart || !resolvedEnd || resolvedEnd < resolvedStart) {
+      throw new Error("Os horários da parada devem estar dentro do turno selecionado.");
+    }
+    minutes = window.LIDUTEC_TURNOS.stopDurationMinutes(resolvedStart.toISOString(), resolvedEnd.toISOString());
+  }
+  row.querySelector("[data-duration]").textContent = formatMinutes(minutes);
+}
+function renderStopsTable() {
+  const maquina = currentMaquina();
+  const title = aq("#stops-maquina-title");
+  const tbody = aq("#stop-entry-rows");
+  const addButton = aq("#add-stop-row");
+  if (title) title.textContent = maquina ? `Parada — ${maquina.nome}` : "Parada";
+  if (!tbody) return;
+  if (!maquina) { tbody.replaceChildren(); return; }
+  const closed = machariaState.currentShift?.status === "FECHADO";
+  const canEdit = !closed || machariaState.editingClosed;
+  if (addButton) addButton.hidden = !canEdit;
+  const stops = (machariaState.currentShift?.rascunho_paradas || [])
+    .filter((item) => String(item.linha_id ?? item.linha_maquina_id) === String(maquina.id));
+  const toTimeInput = (value) => {
+    if (!value) return "";
+    if (/^\d{2}:\d{2}$/.test(value)) return value;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+  tbody.replaceChildren();
+  for (const item of stops.length ? stops : [{}]) {
+    const row = stopRow();
+    applyRowValues(row, {
+      inicio: toTimeInput(item.inicio),
+      fim: toTimeInput(item.fim),
+      setor_id: item.setor_responsavel_id ?? item.setor_id ?? "",
+      categoria_id: item.categoria_id ?? "",
+      observacao: item.observacao ?? ""
+    });
+    if (!canEdit) for (const control of row.querySelectorAll("input,select,button")) control.disabled = true;
+    tbody.append(row);
+    try { updateStopRow(row); } catch { /* horário incompleto no carregamento inicial */ }
+  }
+}
+// strict=false (autosave de rascunho): ignora silenciosamente linhas
+// incompletas/inválidas, sem travar o usuário no meio do preenchimento.
+// strict=true (fechar turno): exige que toda linha começada esteja completa.
+function collectMachineStops(strict = false) {
+  const maquina = currentMaquina();
+  if (!maquina) return [];
+  const rows = [...document.querySelectorAll(".shift-stop-row")]
+    .filter((row) => ["inicio", "fim", "setor_id", "categoria_id", "observacao"].some((name) => row.querySelector(`[name="${name}"]`)?.value));
+  const stops = [];
+  for (const row of rows) {
+    const value = (name) => row.querySelector(`[name="${name}"]`).value;
+    if (!value("inicio") || !value("fim") || !value("setor_id") || !value("categoria_id")) {
+      if (strict) throw new Error("Preencha início, fim, setor e motivo em todas as paradas.");
+      continue;
+    }
+    const start = resolveShiftTime(value("inicio"));
+    const end = resolveShiftTime(value("fim"));
+    if (!start || !end || end < start) {
+      if (strict) throw new Error("Os horários da parada devem estar dentro do turno selecionado.");
+      continue;
+    }
+    stops.push({
+      linha_id: maquina.id, inicio: start.toISOString(), fim: end.toISOString(),
+      setor_id: anumber(value("setor_id")), categoria_id: anumber(value("categoria_id")), observacao: value("observacao")
+    });
+  }
+  if (strict && window.LIDUTEC_TURNOS.findOverlappingInterval(stops)) {
+    throw new Error("Há paradas com horários sobrepostos nesta máquina. Ajuste os horários antes de continuar.");
+  }
+  return stops;
+}
+function mergedParadas(strict = false) {
+  const maquina = currentMaquina();
+  const others = (machariaState.currentShift?.rascunho_paradas || [])
+    .filter((item) => String(item.linha_id ?? item.linha_maquina_id) !== String(maquina?.id));
+  return [...others, ...collectMachineStops(strict)];
+}
+function renderMachineView() {
+  renderGrid();
+  renderStopsTable();
+}
 function saveDraft() {
   clearTimeout(machariaState.draftSaveTimer);
   machariaState.draftSaveTimer = setTimeout(persistDraft, 800);
@@ -201,13 +332,15 @@ async function persistDraft() {
   const form = aq("#shift-entry-form");
   try {
     const producoes = mergedProducoes();
+    const paradas = mergedParadas(false);
     const saved = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.saveShiftDraft({
       p_data_operacional: form.elements.data_operacional.value,
       p_turno: form.elements.turno.value,
       p_producoes: producoes,
+      p_paradas: paradas,
       p_versao: machariaState.currentShift?.versao ?? null
     });
-    machariaState.currentShift = { ...(machariaState.currentShift || {}), ...saved, rascunho_producoes: producoes, status: "ABERTO" };
+    machariaState.currentShift = { ...(machariaState.currentShift || {}), ...saved, rascunho_producoes: producoes, rascunho_paradas: paradas, status: "ABERTO" };
     aq("#shift-status").textContent = "Em apontamento · salvo agora";
   } catch (error) {
     if (/CONFLITO_RASCUNHO|40001/i.test(`${error.message || ""} ${error.code || ""}`)) {
@@ -237,7 +370,12 @@ async function checkShiftStatus() {
   const closed = data?.status === "FECHADO";
   if (closed) {
     const productions = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.shiftProductions(data.id);
-    machariaState.currentShift = { ...data, rascunho_producoes: productions.map((item) => ({ ...item, linha_id: item.linha_maquina_id })) };
+    const stops = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.shiftStops(data.id);
+    machariaState.currentShift = {
+      ...data,
+      rascunho_producoes: productions.map((item) => ({ ...item, linha_id: item.linha_maquina_id })),
+      rascunho_paradas: stops.map((item) => ({ ...item, linha_id: item.linha_maquina_id }))
+    };
   } else {
     machariaState.currentShift = data ? { ...data } : null;
   }
@@ -252,7 +390,7 @@ async function checkShiftStatus() {
   aq("#delete-shift-button").hidden = !canDelete;
   aq("#delete-shift-button").disabled = false;
   if (data?.id && closed) await loadShiftHistory(data.id); else aq("#shift-edit-history").hidden = true;
-  renderGrid();
+  renderMachineView();
 }
 function editClosedShift() {
   machariaState.editingClosed = true;
@@ -262,7 +400,7 @@ function editClosedShift() {
   aq("#close-shift-button").disabled = false;
   aq("#close-shift-button").textContent = "Salvar alterações";
   aq("#shift-status").textContent = "Editando turno fechado";
-  renderGrid();
+  renderMachineView();
 }
 async function deleteClosedShift() {
   const turnId = machariaState.currentShift?.id;
@@ -286,15 +424,17 @@ async function closeShift(event) {
   try {
     const producoes = mergedProducoes();
     if (!producoes.length) throw new Error("Informe ao menos um lançamento de sopro.");
+    const paradas = mergedParadas(true);
     const form = aq("#shift-entry-form");
     if (machariaState.editingClosed) {
-      await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.editShift({ p_turno_id: machariaState.currentShift.id, p_producoes: producoes });
+      await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.editShift({ p_turno_id: machariaState.currentShift.id, p_producoes: producoes, p_paradas: paradas });
       machariaMessage("Alterações do turno salvas com sucesso.");
     } else {
       await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.closeShift({
         p_data_operacional: form.elements.data_operacional.value,
         p_turno: form.elements.turno.value,
         p_producoes: producoes,
+        p_paradas: paradas,
         p_versao: machariaState.currentShift?.versao ?? null
       });
       machariaMessage("Turno fechado com sucesso.");
@@ -315,17 +455,40 @@ async function initializeShiftEntry() {
   form.elements.maquina_id.innerHTML = machariaState.maquinas.map((m) => `<option value="${m.id}">${aesc(m.nome)}</option>`).join("");
   if (machariaState.maquinas[0]) form.elements.maquina_id.value = machariaState.maquinas[0].id;
 
-  form.elements.maquina_id.addEventListener("change", renderGrid);
+  form.elements.maquina_id.addEventListener("change", renderMachineView);
   const refresh = () => checkShiftStatus().catch((error) => machariaMessage(error.message, "error"));
   form.elements.data_operacional.addEventListener("change", refresh);
   form.elements.turno.addEventListener("change", refresh);
-  form.addEventListener("input", (event) => { if (event.target.matches(".macharia-sopros")) saveDraft(); });
-  form.addEventListener("change", (event) => { if (event.target.matches(".macharia-macho")) saveDraft(); });
+  form.addEventListener("input", (event) => {
+    if (event.target.matches(".macharia-sopros")) saveDraft();
+    const stopRowEl = event.target.closest(".shift-stop-row");
+    if (stopRowEl) {
+      try { updateStopRow(stopRowEl); } catch { /* horário incompleto, ignora até ambos preenchidos */ }
+      saveDraft();
+    }
+  });
+  form.addEventListener("change", (event) => {
+    if (event.target.matches(".macharia-macho") || event.target.closest(".shift-stop-row")) saveDraft();
+  });
   aq("#macharia-grid-container").addEventListener("click", (event) => {
     const addButton = event.target.closest(".macharia-add-entry");
     if (addButton) { addMachoEntryRow(addButton); return; }
     const removeButton = event.target.closest(".macharia-remove-entry");
     if (removeButton) removeMachoEntryRow(removeButton);
+  });
+  aq("#add-stop-row").addEventListener("click", () => { aq("#stop-entry-rows").append(stopRow()); saveDraft(); });
+  aq("#stop-entry-rows").addEventListener("click", (event) => {
+    const button = event.target.closest(".row-remove");
+    if (!button) return;
+    const row = button.closest("tr");
+    const tbody = row.parentElement;
+    if (tbody.children.length === 1) {
+      for (const control of row.querySelectorAll("input,select")) control.value = "";
+      try { updateStopRow(row); } catch { /* ambos vazios, sem erro */ }
+    } else {
+      row.remove();
+    }
+    saveDraft();
   });
   form.addEventListener("submit", closeShift);
   aq("#edit-shift-button").addEventListener("click", editClosedShift);

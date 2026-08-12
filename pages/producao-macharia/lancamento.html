@@ -25,6 +25,12 @@
           <div id="macharia-grid-container" class="checklist-grid-wrapper"></div>
         </section>
 
+        <section class="panel shift-table-panel">
+          <div class="shift-section-heading"><div><h2 id="stops-maquina-title">Parada</h2></div></div>
+          <div class="table-wrapper"><table class="products-table shift-entry-table stop-entry-table"><thead><tr><th>Hora início</th><th>Hora fim</th><th>Tempo total</th><th>Setor responsável</th><th>Motivo da parada</th><th>Observações</th><th></th></tr></thead><tbody id="stop-entry-rows"></tbody></table></div>
+          <button id="add-stop-row" type="button" class="row-add-button" aria-label="Adicionar linha de parada" title="Adicionar linha">+</button>
+        </section>
+
         <div class="shift-close-actions"><a href="./index.html" class="button button-secondary">Voltar</a><button id="delete-shift-button" type="button" class="button button-danger" hidden>Excluir turno</button><button id="edit-shift-button" type="button" class="button button-secondary" hidden>Editar turno</button><button id="close-shift-button" class="button button-primary">Fechar turno</button></div>
         <section id="shift-edit-history" class="panel shift-history-panel" hidden><h2>Alterações após o fechamento</h2><div class="table-wrapper"><table class="products-table shift-history-table"><thead><tr><th>Data e hora</th><th>Alteração</th></tr></thead><tbody id="shift-edit-history-rows"></tbody></table></div></section>
       </form>
