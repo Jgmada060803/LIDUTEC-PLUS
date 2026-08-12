@@ -633,15 +633,27 @@ function renderMachariaDashboard() {
   const totalMachos = records.reduce((sum, item) => sum + anumber(item.quantidade_sopros) * anumber(item.machos_macharia?.machos_por_sopro), 0);
   aq('[data-metric="sopros"]').textContent = totalSopros.toLocaleString("pt-BR");
   aq('[data-metric="machos"]').textContent = totalMachos.toLocaleString("pt-BR");
-  aq("#dashboard-production-records").innerHTML = records.map((item) => `<tr>
-      <td>${new Date(item.horario_previsto).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</td>
-      <td>${aesc(item.turno)}</td>
-      <td>${aesc(item.linhas_maquinas_producao?.nome || "—")}</td>
-      <td>${anumber(item.estacao)}</td>
-      <td>${item.machos_macharia ? aesc(machoLabel(item.machos_macharia)) : "—"}</td>
-      <td>${anumber(item.quantidade_sopros)}</td>
+
+  // Consolidado por turno + máquina + caixa/macho — não precisa mostrar
+  // hora a hora nem por estação aqui, só o total do dia.
+  const groups = new Map();
+  for (const item of records) {
+    const key = `${item.turno}|${item.linha_maquina_id}|${item.macho_id}`;
+    if (!groups.has(key)) {
+      groups.set(key, { turno: item.turno, maquina: item.linhas_maquinas_producao?.nome || "—", macho: item.machos_macharia || null, sopros: 0 });
+    }
+    groups.get(key).sopros += anumber(item.quantidade_sopros);
+  }
+  const rows = [...groups.values()].sort((a, b) =>
+    a.turno.localeCompare(b.turno) || a.maquina.localeCompare(b.maquina, "pt-BR", { numeric: true }));
+  aq("#dashboard-production-records").innerHTML = rows.map((row) => `<tr>
+      <td>${aesc(row.turno)}</td>
+      <td>${aesc(row.maquina)}</td>
+      <td>${row.macho ? aesc(machoLabel(row.macho)) : "—"}</td>
+      <td>${row.sopros}</td>
+      <td>${row.macho ? row.sopros * anumber(row.macho.machos_por_sopro) : 0}</td>
     </tr>`).join("");
-  aq("#dashboard-production-empty").hidden = records.length > 0;
+  aq("#dashboard-production-empty").hidden = rows.length > 0;
 }
 
 // ---------------------------------------------------------------------------
