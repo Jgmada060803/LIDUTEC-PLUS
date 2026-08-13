@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paradas Programadas | Metalsider</title><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"></head>
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paradas Programadas | Metalsider</title><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"><link rel="stylesheet" href="../../assets/css/paradas-programadas.css"></head>
 <body class="app-page"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
 <div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Paradas Programadas</h1><p>Refeição, hidratação, manutenção preventiva etc.</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
 <main class="main-content">
@@ -8,12 +8,38 @@
     <div class="panel-header"><h3>Nova parada programada</h3></div>
     <form id="parada-programada-form" class="meta-form">
       <label>Setor<select id="pp-area" name="area_id" required><option value="">Selecione</option></select></label>
-      <label>Unidade de trabalho<select id="pp-unidade" name="unidade_trabalho"><option value="">Geral (toda a área)</option></select></label>
-      <label>Turno<select id="pp-turno" name="turno"><option value="">Todos os turnos</option><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
       <label>Tipo de parada programada<select id="pp-tipo" name="tipo_parada_codigo" required><option value="">Selecione</option></select></label>
-      <label>Horário inicial<input id="pp-horario-inicial" name="horario_inicial" type="time" required></label>
-      <label>Horário final<input id="pp-horario-final" name="horario_final" type="time" required></label>
       <label>Vigente a partir de<input id="pp-vigencia" name="vigencia_inicio" type="date" required></label>
+      <fieldset class="pp-unidades" id="pp-unidades-fieldset"><legend>Unidade(s) de trabalho</legend>
+        <label><input type="checkbox" id="pp-unidade-geral" name="unidade_geral" value="geral" checked>Geral (toda a área)</label>
+      </fieldset>
+      <fieldset class="pp-recorrencia"><legend>Duração da vigência</legend>
+        <label><input type="radio" name="recorrencia" value="recorrente" checked>Recorrente (sem data de término)</label>
+        <label><input type="radio" name="recorrencia" value="data_validade">Até uma data de validade</label>
+        <label id="pp-vigencia-fim-field" hidden>Data de validade<input id="pp-vigencia-fim" name="vigencia_fim" type="date"></label>
+      </fieldset>
+      <fieldset class="pp-turnos"><legend>Horário — marque só os turnos com horário próprio; sem nenhum marcado, o horário único abaixo vale para qualquer turno</legend>
+        <div class="pp-turno-row" data-turno="MANHA">
+          <label><input type="checkbox" class="pp-turno-check" name="turno_ativo" value="MANHA">Manhã</label>
+          <label>Início<input type="time" name="horario_inicial_MANHA" disabled></label>
+          <label>Fim<input type="time" name="horario_final_MANHA" disabled></label>
+        </div>
+        <div class="pp-turno-row" data-turno="TARDE">
+          <label><input type="checkbox" class="pp-turno-check" name="turno_ativo" value="TARDE">Tarde</label>
+          <label>Início<input type="time" name="horario_inicial_TARDE" disabled></label>
+          <label>Fim<input type="time" name="horario_final_TARDE" disabled></label>
+        </div>
+        <div class="pp-turno-row" data-turno="NOITE">
+          <label><input type="checkbox" class="pp-turno-check" name="turno_ativo" value="NOITE">Noite</label>
+          <label>Início<input type="time" name="horario_inicial_NOITE" disabled></label>
+          <label>Fim<input type="time" name="horario_final_NOITE" disabled></label>
+        </div>
+        <div class="pp-turno-row pp-turno-unico" id="pp-horario-unico-row">
+          <span>Horário único (todos os turnos)</span>
+          <label>Início<input id="pp-horario-inicial" name="horario_inicial" type="time"></label>
+          <label>Fim<input id="pp-horario-final" name="horario_final" type="time"></label>
+        </div>
+      </fieldset>
       <fieldset class="pp-dias-semana"><legend>Dias da semana</legend>
         <label><input type="checkbox" name="dias_semana" value="0">Dom</label>
         <label><input type="checkbox" name="dias_semana" value="1" checked>Seg</label>
@@ -26,6 +52,16 @@
       <div id="parada-programada-message" class="form-message" hidden></div>
       <div class="meta-form-actions"><button class="button button-primary">Salvar parada programada</button></div>
     </form>
+  </section>
+
+  <section class="panel pp-agenda-panel">
+    <div class="panel-header"><h3>Agenda semanal</h3></div>
+    <p class="production-muted">Modelo de repetição semanal das paradas vigentes. O setor escolhido também filtra a lista abaixo.</p>
+    <div class="pp-agenda-filter"><label>Setor<select id="pp-setor-filtro"><option value="">Todos os setores</option></select></label></div>
+    <div id="pp-agenda-loading" class="loading-state" hidden>Carregando...</div>
+    <p id="pp-agenda-hint" class="production-muted">Selecione um setor para ver a agenda.</p>
+    <p id="pp-agenda-empty" class="production-muted" hidden>Nenhuma parada programada vigente para este setor.</p>
+    <div id="pp-agenda-grid" class="pp-agenda-grid" hidden></div>
   </section>
 
   <section class="panel">

@@ -10,6 +10,29 @@
 .pp-dias-semana label{display:flex;flex-direction:row;align-items:center;gap:5px;font-size:.76rem;font-weight:600}
 .pp-dias-semana input{width:auto;min-height:0}
 
+.pp-recorrencia{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:0;padding:10px 12px;border:1px solid var(--color-border);border-radius:8px}
+.pp-recorrencia legend{padding:0 6px;font-size:.76rem;font-weight:800}
+.pp-recorrencia>label{display:flex;flex-direction:row;align-items:center;gap:5px;font-size:.76rem;font-weight:600}
+.pp-recorrencia>label input[type="radio"]{width:auto;min-height:0}
+.pp-recorrencia #pp-vigencia-fim-field{display:grid;flex-direction:row;gap:6px;min-width:180px;font-size:.76rem;font-weight:800}
+.pp-recorrencia #pp-vigencia-fim-field input{width:100%;min-height:36px;padding:6px 8px;border:1px solid var(--color-border);border-radius:6px}
+
+.pp-unidades{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:0;padding:10px 12px;border:1px solid var(--color-border);border-radius:8px}
+.pp-unidades legend{padding:0 6px;font-size:.76rem;font-weight:800}
+.pp-unidades label{display:flex;flex-direction:row;align-items:center;gap:5px;font-size:.76rem;font-weight:600}
+.pp-unidades input{width:auto;min-height:0}
+
+.pp-turnos{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;margin:0;padding:10px 12px;border:1px solid var(--color-border);border-radius:8px}
+.pp-turnos legend{padding:0 6px;max-width:100%;white-space:normal;font-size:.76rem;font-weight:800}
+.pp-turno-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.pp-turno-row>label:first-child{display:flex;flex-direction:row;align-items:center;gap:6px;min-width:90px;font-size:.8rem;font-weight:800}
+.pp-turno-row>label:first-child input{width:auto;min-height:0}
+.pp-turno-row label:not(:first-child){display:flex;flex-direction:row;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:var(--color-text-muted)}
+.pp-turno-row input[type="time"]{width:auto;min-height:34px;padding:4px 8px;border:1px solid var(--color-border);border-radius:6px}
+.pp-turno-row input[type="time"]:disabled{background:#f3f4f6;color:#9aa5ab}
+.pp-turno-unico{padding-top:8px;border-top:1px dashed var(--color-border)}
+.pp-turno-unico span{min-width:170px;font-size:.72rem;font-weight:800;color:var(--color-text-muted)}
+
 .pp-tabs{display:flex;gap:6px;margin-bottom:12px}
 .pp-tab{padding:7px 14px;border:1px solid var(--color-border);border-radius:999px;background:#fff;font-size:.74rem;font-weight:800;color:var(--color-text-muted);cursor:pointer}
 .pp-tab.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
