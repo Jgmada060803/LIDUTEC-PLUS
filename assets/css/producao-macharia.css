@@ -5,6 +5,14 @@
 .macharia-macho { min-height: 28px; padding: 2px 3px; border: 1px solid var(--color-border); border-radius: 5px; font-size: .66rem; }
 .macharia-sopros { min-height: 28px; padding: 2px 3px; border: 1px solid var(--color-border); border-radius: 5px; text-align: center; font-size: .78rem; font-weight: 800; }
 
+/* O título da coluna (th) já fica à esquerda pelo padrão global — os campos
+   de input/output do shift-entry-table, porém, vêm centralizados por padrão;
+   aqui alinhamos com o título pra não ficar descolado. */
+.descarte-entry-table :is(th,td) { text-align: left; }
+.descarte-entry-table input[type="number"],
+.descarte-entry-table input[type="text"],
+.descarte-entry-table output { text-align: left; }
+
 /* Suporte a mais de um lançamento de macho dentro da mesma hora/estação
    (troca de macho no meio da hora) — pilha vertical dentro da célula, com o
    "+"/"×" sempre à direita da caixa correspondente. */
