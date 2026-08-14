@@ -155,3 +155,37 @@ button {
 .summary-card span,.summary-card strong{display:block}
 .summary-card span{color:var(--color-text-muted);font-size:.75rem;font-weight:800}
 .summary-card strong{margin-top:7px;font-size:1.35rem}
+
+/* Typeahead genérico (campo de busca com sugestões, ver window.LIDUTEC_TYPEAHEAD
+   em app.js) — usado em vários módulos, por isso fica aqui em vez de num CSS
+   por página. */
+.typeahead-field { position: relative; display: block; width: 100%; }
+.typeahead-input { width: 100%; box-sizing: border-box; }
+.typeahead-results {
+  position: fixed;
+  z-index: 2000;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgb(12 43 52 / 12%);
+}
+.typeahead-results li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.typeahead-results li:hover,
+.typeahead-results li.active {
+  background: var(--color-primary-light);
+}
+.typeahead-primary { font-weight: 600; color: var(--color-text); }
+.typeahead-secondary { font-size: 0.78rem; color: var(--color-text-muted); }
+.typeahead-empty { padding: 8px 9px; color: var(--color-text-muted); font-size: 0.82rem; cursor: default; }

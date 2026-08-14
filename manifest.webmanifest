@@ -1,0 +1,24 @@
+{
+  "name": "LIDUTEC+",
+  "short_name": "LIDUTEC+",
+  "description": "Sistema de gestão industrial Metalsider",
+  "start_url": "/pages/login.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#1f45a8",
+  "icons": [
+    {
+      "src": "/assets/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
