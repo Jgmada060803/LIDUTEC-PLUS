@@ -1,0 +1,207 @@
+/* Módulo SGI (Sistema de Gestão Integrado) — estilos próprios, sem depender
+   de produtos.css (módulo diferente). Só usa classes verdadeiramente globais
+   (.panel, .panel-header, .eyebrow, .form-group, .button-*, .form-message)
+   já definidas em app.css/dashboard.css. */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.form-note {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.loading-state {
+  padding: 40px 0;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.empty-panel {
+  display: grid;
+  gap: 4px;
+  padding: 40px 0;
+  text-align: center;
+}
+
+.empty-panel span {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+}
+
+.sgi-page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.sgi-page-heading h2 {
+  margin: 4px 0 6px;
+  font-size: 1.35rem;
+}
+
+.sgi-page-heading p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+}
+
+.sgi-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.form-group-full {
+  grid-column: 1 / -1;
+}
+
+.sgi-form-grid textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #ffffff;
+  font: inherit;
+  resize: vertical;
+}
+
+/* Busca */
+.sgi-search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sgi-search-box input {
+  width: 100%;
+  min-height: 56px;
+  padding: 0 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 1.15rem;
+}
+
+.sgi-search-empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.sgi-results-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sgi-results-table th {
+  padding: 8px 10px;
+  text-align: left;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sgi-results-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  font-size: 0.86rem;
+}
+
+.sgi-status-badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sgi-status-vigente,
+.sgi-status-aprovado { color: var(--color-success); background: #eaf7f0; }
+.sgi-status-em_elaboracao,
+.sgi-status-em_revisao { color: var(--color-warning); background: #fff7e6; }
+.sgi-status-aguardando_aprovacao { color: #6b4e00; background: #fff3d6; }
+.sgi-status-obsoleto { color: var(--color-danger); background: #fff0ef; }
+
+.table-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #cfdae0;
+  border-radius: 8px;
+  color: var(--color-primary);
+  background: #ffffff;
+  text-decoration: none;
+}
+
+/* Detalhe do documento */
+.sgi-detail-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.sgi-viewer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sgi-document-frame {
+  width: 100%;
+  min-height: 70vh;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.sgi-metadata-list {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.sgi-metadata-list > div {
+  display: grid;
+  gap: 2px;
+}
+
+.sgi-metadata-list dt {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sgi-metadata-list dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .sgi-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .sgi-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

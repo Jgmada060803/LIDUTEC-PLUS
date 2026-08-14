@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>SGI | Metalsider</title>
+
+  <link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8">
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/sgi.css">
+</head>
+
+<body class="app-page">
+
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">L+</div>
+
+      <div>
+        <strong>Metalsider</strong>
+        <span>Gestão Industrial</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav"></nav>
+
+    <button id="logout-button" class="logout-button">
+      Sair
+    </button>
+
+  </aside>
+
+  <div class="app-shell">
+
+    <header class="topbar">
+
+      <button
+        type="button"
+        class="menu-button"
+        id="menu-button"
+        aria-label="Abrir ou fechar menu"
+      >
+        ☰
+      </button>
+
+      <div class="topbar-title">
+        <h1>SGI</h1>
+        <p>Sistema de Gestão Integrado — documentos controlados</p>
+      </div>
+
+      <div class="user-box">
+        <div>
+          <strong id="user-name">Carregando...</strong>
+          <span id="user-profile">Usuário</span>
+        </div>
+
+        <div class="user-avatar" id="user-avatar">U</div>
+      </div>
+
+    </header>
+
+    <main class="main-content">
+
+      <div class="sgi-page-heading">
+        <div>
+          <span class="eyebrow">SGI</span>
+          <h2>Documentos controlados</h2>
+          <p>Pesquise por código, título, palavra-chave, área ou tipo de documento.</p>
+        </div>
+
+        <a
+          href="./cadastro.html"
+          class="button button-primary"
+          id="new-document-button"
+          data-permission="sgi.criar"
+        >
+          Novo documento
+        </a>
+      </div>
+
+      <section class="panel sgi-search-panel">
+
+        <div class="sgi-search-box">
+          <label class="sr-only" for="sgi-search">Pesquisar documento</label>
+          <input
+            type="search"
+            id="sgi-search"
+            placeholder="Digite um código, título, palavra-chave, área ou tipo..."
+            autocomplete="off"
+          >
+        </div>
+
+        <p id="sgi-search-empty" class="sgi-search-empty" hidden>
+          Nenhum documento encontrado para essa busca.
+        </p>
+
+        <div id="sgi-results-wrapper" class="table-wrapper" hidden>
+          <table class="sgi-results-table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Título</th>
+                <th>Tipo</th>
+                <th>Revisão</th>
+                <th>Status</th>
+                <th>Área</th>
+                <th>Origem</th>
+                <th>Última atualização</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="sgi-results-body"></tbody>
+          </table>
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/sgi-data.js"></script>
+  <script src="../../assets/js/sgi-lista.js"></script>
+
+</body>
+</html>

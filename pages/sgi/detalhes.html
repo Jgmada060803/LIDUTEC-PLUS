@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Documento | SGI | Metalsider</title>
+
+  <link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8">
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/sgi.css">
+</head>
+
+<body class="app-page">
+
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">L+</div>
+
+      <div>
+        <strong>Metalsider</strong>
+        <span>Gestão Industrial</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav"></nav>
+
+    <button id="logout-button" class="logout-button">
+      Sair
+    </button>
+
+  </aside>
+
+  <div class="app-shell">
+
+    <header class="topbar">
+
+      <button
+        type="button"
+        class="menu-button"
+        id="menu-button"
+        aria-label="Abrir ou fechar menu"
+      >
+        ☰
+      </button>
+
+      <div class="topbar-title">
+        <h1>Documento</h1>
+        <p>SGI — Sistema de Gestão Integrado</p>
+      </div>
+
+      <div class="user-box">
+        <div>
+          <strong id="user-name">Carregando...</strong>
+          <span id="user-profile">Usuário</span>
+        </div>
+
+        <div class="user-avatar" id="user-avatar">U</div>
+      </div>
+
+    </header>
+
+    <main class="main-content">
+
+      <div id="document-loading" class="loading-state">Carregando documento...</div>
+
+      <div id="document-content" hidden>
+
+        <div class="sgi-page-heading">
+          <div>
+            <span class="eyebrow">SGI</span>
+            <h2 id="document-title">Documento</h2>
+            <p id="document-subtitle"></p>
+          </div>
+
+          <a href="./index.html" class="button button-secondary">Voltar à pesquisa</a>
+        </div>
+
+        <div class="sgi-detail-grid">
+
+          <section class="panel">
+            <div class="panel-header sgi-viewer-header">
+              <div>
+                <span class="eyebrow">Arquivo</span>
+                <h3>Documento vigente</h3>
+              </div>
+              <a
+                id="open-fullpage-link"
+                class="button button-secondary"
+                target="_blank"
+                rel="noopener"
+                hidden
+              >
+                Abrir em nova aba
+              </a>
+            </div>
+            <iframe id="document-frame" class="sgi-document-frame" title="Documento"></iframe>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <span class="eyebrow">Metadados</span>
+              <h3>Informações do documento</h3>
+            </div>
+
+            <dl class="sgi-metadata-list">
+              <div><dt>Código</dt><dd id="meta-codigo">—</dd></div>
+              <div><dt>Tipo</dt><dd id="meta-tipo">—</dd></div>
+              <div><dt>Revisão</dt><dd id="meta-revisao">—</dd></div>
+              <div><dt>Status</dt><dd id="meta-status">—</dd></div>
+              <div><dt>Área responsável</dt><dd id="meta-area">—</dd></div>
+              <div><dt>Processo / setor</dt><dd id="meta-processo">—</dd></div>
+              <div><dt>Origem</dt><dd id="meta-origem">—</dd></div>
+              <div><dt>Palavras-chave</dt><dd id="meta-palavras-chave">—</dd></div>
+              <div><dt>Última atualização</dt><dd id="meta-atualizado">—</dd></div>
+              <div><dt>Observações</dt><dd id="meta-observacoes">—</dd></div>
+            </dl>
+          </section>
+
+        </div>
+
+      </div>
+
+      <div id="document-error" class="empty-panel" hidden>
+        <strong>Documento não encontrado</strong>
+        <span>Verifique o link ou volte para a pesquisa.</span>
+      </div>
+
+    </main>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/sgi-data.js"></script>
+  <script src="../../assets/js/sgi-detalhes.js"></script>
+
+</body>
+</html>

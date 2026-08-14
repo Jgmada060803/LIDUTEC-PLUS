@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Novo Documento | Metalsider</title>
+
+  <link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8">
+  <link rel="stylesheet" href="../../assets/css/app.css">
+  <link rel="stylesheet" href="../../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../../assets/css/sgi.css">
+</head>
+
+<body class="app-page">
+
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">L+</div>
+
+      <div>
+        <strong>Metalsider</strong>
+        <span>Gestão Industrial</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav"></nav>
+
+    <button id="logout-button" class="logout-button">
+      Sair
+    </button>
+
+  </aside>
+
+  <div class="app-shell">
+
+    <header class="topbar">
+
+      <button
+        type="button"
+        class="menu-button"
+        id="menu-button"
+        aria-label="Abrir ou fechar menu"
+      >
+        ☰
+      </button>
+
+      <div class="topbar-title">
+        <h1>Novo Documento</h1>
+        <p>SGI — Sistema de Gestão Integrado</p>
+      </div>
+
+      <div class="user-box">
+        <div>
+          <strong id="user-name">Carregando...</strong>
+          <span id="user-profile">Usuário</span>
+        </div>
+
+        <div class="user-avatar" id="user-avatar">U</div>
+      </div>
+
+    </header>
+
+    <main class="main-content">
+
+      <div class="sgi-page-heading">
+        <div>
+          <span class="eyebrow">SGI</span>
+          <h2>Cadastrar documento</h2>
+          <p>Documento externo — recebido de cliente, fornecedor ou órgão normativo, controlado sem edição do conteúdo.</p>
+        </div>
+
+        <a href="./index.html" class="button button-secondary">Voltar</a>
+      </div>
+
+      <form id="external-document-form" novalidate>
+
+        <section class="panel">
+          <div class="panel-header">
+            <span class="eyebrow">Arquivo</span>
+            <h3>PDF original</h3>
+          </div>
+
+          <div class="form-group">
+            <label for="arquivo-pdf">Selecionar arquivo (PDF) *</label>
+            <input type="file" id="arquivo-pdf" name="arquivo" accept="application/pdf" required>
+            <span class="form-note">
+              O código e o título abaixo são só uma sugestão a partir do nome do arquivo — confira e ajuste antes de salvar.
+            </span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <span class="eyebrow">Identificação</span>
+            <h3>Metadados do documento</h3>
+          </div>
+
+          <div class="sgi-form-grid">
+
+            <div class="form-group">
+              <label for="codigo">Código *</label>
+              <input type="text" id="codigo" name="codigo" placeholder="Ex.: ITF-PRO-005" maxlength="60" required>
+            </div>
+
+            <div class="form-group form-group-full">
+              <label for="titulo">Título *</label>
+              <input type="text" id="titulo" name="titulo" placeholder="Ex.: Partida a Frio e Sintético dos Fornos ABC" maxlength="300" required>
+            </div>
+
+            <div class="form-group">
+              <label for="tipo-documento">Tipo de documento *</label>
+              <select id="tipo-documento" name="tipo-documento" required>
+                <option value="">Selecione</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="area-responsavel">Área responsável</label>
+              <select id="area-responsavel" name="area-responsavel">
+                <option value="">Selecione</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="processo-setor">Processo / setor</label>
+              <input type="text" id="processo-setor" name="processo-setor" maxlength="150">
+            </div>
+
+            <div class="form-group form-group-full">
+              <label for="palavras-chave">Palavras-chave</label>
+              <input type="text" id="palavras-chave" name="palavras-chave" placeholder="Separe por vírgula" maxlength="300">
+            </div>
+
+            <div class="form-group form-group-full">
+              <label for="observacoes">Observações</label>
+              <textarea id="observacoes" name="observacoes" rows="3" maxlength="1000"></textarea>
+            </div>
+
+          </div>
+        </section>
+
+        <div id="form-message" class="form-message" hidden></div>
+
+        <div class="form-actions">
+          <a href="./index.html" class="button button-secondary">Cancelar</a>
+          <button type="submit" id="save-button" class="button button-primary">Salvar documento</button>
+        </div>
+
+      </form>
+
+    </main>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/config.js"></script>
+  <script src="../../assets/js/supabase.js"></script>
+  <script src="../../assets/js/app.js"></script>
+  <script src="../../assets/js/sgi-data.js"></script>
+  <script src="../../assets/js/sgi-cadastro.js"></script>
+
+</body>
+</html>
