@@ -6,6 +6,7 @@
 
   <title>Produtos | Metalsider</title>
 
+  <link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8">
   <link rel="stylesheet" href="../../assets/css/app.css">
   <link rel="stylesheet" href="../../assets/css/dashboard.css">
   <link rel="stylesheet" href="../../assets/css/produtos.css">
@@ -110,7 +111,7 @@
 
     <main class="main-content">
 
-      <section class="page-heading">
+      <section class="page-heading" id="list-page-heading" hidden>
 
         <div>
           <span class="eyebrow">Engenharia do Produto</span>
@@ -148,7 +149,7 @@
 
       </section>
 
-      <section class="product-summary">
+      <section class="product-summary" id="list-summary" hidden>
 
         <article class="summary-card">
           <span>Produtos ativos</span>
@@ -167,7 +168,67 @@
 
       </section>
 
-      <section class="panel">
+      <div class="full-list-toggle-row">
+        <button
+          type="button"
+          id="toggle-full-list-button"
+          class="button button-secondary"
+          data-permission="produto.editar,ficha.editar_rascunho"
+        >
+          Ver lista completa
+        </button>
+      </div>
+
+      <section class="panel quick-search-panel">
+
+        <div class="quick-search-box">
+
+          <div class="quick-search-field">
+            <label class="sr-only" for="quick-product-search">
+              Pesquisar produto
+            </label>
+
+            <input
+              type="search"
+              id="quick-product-search"
+              placeholder="Pesquisar por código, nome, cliente ou part number..."
+              autocomplete="off"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="quick-search-results"
+              aria-autocomplete="list"
+            >
+
+            <button
+              type="button"
+              id="quick-search-button"
+              class="quick-search-button"
+              aria-label="Buscar produto"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M4 12h14m0 0-6-6m6 6-6 6"
+                  fill="none" stroke="currentColor"
+                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+
+          <ul
+            id="quick-search-results"
+            class="quick-search-results"
+            role="listbox"
+            hidden
+          ></ul>
+
+          <p id="quick-search-empty" class="quick-search-empty" hidden>
+            Nenhum produto encontrado para essa busca.
+          </p>
+
+        </div>
+
+      </section>
+
+      <section class="panel" id="full-list-section" hidden>
 
         <div class="product-toolbar">
 

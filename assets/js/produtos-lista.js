@@ -17,6 +17,15 @@ const developmentProductsCount =
   document.querySelector("#development-products-count");
 const obsoleteProductsCount =
   document.querySelector("#obsolete-products-count");
+const quickProductSearch = document.querySelector("#quick-product-search");
+const quickSearchButton = document.querySelector("#quick-search-button");
+const quickSearchResults = document.querySelector("#quick-search-results");
+const quickSearchEmpty = document.querySelector("#quick-search-empty");
+const toggleFullListButton =
+  document.querySelector("#toggle-full-list-button");
+const fullListSection = document.querySelector("#full-list-section");
+const listPageHeading = document.querySelector("#list-page-heading");
+const listSummary = document.querySelector("#list-summary");
 
 let allProducts = [];
 let currentPermissions = new Set();
@@ -148,23 +157,104 @@ function updateSummary() {
   ).length;
 }
 
+function matchesProductSearch(product, search) {
+  const searchable = [
+    product.codigo,
+    product.nome,
+    product.codigo_cliente,
+    product.part_number,
+    product.clientes?.nome
+  ].filter(Boolean).join(" ").toLowerCase();
+  return searchable.includes(search);
+}
+
 function filterProducts() {
   const search = productSearch.value.trim().toLowerCase();
   const status = statusFilter.value;
-  const filtered = allProducts.filter((product) => {
-    const searchable = [
-      product.codigo,
-      product.nome,
-      product.codigo_cliente,
-      product.part_number,
-      product.clientes?.nome
-    ].filter(Boolean).join(" ").toLowerCase();
-    return (
-      searchable.includes(search) &&
-      (!status || product.status === status)
-    );
-  });
+  const filtered = allProducts.filter((product) =>
+    matchesProductSearch(product, search) &&
+    (!status || product.status === status)
+  );
   renderProducts(filtered);
+}
+
+function closeQuickSuggestions() {
+  quickSearchResults.replaceChildren();
+  quickSearchResults.hidden = true;
+  quickSearchEmpty.hidden = true;
+  quickProductSearch.setAttribute("aria-expanded", "false");
+}
+
+function renderQuickSuggestions(products) {
+  const ui = window.LIDUTEC_FICHAS_UI;
+
+  quickSearchResults.replaceChildren();
+
+  if (!products.length) {
+    quickSearchResults.hidden = true;
+    quickSearchEmpty.hidden = false;
+    quickProductSearch.setAttribute("aria-expanded", "false");
+    return;
+  }
+
+  quickSearchEmpty.hidden = true;
+  quickSearchResults.hidden = false;
+  quickProductSearch.setAttribute("aria-expanded", "true");
+
+  quickSearchResults.innerHTML = products.slice(0, 20).map((product) => `
+    <li role="none">
+      <a
+        href="./detalhes.html?id=${product.id}"
+        role="option"
+        class="quick-search-result"
+      >
+        <span class="product-code">${ui.escapeHtml(product.codigo)}</span>
+        <span class="product-name">${ui.escapeHtml(product.nome)}</span>
+        <span class="product-secondary">
+          ${ui.escapeHtml(product.clientes?.nome ?? "Sem cliente vinculado")}
+        </span>
+      </a>
+    </li>
+  `).join("");
+}
+
+function getQuickSearchMatches() {
+  const search = quickProductSearch.value.trim().toLowerCase();
+  if (!search) {
+    return null;
+  }
+  return allProducts.filter((product) =>
+    matchesProductSearch(product, search)
+  );
+}
+
+function handleQuickSearchInput() {
+  const matches = getQuickSearchMatches();
+  if (matches === null) {
+    closeQuickSuggestions();
+    return;
+  }
+  renderQuickSuggestions(matches);
+}
+
+function handleQuickSearchSubmit() {
+  const matches = getQuickSearchMatches();
+  if (matches && matches.length === 1) {
+    window.location.href = `./detalhes.html?id=${matches[0].id}`;
+    return;
+  }
+  handleQuickSearchInput();
+  quickProductSearch.focus();
+}
+
+function toggleFullList() {
+  const isHidden = fullListSection.hidden;
+  fullListSection.hidden = !isHidden;
+  listPageHeading.hidden = !isHidden;
+  listSummary.hidden = !isHidden;
+  toggleFullListButton.textContent = isHidden
+    ? "Ocultar lista completa"
+    : "Ver lista completa";
 }
 
 function createProductQuery(includeImports) {
@@ -301,6 +391,28 @@ logoutButton?.addEventListener("click", async () => {
 });
 productSearch?.addEventListener("input", filterProducts);
 statusFilter?.addEventListener("change", filterProducts);
+quickProductSearch?.addEventListener("input", handleQuickSearchInput);
+quickProductSearch?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    handleQuickSearchSubmit();
+  }
+});
+quickProductSearch?.addEventListener("focus", () => {
+  if (quickProductSearch.value.trim()) {
+    handleQuickSearchInput();
+  }
+});
+quickProductSearch?.addEventListener("focusout", () => {
+  window.setTimeout(() => {
+    if (!quickProductSearch.matches(":focus") &&
+        !quickSearchResults.contains(document.activeElement)) {
+      closeQuickSuggestions();
+    }
+  }, 150);
+});
+quickSearchButton?.addEventListener("click", handleQuickSearchSubmit);
+toggleFullListButton?.addEventListener("click", toggleFullList);
 
 initializeProductsPage().catch((error) => {
   console.error("Erro ao iniciar Lista Mestra:", error);

@@ -6,6 +6,7 @@
 
   <title>Detalhes do Produto | Metalsider</title>
 
+  <link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8">
   <link rel="stylesheet" href="../../assets/css/app.css">
   <link rel="stylesheet" href="../../assets/css/dashboard.css">
   <link rel="stylesheet" href="../../assets/css/produtos.css">
@@ -90,6 +91,52 @@
       <div class="topbar-title">
         <h1>Detalhes do Produto</h1>
         <p>Prontuário técnico da peça</p>
+      </div>
+
+      <div class="topbar-product-nav" id="topbar-product-nav">
+
+        <a
+          id="prev-product-link"
+          class="topbar-nav-arrow"
+          aria-label="Produto anterior"
+        >‹</a>
+
+        <div class="topbar-search-field">
+          <label class="sr-only" for="header-product-search">
+            Pesquisar produto
+          </label>
+
+          <div class="quick-search-field">
+            <input
+              type="search"
+              id="header-product-search"
+              placeholder="Pesquisar por código, nome, cliente ou part number..."
+              autocomplete="off"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="header-search-results"
+              aria-autocomplete="list"
+            >
+          </div>
+
+          <ul
+            id="header-search-results"
+            class="quick-search-results"
+            role="listbox"
+            hidden
+          ></ul>
+
+          <p id="header-search-empty" class="quick-search-empty" hidden>
+            Nenhum produto encontrado para essa busca.
+          </p>
+        </div>
+
+        <a
+          id="next-product-link"
+          class="topbar-nav-arrow"
+          aria-label="Próximo produto"
+        >›</a>
+
       </div>
 
       <div class="user-box">

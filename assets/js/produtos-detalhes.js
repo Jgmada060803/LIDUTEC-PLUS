@@ -2,6 +2,13 @@ const sidebar = document.querySelector("#sidebar");
 const menuButton = document.querySelector("#menu-button");
 const logoutButton = document.querySelector("#logout-button");
 
+const topbarProductNav = document.querySelector("#topbar-product-nav");
+const prevProductLink = document.querySelector("#prev-product-link");
+const nextProductLink = document.querySelector("#next-product-link");
+const headerProductSearch = document.querySelector("#header-product-search");
+const headerSearchResults = document.querySelector("#header-search-results");
+const headerSearchEmpty = document.querySelector("#header-search-empty");
+
 const userName = document.querySelector("#user-name");
 const userProfile = document.querySelector("#user-profile");
 const userAvatar = document.querySelector("#user-avatar");
@@ -87,7 +94,8 @@ const moduleDetailContent =
 const productDetailsState = {
   product: null,
   sheets: [],
-  permissions: new Set()
+  permissions: new Set(),
+  directory: []
 };
 
 function getInitials(name = "Usuário") {
@@ -750,6 +758,140 @@ function initializeTabs() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Busca + navegação anterior/próximo no cabeçalho — lista leve de todos os
+// produtos (sem filtro de status, já que o detalhe mostra qualquer produto
+// via ?id=), usada tanto pra sugerir na busca quanto pra achar o vizinho por
+// código. Padrão de sugestão (<a href> navegando direto) copiado do quick
+// search de produtos-lista.js — não usa o window.LIDUTEC_TYPEAHEAD genérico
+// porque aqui a seleção precisa NAVEGAR, não preencher um campo de formulário.
+// ---------------------------------------------------------------------------
+async function loadProductDirectory() {
+  const { data, error } = await window.supabaseClient
+    .from("produtos")
+    .select("id, codigo, nome, codigo_cliente, part_number, clientes(nome)")
+    .order("codigo");
+
+  if (error) {
+    console.error("Erro ao carregar lista de produtos para navegação:", error);
+    return;
+  }
+
+  productDetailsState.directory = data ?? [];
+}
+
+function updateProductNav(currentId) {
+  const directory = productDetailsState.directory;
+  const index = directory.findIndex(
+    (item) => String(item.id) === String(currentId)
+  );
+  const prev = index > 0 ? directory[index - 1] : null;
+  const next =
+    index >= 0 && index < directory.length - 1
+      ? directory[index + 1]
+      : null;
+
+  if (prev) {
+    prevProductLink.href = `./detalhes.html?id=${prev.id}`;
+    prevProductLink.classList.remove("is-disabled");
+    prevProductLink.removeAttribute("aria-disabled");
+  } else {
+    prevProductLink.removeAttribute("href");
+    prevProductLink.classList.add("is-disabled");
+    prevProductLink.setAttribute("aria-disabled", "true");
+  }
+
+  if (next) {
+    nextProductLink.href = `./detalhes.html?id=${next.id}`;
+    nextProductLink.classList.remove("is-disabled");
+    nextProductLink.removeAttribute("aria-disabled");
+  } else {
+    nextProductLink.removeAttribute("href");
+    nextProductLink.classList.add("is-disabled");
+    nextProductLink.setAttribute("aria-disabled", "true");
+  }
+}
+
+function matchesDirectoryEntry(product, search) {
+  const searchable = [
+    product.codigo,
+    product.nome,
+    product.codigo_cliente,
+    product.part_number,
+    product.clientes?.nome
+  ].filter(Boolean).join(" ").toLowerCase();
+  return searchable.includes(search);
+}
+
+function closeHeaderSuggestions() {
+  headerSearchResults.replaceChildren();
+  headerSearchResults.hidden = true;
+  headerSearchEmpty.hidden = true;
+  headerProductSearch.setAttribute("aria-expanded", "false");
+}
+
+function renderHeaderSuggestions(products) {
+  const ui = window.LIDUTEC_FICHAS_UI;
+
+  headerSearchResults.replaceChildren();
+
+  if (!products.length) {
+    headerSearchResults.hidden = true;
+    headerSearchEmpty.hidden = false;
+    headerProductSearch.setAttribute("aria-expanded", "false");
+    return;
+  }
+
+  headerSearchEmpty.hidden = true;
+  headerSearchResults.hidden = false;
+  headerProductSearch.setAttribute("aria-expanded", "true");
+
+  headerSearchResults.innerHTML = products.slice(0, 20).map((product) => `
+    <li role="none">
+      <a
+        href="./detalhes.html?id=${product.id}"
+        role="option"
+        class="quick-search-result"
+      >
+        <span class="product-code">${ui.escapeHtml(product.codigo)}</span>
+        <span class="product-name">${ui.escapeHtml(product.nome)}</span>
+        <span class="product-secondary">
+          ${ui.escapeHtml(product.clientes?.nome ?? "Sem cliente vinculado")}
+        </span>
+      </a>
+    </li>
+  `).join("");
+}
+
+function getHeaderSearchMatches() {
+  const search = headerProductSearch.value.trim().toLowerCase();
+  if (!search) {
+    return null;
+  }
+  return productDetailsState.directory.filter((product) =>
+    matchesDirectoryEntry(product, search)
+  );
+}
+
+function handleHeaderSearchInput() {
+  const matches = getHeaderSearchMatches();
+  if (matches === null) {
+    closeHeaderSuggestions();
+    return;
+  }
+  renderHeaderSuggestions(matches);
+}
+
+function handleHeaderSearchSubmit() {
+  const matches = getHeaderSearchMatches();
+  if (matches && matches.length === 1) {
+    window.location.href = `./detalhes.html?id=${matches[0].id}`;
+    return;
+  }
+  handleHeaderSearchInput();
+  headerProductSearch.focus();
+}
+
 async function initializeProductDetails() {
   if (window.LIDUTEC_FICHA_PREVIEW?.isEnabled()) {
     const product =
@@ -766,6 +908,9 @@ async function initializeProductDetails() {
     userAvatar.textContent = "PL";
     document.querySelector("#preview-banner").hidden = false;
     logoutButton.hidden = true;
+    if (topbarProductNav) {
+      topbarProductNav.hidden = true;
+    }
 
     initializeTabs();
     showProduct(product);
@@ -881,6 +1026,9 @@ async function initializeProductDetails() {
   productDetailsState.sheets = sheets;
   renderModuleCards();
 
+  await loadProductDirectory();
+  updateProductNav(product.id);
+
   productLoading.hidden = true;
   productContent.hidden = false;
 }
@@ -891,6 +1039,27 @@ menuButton?.addEventListener("click", () => {
 
 logoutButton?.addEventListener("click", async () => {
   await window.LIDUTEC_APP.signOut();
+});
+
+headerProductSearch?.addEventListener("input", handleHeaderSearchInput);
+headerProductSearch?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    handleHeaderSearchSubmit();
+  }
+});
+headerProductSearch?.addEventListener("focus", () => {
+  if (headerProductSearch.value.trim()) {
+    handleHeaderSearchInput();
+  }
+});
+headerProductSearch?.addEventListener("focusout", () => {
+  window.setTimeout(() => {
+    if (!headerProductSearch.matches(":focus") &&
+        !headerSearchResults.contains(document.activeElement)) {
+      closeHeaderSuggestions();
+    }
+  }, 150);
 });
 
 productModuleCards?.addEventListener("click", (event) => {
