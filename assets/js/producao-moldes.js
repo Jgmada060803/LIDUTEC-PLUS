@@ -24,14 +24,36 @@ async function loadSupport(){
 }
 
 const optionList=(rows,labelFn)=>rows.map(x=>`<option value="${x.id}">${esc(labelFn(x))}</option>`).join("");
+
+window.LIDUTEC_TYPEAHEAD.register("produto_id", {
+  items: () => productionState.products,
+  match: (p, s) => normalizeTypeaheadIncludes([p.codigo, p.nome], s),
+  label: (p) => `${p.codigo} — ${p.nome}`,
+  id: (p) => p.id
+});
+window.LIDUTEC_TYPEAHEAD.register("setor_id", {
+  items: () => productionState.sectors,
+  match: (item, s) => normalizeTypeaheadIncludes([item.codigo, item.nome], s),
+  label: (item) => item.nome,
+  secondary: (item) => item.codigo,
+  id: (item) => item.id
+});
+window.LIDUTEC_TYPEAHEAD.register("categoria_id", {
+  items: () => productionState.categories,
+  match: (item, s) => normalizeTypeaheadIncludes([item.codigo, item.nome], s),
+  label: (item) => item.nome,
+  secondary: (item) => item.codigo,
+  id: (item) => item.id
+});
+
 function productionRow(){
   const row=document.createElement("tr");row.className="shift-production-row";
-  row.innerHTML=`<td><input name="inicio" type="time" step="60"></td><td><input name="fim" type="time" step="60" readonly aria-readonly="true" title="Calculado automaticamente pela sequência das linhas de produção."></td><td><output data-setup>Setup</output></td><td><select name="produto_id"><option value="">Selecione</option>${optionList(productionState.products,p=>`${p.codigo} — ${p.nome}`)}</select></td><td><input name="rastreabilidade" type="text" maxlength="120" placeholder="lote"></td><td><input name="moldes_vazados" type="number" min="0" step="1" value="0"></td><td><input name="moldes_quebrados" type="number" min="0" step="1" value="0"></td><td><output data-total-moldes>0</output></td><td><output data-toneladas>0,000</output></td><td><output data-total-pecas>0</output></td><td><input name="observacao" type="text" maxlength="500"></td><td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
+  row.innerHTML=`<td><input name="inicio" type="time" step="60"></td><td><input name="fim" type="time" step="60" readonly aria-readonly="true" title="Calculado automaticamente pela sequência das linhas de produção."></td><td><output data-setup>Setup</output></td><td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("produto_id",'name="produto_id"',"Buscar produto por código ou nome...","Produto")}</td><td><input name="rastreabilidade" type="text" maxlength="120" placeholder="lote"></td><td><input name="moldes_vazados" type="number" min="0" step="1" value="0"></td><td><input name="moldes_quebrados" type="number" min="0" step="1" value="0"></td><td><output data-total-moldes>0</output></td><td><output data-toneladas>0,000</output></td><td><output data-total-pecas>0</output></td><td><input name="observacao" type="text" maxlength="500"></td><td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
   return row;
 }
 function stopRow(){
   const row=document.createElement("tr");row.className="shift-stop-row";
-  row.innerHTML=`<td><input name="inicio" type="time" step="60"></td><td><input name="fim" type="time" step="60"></td><td><output data-duration>0h 00min</output></td><td><select name="setor_id"><option value="">Selecione</option>${optionList(productionState.sectors,x=>x.nome)}</select></td><td><select name="categoria_id"><option value="">Selecione</option>${optionList(productionState.categories,x=>x.nome)}</select></td><td><input name="observacao" type="text" maxlength="500"></td><td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
+  row.innerHTML=`<td><input name="inicio" type="time" step="60"></td><td><input name="fim" type="time" step="60"></td><td><output data-duration>0h 00min</output></td><td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("setor_id",'name="setor_id"',"Buscar setor...","Setor de origem")}</td><td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("categoria_id",'name="categoria_id"',"Buscar motivo...","Motivo da parada")}</td><td><input name="observacao" type="text" maxlength="500"></td><td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
   return row;
 }
 function shiftDateTimeBounds(){
@@ -44,8 +66,8 @@ function validateShiftInterval(startValue,endValue,label){const form=q("#shift-e
 function appendEntryRow(target,row){q(target).append(row);applyShiftDateTimeLimits();}
 function shiftDraftKey(){const form=q("#shift-entry-form"),date=form?.elements.data_operacional.value||"sem-data",shift=form?.elements.turno.value||"sem-turno";return `lidutec:producao-moldes:rascunho:${productionState.user?.id||"anonimo"}:${date}:${shift}`;}
 function rowValues(row){return Object.fromEntries([...row.querySelectorAll("input,select")].map(control=>[control.name,control.value]));}
-function applyRowValues(row,values={}){for(const control of row.querySelectorAll("input,select")){if(Object.hasOwn(values,control.name))control.value=values[control.name]??""}}
-function syncRequiredFields(row,names,active=true,invalid=[]){for(const name of names){const control=row.querySelector(`[name="${name}"]`);if(!control)continue;const pending=active&&(!String(control.value).trim()||invalid.includes(name));control.classList.toggle("field-required",active);control.classList.toggle("field-pending",pending);control.setAttribute("aria-invalid",String(pending))}}
+function applyRowValues(row,values={}){for(const control of row.querySelectorAll("input,select")){if(Object.hasOwn(values,control.name))control.value=values[control.name]??""}window.LIDUTEC_TYPEAHEAD.syncAll(row);}
+function syncRequiredFields(row,names,active=true,invalid=[]){for(const name of names){const control=row.querySelector(`[name="${name}"]`);if(!control)continue;const pending=active&&(!String(control.value).trim()||invalid.includes(name));control.classList.toggle("field-required",active);control.classList.toggle("field-pending",pending);control.setAttribute("aria-invalid",String(pending));const visibleInput=control.closest(".typeahead-field")?.querySelector(".typeahead-input");if(visibleInput){visibleInput.classList.toggle("field-required",active);visibleInput.classList.toggle("field-pending",pending);visibleInput.setAttribute("aria-invalid",String(pending))}}}
 function syncProductionEndTimes({onlyMissing=false,referenceTime=new Date()}={}){
   if(productionState.currentShift?.status==="FECHADO"&&!productionState.editingClosed&&!onlyMissing)return;
   const bounds=shiftDateTimeBounds(),rows=[...document.querySelectorAll(".shift-production-row")];if(!bounds||!rows.length)return;
@@ -128,7 +150,8 @@ function renderShiftTimeline(){
     const startValue=row.querySelector('[name="inicio"]').value,endValue=row.querySelector('[name="fim"]').value;if(!startValue||!endValue)continue;
     const stopStart=resolveShiftTime(startValue),stopEnd=resolveShiftTime(endValue);if(!stopStart||!stopEnd||stopEnd<=stopStart)continue;
     const visibleStart=Math.max(start.getTime(),stopStart.getTime()),visibleEnd=Math.min(end.getTime(),stopEnd.getTime());if(visibleEnd<=visibleStart)continue;
-    const sector=row.querySelector('[name="setor_id"] option:checked')?.textContent||"Parada",reason=row.querySelector('[name="categoria_id"] option:checked')?.textContent||"Motivo não informado";
+    const sectorId=row.querySelector('[name="setor_id"]').value,categoriaId=row.querySelector('[name="categoria_id"]').value;
+    const sector=productionState.sectors.find(item=>String(item.id)===sectorId)?.nome||"Parada",reason=productionState.categories.find(item=>String(item.id)===categoriaId)?.nome||"Motivo não informado";
     const title=`${esc(sector)} — ${esc(reason)} — ${formatMinutes(Math.round((visibleEnd-visibleStart)/60000))}`;
     segments.push(spanFor({start:new Date(visibleStart),end:new Date(visibleEnd)},"shift-stop-segment",title));
   }

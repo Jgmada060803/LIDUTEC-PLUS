@@ -15,7 +15,8 @@ function getLoginPath() {
     window.location.pathname.includes("/qualidade/") ||
     window.location.pathname.includes("/reclamacoes/") ||
     window.location.pathname.includes("/clientes/") ||
-    window.location.pathname.includes("/administracao/");
+    window.location.pathname.includes("/administracao/") ||
+    window.location.pathname.includes("/sgi/");
 
   return isInsideSubfolder
     ? "../login.html"
@@ -298,6 +299,14 @@ function syncSidebarNavigation() {
       </a>
     `)}
 
+    ${navSection("SGI", `
+      <a href="${prefix}sgi/index.html"
+         class="${activeClass(isActive("sgi"))}"
+         data-permission="sgi.visualizar">
+        Documentos Controlados
+      </a>
+    `)}
+
     ${navSection("Manutenção", `
       <a href="${prefix}reclamacoes/index.html"
          class="${activeClass(isActive("reclamacoes"))}"
@@ -426,6 +435,194 @@ window.LIDUTEC_APP = {
   userHasAnyPermission,
   applyPermissionVisibility,
   signOut
+};
+
+// ---------------------------------------------------------------------------
+// Typeahead genérico — campo de texto com sugestões em dropdown no lugar de
+// <select> longos. Um registro por "kind" (produto_id, setor_id,
+// categoria_id, macho_id...) guarda de onde vêm os itens e como
+// pesquisar/exibir; o HTML e a interação (digitar, teclado, clique,
+// restaurar) são únicos e compartilhados entre módulos. Delegado em
+// document — funciona mesmo quando uma tela recria uma tabela/grade inteira
+// via innerHTML, sem precisar re-anexar listeners por campo.
+// ---------------------------------------------------------------------------
+const typeaheadRegistry = new Map();
+let typeaheadPortalEl = null;
+let activeTypeaheadField = null;
+
+function normalizeTypeaheadText(value) {
+  return String(value || "")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+}
+function normalizeTypeaheadIncludes(fields, normalizedSearch) {
+  return normalizeTypeaheadText(fields.filter(Boolean).join(" ")).includes(normalizedSearch);
+}
+function escapeTypeaheadHtml(value = "") {
+  return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function registerTypeahead(kind, config) {
+  // config: { items: () => array, match: (item, normalizedSearch) => bool,
+  //           label: (item) => string, secondary?: (item) => string, id: (item) => string|number }
+  typeaheadRegistry.set(kind, config);
+}
+
+function typeaheadFieldHtml(kind, hiddenAttributesHtml, placeholder, ariaLabel = placeholder, disabled = false) {
+  return `<span class="typeahead-field" data-typeahead="${kind}">
+    <input type="search" class="typeahead-input" placeholder="${escapeTypeaheadHtml(placeholder)}"
+      aria-label="${escapeTypeaheadHtml(ariaLabel)}" autocomplete="off" role="combobox"
+      aria-expanded="false" aria-autocomplete="list"${disabled ? " disabled" : ""}>
+    <input type="hidden" ${hiddenAttributesHtml}>
+  </span>`;
+}
+
+function typeaheadFieldFromInput(input) {
+  const fieldEl = input.closest(".typeahead-field");
+  const config = fieldEl && typeaheadRegistry.get(fieldEl.dataset.typeahead);
+  if (!fieldEl || !config) return null;
+  return { fieldEl, inputEl: input, hiddenEl: fieldEl.querySelector('input[type="hidden"]'), config };
+}
+
+function syncTypeaheadField(fieldEl) {
+  const config = typeaheadRegistry.get(fieldEl.dataset.typeahead);
+  const input = fieldEl.querySelector(".typeahead-input");
+  const hidden = fieldEl.querySelector('input[type="hidden"]');
+  if (!config || !input || !hidden) return;
+  const item = hidden.value ? config.items().find((c) => String(config.id(c)) === String(hidden.value)) : null;
+  input.value = item ? config.label(item) : "";
+}
+function syncAllTypeaheadFields(root = document) {
+  for (const fieldEl of root.querySelectorAll(".typeahead-field")) syncTypeaheadField(fieldEl);
+}
+
+function typeaheadPortal() {
+  if (!typeaheadPortalEl) {
+    typeaheadPortalEl = document.createElement("ul");
+    typeaheadPortalEl.className = "typeahead-results";
+    typeaheadPortalEl.hidden = true;
+    typeaheadPortalEl.setAttribute("role", "listbox");
+    document.body.append(typeaheadPortalEl);
+  }
+  return typeaheadPortalEl;
+}
+function positionTypeaheadPortal(input) {
+  const rect = input.getBoundingClientRect();
+  const portal = typeaheadPortal();
+  portal.style.left = `${Math.max(4, rect.left)}px`;
+  portal.style.top = `${rect.bottom + 4}px`;
+  portal.style.minWidth = `${Math.max(rect.width, 240)}px`;
+}
+function closeTypeahead() {
+  const portal = typeaheadPortal();
+  portal.hidden = true;
+  portal.replaceChildren();
+  activeTypeaheadField?.inputEl.setAttribute("aria-expanded", "false");
+  activeTypeaheadField = null;
+}
+function selectTypeaheadMatch(field, item) {
+  field.hiddenEl.value = String(field.config.id(item));
+  field.inputEl.value = field.config.label(item);
+  field.hiddenEl.dispatchEvent(new Event("change", { bubbles: true }));
+  field.inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+  closeTypeahead();
+}
+function highlightTypeaheadMatch(index) {
+  const portal = typeaheadPortal();
+  [...portal.children].forEach((li, i) => li.classList.toggle("active", i === index));
+  activeTypeaheadField.activeIndex = index;
+}
+function openTypeaheadSuggestions(field, matches) {
+  const portal = typeaheadPortal();
+  activeTypeaheadField = { ...field, matches, activeIndex: 0 };
+  portal.innerHTML = matches.length
+    ? matches.slice(0, 20).map((item, index) => `
+        <li role="option" data-index="${index}">
+          <span class="typeahead-primary">${escapeTypeaheadHtml(field.config.label(item))}</span>
+          ${field.config.secondary ? `<span class="typeahead-secondary">${escapeTypeaheadHtml(field.config.secondary(item) || "")}</span>` : ""}
+        </li>`).join("")
+    : `<li class="typeahead-empty" role="presentation">Nenhum resultado encontrado</li>`;
+  positionTypeaheadPortal(field.inputEl);
+  portal.hidden = false;
+  field.inputEl.setAttribute("aria-expanded", "true");
+  if (matches.length) highlightTypeaheadMatch(0);
+}
+
+// Se o usuário sair do campo sem ter clicado numa sugestão válida, os dois
+// campos (texto + id oculto) voltam a vazio — nunca fica texto livre sem id
+// vinculado, mesmo que já houvesse uma seleção válida antes (evita salvar
+// uma referência que não corresponde ao texto exibido).
+function resolveTypeaheadOnBlur(field) {
+  const text = field.inputEl.value.trim();
+  const current = field.hiddenEl.value
+    ? field.config.items().find((i) => String(field.config.id(i)) === field.hiddenEl.value)
+    : null;
+  if (current && field.config.label(current) === text) return;
+  field.inputEl.value = "";
+  field.hiddenEl.value = "";
+  field.hiddenEl.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+document.addEventListener("input", (event) => {
+  const input = event.target.closest(".typeahead-input");
+  if (!input) return;
+  const field = typeaheadFieldFromInput(input);
+  if (!field) return;
+  const search = normalizeTypeaheadText(input.value.trim());
+  if (!search) { closeTypeahead(); return; }
+  openTypeaheadSuggestions(field, field.config.items().filter((item) => field.config.match(item, search)));
+});
+document.addEventListener("focusin", (event) => {
+  const input = event.target.closest(".typeahead-input");
+  if (!input) return;
+  const field = typeaheadFieldFromInput(input);
+  if (!field) return;
+  const search = normalizeTypeaheadText(input.value.trim());
+  if (!search) return;
+  openTypeaheadSuggestions(field, field.config.items().filter((item) => field.config.match(item, search)));
+});
+document.addEventListener("keydown", (event) => {
+  if (!activeTypeaheadField || !event.target.closest(".typeahead-input")) return;
+  const portal = typeaheadPortal();
+  if (event.key === "Escape") { closeTypeahead(); return; }
+  if (portal.hidden) return;
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    const count = activeTypeaheadField.matches.length;
+    if (!count) return;
+    highlightTypeaheadMatch((activeTypeaheadField.activeIndex + (event.key === "ArrowDown" ? 1 : -1) + count) % count);
+    return;
+  }
+  if (event.key === "Enter") {
+    const item = activeTypeaheadField.matches[activeTypeaheadField.activeIndex];
+    if (item) { event.preventDefault(); selectTypeaheadMatch(activeTypeaheadField, item); }
+  }
+});
+document.addEventListener("click", (event) => {
+  const li = event.target.closest(".typeahead-results li[data-index]");
+  if (li && activeTypeaheadField) selectTypeaheadMatch(activeTypeaheadField, activeTypeaheadField.matches[Number(li.dataset.index)]);
+});
+document.addEventListener("focusout", (event) => {
+  const input = event.target.closest(".typeahead-input");
+  if (!input) return;
+  const field = typeaheadFieldFromInput(input);
+  if (!field) return;
+  setTimeout(() => {
+    if (document.activeElement === input || typeaheadPortal().contains(document.activeElement)) return;
+    resolveTypeaheadOnBlur(field);
+    // Só fecha se o dropdown ativo ainda for deste campo — evita que o
+    // fechamento atrasado de um campo perdido derrube as sugestões recém
+    // abertas de outro campo que ganhou foco rapidamente em seguida (comum
+    // em telas com vários typeaheads lado a lado, ex. produto + setor).
+    if (activeTypeaheadField?.fieldEl === field.fieldEl) closeTypeahead();
+  }, 150);
+});
+
+window.LIDUTEC_TYPEAHEAD = {
+  register: registerTypeahead,
+  fieldHtml: typeaheadFieldHtml,
+  syncField: syncTypeaheadField,
+  syncAll: syncAllTypeaheadFields
 };
 
 if (window.location.pathname.replace(/\\/g, "/").includes("/pages/controle-processo/")) {

@@ -45,6 +45,31 @@ function machoLabel(macho) {
   const produtos = (macho.machos_macharia_produtos || []).map((v) => v.produtos?.codigo).filter(Boolean);
   return `${produtos.length ? produtos.join("/") : "sem produto"} · ${macho.caixa}/${macho.macho}`;
 }
+
+window.LIDUTEC_TYPEAHEAD.register("macho_id", {
+  items: () => machariaState.machos,
+  match: (m, s) => {
+    const produtos = (m.machos_macharia_produtos || []).map((v) => v.produtos?.codigo).filter(Boolean).join(" ");
+    return normalizeTypeaheadIncludes([produtos, m.caixa, m.macho], s);
+  },
+  label: (m) => machoLabel(m),
+  id: (m) => m.id
+});
+window.LIDUTEC_TYPEAHEAD.register("setor_id", {
+  items: () => machariaState.sectors,
+  match: (item, s) => normalizeTypeaheadIncludes([item.codigo, item.nome], s),
+  label: (item) => item.nome,
+  secondary: (item) => item.codigo,
+  id: (item) => item.id
+});
+window.LIDUTEC_TYPEAHEAD.register("categoria_id", {
+  items: () => machariaState.categories,
+  match: (item, s) => normalizeTypeaheadIncludes([item.codigo, item.nome], s),
+  label: (item) => item.nome,
+  secondary: (item) => item.codigo,
+  id: (item) => item.id
+});
+
 async function loadMachariaSupport() {
   const { maquinas, machos, categories, sectors } = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.support();
   machariaState.maquinas = maquinas;
@@ -73,6 +98,7 @@ function applyRowValues(row, values = {}) {
   for (const control of row.querySelectorAll("input,select")) {
     if (Object.hasOwn(values, control.name)) control.value = values[control.name] ?? "";
   }
+  window.LIDUTEC_TYPEAHEAD.syncAll(row);
 }
 
 // ---------------------------------------------------------------------------
@@ -114,9 +140,6 @@ function renderGrid() {
     if (!lookup.has(key)) lookup.set(key, []);
     lookup.get(key).push(item);
   }
-  const machoOptions = machariaState.machos.map((m) => `<option value="${m.id}">${aesc(machoLabel(m))}</option>`).join("");
-  machariaState.machoOptionsHtml = machoOptions;
-
   if (!slots.length) {
     container.innerHTML = '<p class="checklist-grid-locked">Ainda não há horário previsto vencido para este turno.</p>';
     return;
@@ -140,7 +163,12 @@ function renderGrid() {
       const items = list.length ? list : [{}];
       const machoEntries = items.map((item, index) => {
         const value = index === 0 ? (item.macho_id ?? defaultMachoId) : (item.macho_id ?? "");
-        return `<div class="macharia-entry"><select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot.toISOString()}" data-value="${value || ""}" ${disabledAttr}><option value="">—</option>${machoOptions}</select>${addButtonHtml}</div>`;
+        const field = window.LIDUTEC_TYPEAHEAD.fieldHtml(
+          "macho_id",
+          `class="macharia-macho" data-estacao="${estacao}" data-slot="${slot.toISOString()}" value="${value || ""}"`,
+          "Buscar macho...", "Macho", !canEdit
+        );
+        return `<div class="macharia-entry">${field}${addButtonHtml}</div>`;
       }).join("");
       const soprosEntries = items.map((item) => `<div class="macharia-entry"><input type="number" class="macharia-sopros" min="0" step="1" value="${item.quantidade_sopros ?? 0}" data-estacao="${estacao}" data-slot="${slot.toISOString()}" ${disabledAttr}><button type="button" class="macharia-remove-entry" aria-label="Remover lançamento" ${disabledAttr}>×</button></div>`).join("");
       return `<td class="checklist-grid-cell macharia-macho-cell" data-estacao="${estacao}" data-slot="${slot.toISOString()}"><div class="macharia-multi">${machoEntries}</div></td>`
@@ -152,9 +180,7 @@ function renderGrid() {
     <tr><th class="checklist-grid-itemcol" rowspan="2">Hora</th>${estacaoHeaderCells}</tr>
     <tr>${subHeaderCells}</tr>
   </thead><tbody>${rows}</tbody></table>`;
-  for (const select of container.querySelectorAll(".macharia-macho")) {
-    if (select.dataset.value) select.value = select.dataset.value;
-  }
+  window.LIDUTEC_TYPEAHEAD.syncAll(container);
 }
 // Pareia cada select de macho com o input de sopros na mesma posição dentro
 // da célula (podem existir vários pares na mesma hora/estação).
@@ -191,7 +217,11 @@ function addMachoEntryRow(addButton) {
   const soprosCell = tr.querySelector(`td.macharia-sopros-cell[data-estacao="${estacao}"]`);
   const machoEntry = document.createElement("div");
   machoEntry.className = "macharia-entry";
-  machoEntry.innerHTML = `<select class="macharia-macho" data-estacao="${estacao}" data-slot="${slot}"><option value="">—</option>${machariaState.machoOptionsHtml || ""}</select><button type="button" class="macharia-add-entry" aria-label="Adicionar outro macho nesta hora" title="Adicionar outro macho nesta hora">+</button>`;
+  const machoField = window.LIDUTEC_TYPEAHEAD.fieldHtml(
+    "macho_id", `class="macharia-macho" data-estacao="${estacao}" data-slot="${slot}" value=""`,
+    "Buscar macho...", "Macho"
+  );
+  machoEntry.innerHTML = `${machoField}<button type="button" class="macharia-add-entry" aria-label="Adicionar outro macho nesta hora" title="Adicionar outro macho nesta hora">+</button>`;
   machoCell.querySelector(".macharia-multi").append(machoEntry);
   const soprosEntry = document.createElement("div");
   soprosEntry.className = "macharia-entry";
@@ -211,7 +241,10 @@ function removeMachoEntryRow(removeButton) {
   if (soprosEntries.length <= 1) {
     const select = machoEntries[0]?.querySelector(".macharia-macho");
     const input = entryDiv.querySelector(".macharia-sopros");
-    if (select) select.value = "";
+    if (select) {
+      select.value = "";
+      window.LIDUTEC_TYPEAHEAD.syncField(select.closest(".typeahead-field"));
+    }
     if (input) input.value = "0";
   } else {
     machoEntries[index]?.remove();
@@ -237,14 +270,12 @@ function mergedProducoes() {
 function stopRow() {
   const row = document.createElement("tr");
   row.className = "shift-stop-row";
-  const sectorOptions = machariaState.sectors.map((s) => `<option value="${s.id}">${aesc(s.nome)}</option>`).join("");
-  const categoryOptions = machariaState.categories.map((c) => `<option value="${c.id}">${aesc(c.nome)}</option>`).join("");
   row.innerHTML = `
     <td><input name="inicio" type="time" step="60"></td>
     <td><input name="fim" type="time" step="60"></td>
     <td><output data-duration>0h 00min</output></td>
-    <td><select name="setor_id"><option value="">Selecione</option>${sectorOptions}</select></td>
-    <td><select name="categoria_id"><option value="">Selecione</option>${categoryOptions}</select></td>
+    <td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("setor_id", 'name="setor_id"', "Buscar setor...", "Setor responsável")}</td>
+    <td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("categoria_id", 'name="categoria_id"', "Buscar motivo...", "Motivo da parada")}</td>
     <td><input name="observacao" type="text" maxlength="500"></td>
     <td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
   return row;
@@ -485,8 +516,8 @@ function renderShiftTimeline() {
     if (!stopStart || !stopEnd || stopEnd <= stopStart) continue;
     const visibleStart = Math.max(start.getTime(), stopStart.getTime()), visibleEnd = Math.min(end.getTime(), stopEnd.getTime());
     if (visibleEnd <= visibleStart) continue;
-    const sector = row.querySelector('[name="setor_id"] option:checked')?.textContent || "Parada";
-    const reason = row.querySelector('[name="categoria_id"] option:checked')?.textContent || "Motivo não informado";
+    const sector = row.querySelector('[data-typeahead="setor_id"] .typeahead-input')?.value || "Parada";
+    const reason = row.querySelector('[data-typeahead="categoria_id"] .typeahead-input')?.value || "Motivo não informado";
     const title = `${aesc(sector)} — ${aesc(reason)} — ${formatMinutes(Math.round((visibleEnd - visibleStart) / 60000))}`;
     segments.push(spanFor({ start: new Date(visibleStart), end: new Date(visibleEnd) }, "shift-stop-segment", title));
   }

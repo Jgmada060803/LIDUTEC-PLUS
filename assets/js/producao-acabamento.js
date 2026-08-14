@@ -62,6 +62,27 @@ function linhaIdByCodigo(codigo) {
 function linha1Id() { return linhaIdByCodigo("ACABAMENTO_L1"); }
 function linha2Id() { return linhaIdByCodigo("ACABAMENTO_L2"); }
 
+window.LIDUTEC_TYPEAHEAD.register("produto_id", {
+  items: () => acabamentoState.products,
+  match: (p, s) => normalizeTypeaheadIncludes([p.codigo, p.nome], s),
+  label: (p) => `${p.codigo} — ${p.nome}`,
+  id: (p) => p.id
+});
+window.LIDUTEC_TYPEAHEAD.register("setor_id", {
+  items: () => acabamentoState.sectors,
+  match: (item, s) => normalizeTypeaheadIncludes([item.codigo, item.nome], s),
+  label: (item) => item.nome,
+  secondary: (item) => item.codigo,
+  id: (item) => item.id
+});
+window.LIDUTEC_TYPEAHEAD.register("categoria_id", {
+  items: () => acabamentoState.categories,
+  match: (item, s) => normalizeTypeaheadIncludes([item.codigo, item.nome], s),
+  label: (item) => item.nome,
+  secondary: (item) => item.codigo,
+  id: (item) => item.id
+});
+
 async function loadAcabamentoSupport() {
   const { products, lines, categories, sectors, postos } = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.support();
   acabamentoState.products = products;
@@ -111,9 +132,8 @@ function postoOptionsHtml() {
 function productionRow() {
   const row = document.createElement("tr");
   row.className = "shift-production-row";
-  const productOptions = acabamentoState.products.map((p) => `<option value="${p.id}">${aesc(p.codigo)} — ${aesc(p.nome)}</option>`).join("");
   row.innerHTML = `
-    <td><select name="produto_id"><option value="">Selecione</option>${productOptions}</select></td>
+    <td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("produto_id", 'name="produto_id"', "Buscar produto por código ou nome...", "Produto")}</td>
     <td><input name="quantidade_liberada" type="number" min="0" step="1" value="0"></td>
     <td><input name="quantidade_rejeitada" type="number" min="0" step="1" value="0"></td>
     <td><input name="quantidade_retrabalhada" type="number" min="0" step="1" value="0"></td>
@@ -124,15 +144,13 @@ function productionRow() {
 function stopRow() {
   const row = document.createElement("tr");
   row.className = "shift-stop-row";
-  const sectorOptions = acabamentoState.sectors.map((s) => `<option value="${s.id}">${aesc(s.nome)}</option>`).join("");
-  const categoryOptions = acabamentoState.categories.map((c) => `<option value="${c.id}">${aesc(c.nome)}</option>`).join("");
   row.innerHTML = `
     <td><input name="inicio" type="time" step="60"></td>
     <td><input name="fim" type="time" step="60"></td>
     <td><output data-duration>0h 00min</output></td>
     <td><select name="posto_id"><option value="">Selecione</option>${postoOptionsHtml()}</select></td>
-    <td><select name="setor_id"><option value="">Selecione</option>${sectorOptions}</select></td>
-    <td><select name="categoria_id"><option value="">Selecione</option>${categoryOptions}</select></td>
+    <td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("setor_id", 'name="setor_id"', "Buscar setor...", "Setor de origem")}</td>
+    <td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("categoria_id", 'name="categoria_id"', "Buscar motivo...", "Motivo da parada")}</td>
     <td><input name="observacao" type="text" maxlength="500"></td>
     <td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
   return row;
@@ -144,6 +162,7 @@ function applyRowValues(row, values = {}) {
   for (const control of row.querySelectorAll("input,select")) {
     if (Object.hasOwn(values, control.name)) control.value = values[control.name] ?? "";
   }
+  window.LIDUTEC_TYPEAHEAD.syncAll(row);
 }
 function resolveShiftTime(value) {
   const form = aq("#shift-entry-form");
@@ -502,6 +521,8 @@ function lockAutoAbsenteeismoRows() {
     for (const name of ["inicio", "fim", "posto_id", "setor_id", "categoria_id"]) {
       const control = row.querySelector(`[name="${name}"]`);
       if (control) control.disabled = true;
+      const visibleInput = control?.closest(".typeahead-field")?.querySelector(".typeahead-input");
+      if (visibleInput) visibleInput.disabled = true;
     }
     const removeButton = row.querySelector(".row-remove");
     if (removeButton) { removeButton.disabled = true; removeButton.title = "Remova marcando/desmarcando o posto na caixa de absenteísmo acima."; }
