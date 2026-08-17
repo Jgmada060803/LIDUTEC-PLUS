@@ -128,7 +128,7 @@ function renderGrid() {
   const bounds = window.LIDUTEC_TURNOS.shiftBounds(date, turno);
   const closed = machariaState.currentShift?.status === "FECHADO";
   const canEdit = !closed || machariaState.editingClosed;
-  const slots = window.LIDUTEC_TURNOS.hourlySlots(bounds.start, bounds.end, closed ? bounds.end : new Date());
+  const slots = window.LIDUTEC_TURNOS.hourlySlots(bounds.start, bounds.end, bounds.end);
   const estacoes = Array.from({ length: maquina.numero_estacoes }, (_, i) => i + 1);
   const entries = machariaState.currentShift?.rascunho_producoes || [];
   // Uma hora/estação pode ter mais de um lançamento (troca de macho no meio
@@ -732,14 +732,6 @@ async function initializeShiftEntry() {
   aq("#delete-shift-button").addEventListener("click", deleteClosedShift);
 
   await checkShiftStatus();
-
-  window.supabaseClient.channel("shared-production-shift-macharia").on("postgres_changes", { event: "*", schema: "public", table: "turnos_producao_macharia" }, (payload) => {
-    const row = payload.new;
-    if (!document.hidden && row && row.data_operacional === form.elements.data_operacional.value && row.turno === form.elements.turno.value &&
-      String(row.atualizado_por) !== String(machariaState.user?.id)) {
-      refresh();
-    }
-  }).subscribe();
 }
 
 // ---------------------------------------------------------------------------
