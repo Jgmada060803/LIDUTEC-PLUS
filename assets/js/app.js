@@ -346,6 +346,11 @@ function syncSidebarNavigation() {
          data-permission="calendario_operacional.gerenciar">
         Calendário operacional
       </a>
+      <a href="${prefix}administracao/relatorio-login.html"
+         class="${activeClass(isActive("administracao", "relatorio-login.html"))}"
+         data-permission="usuarios.gerenciar_acessos">
+        Relatório de login
+      </a>
     `)}
   `;
 
