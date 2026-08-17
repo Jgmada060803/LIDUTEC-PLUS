@@ -586,7 +586,7 @@ async function checkShiftStatus() {
     machariaState.currentShift = {
       ...data,
       rascunho_producoes: productions.map((item) => ({ ...item, linha_id: item.linha_maquina_id })),
-      rascunho_paradas: stops.map((item) => ({ ...item, linha_id: item.linha_maquina_id })),
+      rascunho_paradas: stops.map((item) => ({ ...item, linha_id: item.linha_maquina_id, setor_id: item.setor_responsavel_id })),
       rascunho_descartes: descartes.map((item) => ({ ...item, linha_id: item.linha_maquina_id }))
     };
   } else {
