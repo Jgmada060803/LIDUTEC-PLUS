@@ -102,10 +102,9 @@ function applyRowValues(row, values = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Apontamento hora a hora (tela "entry") — 1 turno cobre as 5 máquinas; cada
-// operador só vê/edita a grade da máquina selecionada, mas o rascunho salvo é
-// sempre o conjunto de TODAS as máquinas já conhecidas (mergedProducoes),
-// senão o apontamento de um operador apagaria o de outro no mesmo turno.
+// Apontamento hora a hora (tela "entry") — cada máquina tem seu próprio turno
+// (turnos_producao_macharia.linha_maquina_id), aberto/fechado independente
+// das outras 4. O seletor de máquina troca qual turno está em tela.
 // ---------------------------------------------------------------------------
 function hourLabel(slot) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -252,20 +251,10 @@ function removeMachoEntryRow(removeButton) {
   }
   saveDraft();
 }
-function mergedProducoes() {
-  const maquina = currentMaquina();
-  const others = (machariaState.currentShift?.rascunho_producoes || [])
-    .filter((item) => String(item.linha_id ?? item.linha_maquina_id) !== String(maquina?.id));
-  return [...others, ...collectMachineEntries()];
-}
-
 // ---------------------------------------------------------------------------
 // Paradas — mesmo modelo da Moldagem (Hora início/fim, Setor responsável,
-// Motivo, Observações), mas cada parada carrega a máquina selecionada no
-// menu superior no momento em que foi lançada: como cada máquina tem seu
-// próprio operador, a tabela mostra e salva só as paradas da máquina atual
-// (igual à grade de sopros), preservando as paradas de outras máquinas via
-// mergedParadas() na hora de salvar.
+// Motivo, Observações), sempre da máquina selecionada no menu superior (o
+// turno em tela já é só dessa máquina).
 // ---------------------------------------------------------------------------
 function stopRow() {
   const row = document.createElement("tr");
@@ -361,12 +350,6 @@ function collectMachineStops(strict = false) {
   }
   return stops;
 }
-function mergedParadas(strict = false) {
-  const maquina = currentMaquina();
-  const others = (machariaState.currentShift?.rascunho_paradas || [])
-    .filter((item) => String(item.linha_id ?? item.linha_maquina_id) !== String(maquina?.id));
-  return [...others, ...collectMachineStops(strict)];
-}
 function findMachoById(id) {
   return machariaState.machos.find((m) => String(m.id) === String(id)) || null;
 }
@@ -436,12 +419,6 @@ function collectMachineDescartes() {
     });
   }
   return entries;
-}
-function mergedDescartes() {
-  const maquina = currentMaquina();
-  const others = (machariaState.currentShift?.rascunho_descartes || [])
-    .filter((item) => String(item.linha_id ?? item.linha_maquina_id) !== String(maquina?.id));
-  return [...others, ...collectMachineDescartes()];
 }
 function updateMaquinaBanner() {
   const maquina = currentMaquina();
@@ -539,13 +516,16 @@ async function persistDraft() {
   if (machariaState.currentShift?.status === "FECHADO" || machariaState.editingClosed || machariaState.draftSaveInFlight) return;
   machariaState.draftSaveInFlight = true;
   const form = aq("#shift-entry-form");
+  const maquina = currentMaquina();
   try {
-    const producoes = mergedProducoes();
-    const paradas = mergedParadas(false);
-    const descartes = mergedDescartes();
+    if (!maquina) throw new Error("Selecione uma máquina.");
+    const producoes = collectMachineEntries();
+    const paradas = collectMachineStops(false);
+    const descartes = collectMachineDescartes();
     const saved = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.saveShiftDraft({
       p_data_operacional: form.elements.data_operacional.value,
       p_turno: form.elements.turno.value,
+      p_linha_maquina_id: maquina.id,
       p_producoes: producoes,
       p_paradas: paradas,
       p_descartes: descartes,
@@ -575,8 +555,9 @@ async function loadShiftHistory(turnId) {
 async function checkShiftStatus() {
   const form = aq("#shift-entry-form");
   const date = form.elements.data_operacional.value, turno = form.elements.turno.value;
-  if (!date || !turno) return;
-  const data = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.shift(date, turno);
+  const maquina = currentMaquina();
+  if (!date || !turno || !maquina) return;
+  const data = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.shift(date, turno, maquina.id);
   machariaState.editingClosed = false;
   const closed = data?.status === "FECHADO";
   if (closed) {
@@ -635,10 +616,12 @@ async function closeShift(event) {
   const button = aq("#close-shift-button");
   button.disabled = true;
   try {
-    const producoes = mergedProducoes();
+    const maquina = currentMaquina();
+    if (!maquina) throw new Error("Selecione uma máquina.");
+    const producoes = collectMachineEntries();
     if (!producoes.length) throw new Error("Informe ao menos um lançamento de sopro.");
-    const paradas = mergedParadas(true);
-    const descartes = mergedDescartes();
+    const paradas = collectMachineStops(true);
+    const descartes = collectMachineDescartes();
     const form = aq("#shift-entry-form");
     if (machariaState.editingClosed) {
       await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.editShift({ p_turno_id: machariaState.currentShift.id, p_producoes: producoes, p_paradas: paradas, p_descartes: descartes });
@@ -647,6 +630,7 @@ async function closeShift(event) {
       await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.closeShift({
         p_data_operacional: form.elements.data_operacional.value,
         p_turno: form.elements.turno.value,
+        p_linha_maquina_id: maquina.id,
         p_producoes: producoes,
         p_paradas: paradas,
         p_descartes: descartes,
@@ -679,11 +663,11 @@ async function initializeShiftEntry() {
   if (savedMaquinaValid) form.elements.maquina_id.value = savedMaquinaId;
   else if (machariaState.maquinas[0]) form.elements.maquina_id.value = machariaState.maquinas[0].id;
 
+  const refresh = () => checkShiftStatus().catch((error) => machariaMessage(error.message, "error"));
   form.elements.maquina_id.addEventListener("change", () => {
     localStorage.setItem(maquinaStorageKey(), form.elements.maquina_id.value);
-    renderMachineView();
+    refresh();
   });
-  const refresh = () => checkShiftStatus().catch((error) => machariaMessage(error.message, "error"));
   form.elements.data_operacional.addEventListener("change", refresh);
   form.elements.turno.addEventListener("change", refresh);
   form.addEventListener("input", (event) => {

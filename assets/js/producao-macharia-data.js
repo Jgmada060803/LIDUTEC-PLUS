@@ -30,7 +30,9 @@
       const [maquinas, machos, categories, sectors] = await Promise.all([
         result(client().from("linhas_maquinas_producao").select("id,codigo,nome,numero_estacoes,areas_checklist!inner(codigo)").eq("areas_checklist.codigo", "MACHARIA").eq("ativo", true).order("codigo")),
         result(client().from("machos_macharia").select("id,caixa,macho,machos_por_sopro,machos_macharia_produtos(produtos(codigo))").eq("status", "APROVADO").eq("ativo", true).order("caixa").order("macho")),
-        result(client().from("categorias_parada_producao").select("id,codigo,nome").eq("ativo", true).order("nome")),
+        // area_id=4 é MACHARIA (areas_checklist); area_id nulo = motivo
+        // genérico, aparece pra todas as áreas.
+        result(client().from("categorias_parada_producao").select("id,codigo,nome").eq("ativo", true).or("area_id.eq.4,area_id.is.null").order("nome")),
         result(client().from("setores_responsaveis_parada").select("id,codigo,nome").eq("ativo", true).order("nome"))
       ]);
       return { maquinas, machos, categories, sectors };
@@ -44,7 +46,7 @@
     },
     fichas: (status) => result(client().from("machos_macharia")
       .select("id,caixa,macho,machos_por_sopro,peso_macho_kg,kg_areia_por_sopro,sopro_por_hora,status,ativo,substitui_id,motivo_reprovacao,criado_em,usuarios!machos_macharia_criado_por_fkey(nome),machos_macharia_produtos(produto_id,machos_por_peca,produtos(codigo,nome))")
-      .eq("status", status).order("criado_em", { ascending: false })),
+      .eq("status", status).order("criado_em", { ascending: false }).limit(5000)),
     salvarFicha: (payload) => result(client().rpc("salvar_ficha_macho", payload), null),
     avaliarFicha: (payload) => result(client().rpc("avaliar_ficha_macho", payload), null),
     importarFichas: (linhas) => result(client().rpc("importar_machos_macharia", { p_linhas: linhas }), null),
@@ -60,9 +62,9 @@
       .from("descartes_producao_macharia")
       .select("*,linhas_maquinas_producao(codigo,nome),machos_macharia(caixa,macho,machos_por_sopro,machos_macharia_produtos(produtos(codigo)))")
       .order("data_operacional", { ascending: false }), filters)),
-    shift: (date, turno) => result(client().from("turnos_producao_macharia")
+    shift: (date, turno, linhaMaquinaId) => result(client().from("turnos_producao_macharia")
       .select("id,status,versao,rascunho_producoes,rascunho_paradas,rascunho_descartes,atualizado_por,atualizado_em,usuarios!turnos_producao_macharia_atualizado_por_fkey(nome)")
-      .eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
+      .eq("data_operacional", date).eq("turno", turno).eq("linha_maquina_id", linhaMaquinaId).maybeSingle(), null),
     shiftProductions: (id) => result(client().from("registros_producao_macharia")
       .select("linha_maquina_id,estacao,horario_previsto,macho_id,quantidade_sopros")
       .eq("turno_producao_id", id).order("linha_maquina_id").order("estacao").order("horario_previsto")),
