@@ -357,7 +357,7 @@ function renderParameter(parameter) {
   }
 
   const storedObservation = getStoredValue(parameter, "observacao");
-  if (storedObservation !== "" || canEditCurrentSheet()) {
+  if (fichaConfig.tipo !== "MACHARIA" && (storedObservation !== "" || canEditCurrentSheet())) {
     appendField(fields, "Observação", createInput(
       "text",
       "observacao",
