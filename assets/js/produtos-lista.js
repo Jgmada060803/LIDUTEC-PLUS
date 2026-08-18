@@ -294,7 +294,8 @@ function createProductQuery(includeImports) {
         ${importSelection}
       )
     `)
-    .order("codigo");
+    .order("codigo")
+    .limit(5000);
 }
 
 async function loadProducts() {

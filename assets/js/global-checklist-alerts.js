@@ -61,5 +61,4 @@
   function scheduleDeadlineRefresh(){const interval=30*60*1000,delay=interval-Date.now()%interval+250;setTimeout(()=>{safeRefresh();scheduleDeadlineRefresh()},delay)}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",safeRefresh,{once:true});else safeRefresh();
   window.addEventListener("focus",safeRefresh);window.addEventListener("pageshow",safeRefresh);document.addEventListener("visibilitychange",()=>{document.documentElement.classList.toggle("checklist-alerts-paused",document.hidden);if(!document.hidden)safeRefresh()});setInterval(()=>{if(!document.hidden)safeRefresh()},120000);scheduleDeadlineRefresh();
-  client.channel("global-checklist-alerts").on("postgres_changes",{event:"*",schema:"public",table:"execucoes_checklist"},()=>{if(!document.hidden)safeRefresh()}).subscribe();
 })();

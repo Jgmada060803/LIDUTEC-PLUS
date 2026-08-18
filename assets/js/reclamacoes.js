@@ -22,7 +22,7 @@ function renderList(rows = state.complaints) {
   $("#count-critical").textContent = state.complaints.filter((x) => x.prioridade === "CRITICA").length;
 }
 async function loadComplaints() {
-  const { data, error } = await window.supabaseClient.from("reclamacoes_cliente").select("*, produtos(codigo,nome)").order("criado_em",{ascending:false});
+  const { data, error } = await window.supabaseClient.from("reclamacoes_cliente").select("*, produtos(codigo,nome)").order("criado_em",{ascending:false}).limit(5000);
   $("#complaint-loading").hidden = true;
   if (error) throw error;
   state.complaints = data || []; renderList();

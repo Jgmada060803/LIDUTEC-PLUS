@@ -108,7 +108,7 @@
       produtos(codigo,nome),usuarios!execucoes_checklist_operador_id_fkey(nome),
       respostas_checklist(resultado,observacao,acao_imediata,
         itens_checklist(descricao,plano_reacao,critico))
-    `).eq("status", "AGUARDANDO_SUPERVISOR").order("iniciado_em")),
+    `).eq("status", "AGUARDANDO_SUPERVISOR").order("iniciado_em").limit(2000)),
     chartItems: () => unwrap(client().from("itens_checklist").select(`
       id,descricao,unidade,valor_minimo,valor_alvo,valor_maximo,
       modelos_checklist(codigo,nome,areas_checklist(nome))

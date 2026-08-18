@@ -261,7 +261,10 @@ async function loadChecklistGrid(model,modelId){
       // naquele horário planejado — em vez de um único campo para o turno
       // todo. E a coluna fica dispensada se a máquina estava parada. Ambos
       // dependem das tabelas de produção/parada de Moldagem.
-      productions=await Promise.all(slots.map(slot=>checklistData.productionAt(date,turno,slot)));
+      {
+        const allProductions=await checklistData.productionsForShift(date,turno);
+        productions=slots.map(slot=>allProductions.filter(item=>new Date(item.inicio)<=slot).sort((left,right)=>new Date(right.inicio)-new Date(left.inicio))[0]||null);
+      }
       const paradas=await stopIntervalsForShift(date,turno,shift);
       const previousBoundaries=[bounds.start,...slots.slice(0,-1)];
       stopped=slots.map((slot,index)=>slotStoppedByParadas(previousBoundaries[index],slot,paradas));
