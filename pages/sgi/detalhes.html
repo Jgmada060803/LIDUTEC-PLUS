@@ -75,7 +75,44 @@
             <p id="document-subtitle"></p>
           </div>
 
-          <a href="./index.html" class="button button-secondary">Voltar à pesquisa</a>
+          <div class="sgi-action-buttons">
+            <a
+              id="new-revision-link"
+              class="button button-secondary"
+              data-permission="sgi.criar"
+              hidden
+            >
+              Criar nova revisão
+            </a>
+            <button
+              type="button"
+              id="send-approval-button"
+              class="button button-secondary"
+              data-permission="sgi.enviar_aprovacao"
+              hidden
+            >
+              Enviar para aprovação
+            </button>
+            <button
+              type="button"
+              id="reject-button"
+              class="button button-danger"
+              data-permission="sgi.aprovar"
+              hidden
+            >
+              Reprovar
+            </button>
+            <button
+              type="button"
+              id="approve-button"
+              class="button button-primary"
+              data-permission="sgi.aprovar"
+              hidden
+            >
+              Aprovar
+            </button>
+            <a href="./index.html" class="button button-secondary">Voltar à pesquisa</a>
+          </div>
         </div>
 
         <div class="sgi-detail-grid">
@@ -117,6 +154,26 @@
               <div><dt>Última atualização</dt><dd id="meta-atualizado">—</dd></div>
               <div><dt>Observações</dt><dd id="meta-observacoes">—</dd></div>
             </dl>
+          </section>
+
+        </div>
+
+        <div class="sgi-detail-grid">
+
+          <section class="panel">
+            <div class="panel-header">
+              <span class="eyebrow">Revisões</span>
+              <h3>Histórico de revisões</h3>
+            </div>
+            <ul id="revisions-list" class="sgi-simple-list"></ul>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <span class="eyebrow">Rastreabilidade</span>
+              <h3>Histórico de ações</h3>
+            </div>
+            <ul id="history-list" class="sgi-simple-list"></ul>
           </section>
 
         </div>

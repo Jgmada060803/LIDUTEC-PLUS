@@ -19,6 +19,10 @@ const processoSetorInput = document.querySelector("#processo-setor");
 const palavrasChaveInput = document.querySelector("#palavras-chave");
 const observacoesInput = document.querySelector("#observacoes");
 
+function getRevisaoDeId() {
+  return new URLSearchParams(window.location.search).get("revisao_de");
+}
+
 function getInitials(name = "Usuário") {
   return name.trim().split(/\s+/).slice(0, 2)
     .map((part) => part[0]?.toUpperCase()).join("");
@@ -55,8 +59,9 @@ externalDocumentForm.addEventListener("submit", async (event) => {
   formMessage.hidden = true;
 
   const file = arquivoInput.files[0];
+  const revisaoDeId = getRevisaoDeId();
   if (!file) {
-    showMessage("Selecione o arquivo PDF do documento.");
+    showMessage(revisaoDeId ? "Selecione o novo PDF desta revisão." : "Selecione o arquivo PDF do documento.");
     return;
   }
   if (file.type !== "application/pdf") {
@@ -68,21 +73,30 @@ externalDocumentForm.addEventListener("submit", async (event) => {
   saveButton.textContent = "Salvando...";
 
   try {
-    const documentoId = await window.LIDUTEC_SGI_DATA.cadastrarDocumentoExterno({
-      codigo: codigoInput.value.trim(),
-      titulo: tituloInput.value.trim(),
-      tipoDocumentoId: tipoDocumentoSelect.value ? Number(tipoDocumentoSelect.value) : null,
-      areaResponsavelId: areaResponsavelSelect.value ? Number(areaResponsavelSelect.value) : null,
-      processoSetor: processoSetorInput.value.trim() || null,
-      palavrasChave: palavrasChaveInput.value.trim() || null,
-      observacoes: observacoesInput.value.trim() || null
-    }, file);
+    let documentoId;
+    if (revisaoDeId) {
+      documentoId = await window.LIDUTEC_SGI_DATA.criarNovaRevisao(
+        Number(revisaoDeId),
+        observacoesInput.value.trim() || null,
+        file
+      );
+    } else {
+      documentoId = await window.LIDUTEC_SGI_DATA.cadastrarDocumentoExterno({
+        codigo: codigoInput.value.trim(),
+        titulo: tituloInput.value.trim(),
+        tipoDocumentoId: tipoDocumentoSelect.value ? Number(tipoDocumentoSelect.value) : null,
+        areaResponsavelId: areaResponsavelSelect.value ? Number(areaResponsavelSelect.value) : null,
+        processoSetor: processoSetorInput.value.trim() || null,
+        palavrasChave: palavrasChaveInput.value.trim() || null,
+        observacoes: observacoesInput.value.trim() || null
+      }, file);
+    }
 
     window.location.href = `./detalhes.html?id=${documentoId}`;
   } catch (error) {
     showMessage(`Não foi possível salvar o documento: ${error.message}`);
     saveButton.disabled = false;
-    saveButton.textContent = "Salvar documento";
+    saveButton.textContent = revisaoDeId ? "Salvar nova revisão" : "Salvar documento";
   }
 });
 
@@ -115,6 +129,30 @@ async function initializeSgiCadastro() {
     "beforeend",
     areas.map((area) => `<option value="${area.id}">${area.nome}</option>`).join("")
   );
+
+  const revisaoDeId = getRevisaoDeId();
+  if (revisaoDeId) {
+    const origem = await window.LIDUTEC_SGI_DATA.obter(revisaoDeId);
+    if (!origem) {
+      showMessage("Documento de origem não encontrado.");
+      saveButton.disabled = true;
+      return;
+    }
+    if (origem.status !== "VIGENTE") {
+      showMessage("Só é possível criar uma nova revisão a partir do documento vigente.");
+      saveButton.disabled = true;
+      return;
+    }
+    document.querySelector("#page-heading-title").textContent = "Nova revisão";
+    document.querySelector("#page-heading-description").textContent =
+      `Nova revisão de ${origem.codigo} — ${origem.titulo}. Anexe o PDF atualizado.`;
+    document.querySelector("#arquivo-label").textContent = "Novo PDF desta revisão *";
+    document.querySelector("#identificacao-section").hidden = true;
+    document.querySelector("#observacoes-label").textContent = "Motivo da revisão";
+    saveButton.textContent = "Salvar nova revisão";
+    return;
+  }
+
   const normaExterna = tipos.find((tipo) => tipo.codigo === "NORMA_EXTERNA");
   if (normaExterna) tipoDocumentoSelect.value = String(normaExterna.id);
 }

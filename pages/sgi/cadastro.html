@@ -67,8 +67,8 @@
       <div class="sgi-page-heading">
         <div>
           <span class="eyebrow">SGI</span>
-          <h2>Cadastrar documento</h2>
-          <p>Documento externo — recebido de cliente, fornecedor ou órgão normativo, controlado sem edição do conteúdo.</p>
+          <h2 id="page-heading-title">Cadastrar documento</h2>
+          <p id="page-heading-description">Documento externo — recebido de cliente, fornecedor ou órgão normativo, controlado sem edição do conteúdo.</p>
         </div>
 
         <a href="./index.html" class="button button-secondary">Voltar</a>
@@ -83,7 +83,7 @@
           </div>
 
           <div class="form-group">
-            <label for="arquivo-pdf">Selecionar arquivo (PDF) *</label>
+            <label for="arquivo-pdf" id="arquivo-label">Selecionar arquivo (PDF) *</label>
             <input type="file" id="arquivo-pdf" name="arquivo" accept="application/pdf" required>
             <span class="form-note">
               O código e o título abaixo são só uma sugestão a partir do nome do arquivo — confira e ajuste antes de salvar.
@@ -91,7 +91,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" id="identificacao-section">
           <div class="panel-header">
             <span class="eyebrow">Identificação</span>
             <h3>Metadados do documento</h3>
@@ -133,11 +133,18 @@
               <input type="text" id="palavras-chave" name="palavras-chave" placeholder="Separe por vírgula" maxlength="300">
             </div>
 
-            <div class="form-group form-group-full">
-              <label for="observacoes">Observações</label>
-              <textarea id="observacoes" name="observacoes" rows="3" maxlength="1000"></textarea>
-            </div>
+          </div>
+        </section>
 
+        <section class="panel">
+          <div class="panel-header">
+            <span class="eyebrow">Observações</span>
+            <h3>Notas adicionais</h3>
+          </div>
+
+          <div class="form-group">
+            <label for="observacoes" id="observacoes-label">Observações</label>
+            <textarea id="observacoes" name="observacoes" rows="3" maxlength="1000"></textarea>
           </div>
         </section>
 

@@ -64,12 +64,14 @@
           arquivo_oficial:arquivo_oficial_id (id, caminho_relativo, nome_original)
         `)
         .order("codigo")
+        .limit(5000)
     ),
     obter: (id) => result(
       client().from("sgi_documentos")
         .select(`
           id, codigo, titulo, origem, numero_revisao, status, vigente,
           processo_setor, palavras_chave, observacoes, criado_em, atualizado_em,
+          elaborado_por, documento_anterior_id,
           sgi_tipos_documento (id, codigo, nome),
           sgi_areas (id, codigo, nome),
           arquivo_oficial:arquivo_oficial_id (id, caminho_relativo, nome_original, mime_type, tamanho_bytes)
@@ -97,6 +99,52 @@
       if (error) throw error;
       return data;
     },
+    criarNovaRevisao: async (documentoId, motivo, file) => {
+      const arquivo = await uploadArquivo(file, { modulo: "sgi", kind: "oficial" });
+      const { data, error } = await client().rpc("sgi_criar_nova_revisao", {
+        p_documento_id: documentoId,
+        p_motivo: motivo,
+        p_arquivo_nome_original: arquivo.nome_original,
+        p_arquivo_caminho_relativo: arquivo.caminho_relativo,
+        p_arquivo_mime_type: arquivo.mime_type,
+        p_arquivo_tamanho_bytes: arquivo.tamanho_bytes,
+        p_arquivo_hash_sha256: arquivo.hash_sha256
+      });
+      if (error) throw error;
+      return data;
+    },
+    enviarParaAprovacao: async (documentoId) => {
+      const { error } = await client().rpc("sgi_enviar_para_aprovacao", { p_documento_id: documentoId });
+      if (error) throw error;
+    },
+    decidirAprovacao: async (aprovacaoId, resultado, comentario) => {
+      const { error } = await client().rpc("sgi_decidir_aprovacao", {
+        p_aprovacao_id: aprovacaoId,
+        p_resultado: resultado,
+        p_comentario: comentario
+      });
+      if (error) throw error;
+    },
+    aprovacaoPendente: (documentoId) => result(
+      client().from("sgi_aprovacoes")
+        .select("id, area_id, status, solicitado_em")
+        .eq("documento_id", documentoId)
+        .eq("status", "PENDENTE")
+        .maybeSingle(),
+      null
+    ),
+    revisoesDaFamilia: (codigo) => result(
+      client().from("sgi_documentos")
+        .select("id, numero_revisao, status, vigente, criado_em")
+        .eq("codigo", codigo)
+        .order("numero_revisao", { ascending: false })
+    ),
+    historico: (documentoId) => result(
+      client().from("sgi_historico")
+        .select("id, acao, descricao, status_anterior, status_novo, criado_em, usuarios (nome)")
+        .eq("documento_id", documentoId)
+        .order("criado_em", { ascending: false })
+    ),
     arquivoUrl
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

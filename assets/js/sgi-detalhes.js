@@ -14,6 +14,13 @@ const documentSubtitle = document.querySelector("#document-subtitle");
 const documentFrame = document.querySelector("#document-frame");
 const openFullPageLink = document.querySelector("#open-fullpage-link");
 
+const newRevisionLink = document.querySelector("#new-revision-link");
+const sendApprovalButton = document.querySelector("#send-approval-button");
+const rejectButton = document.querySelector("#reject-button");
+const approveButton = document.querySelector("#approve-button");
+const revisionsList = document.querySelector("#revisions-list");
+const historyList = document.querySelector("#history-list");
+
 const STATUS_LABELS = {
   EM_ELABORACAO: "Em elaboração",
   EM_REVISAO: "Em revisão",
@@ -21,6 +28,15 @@ const STATUS_LABELS = {
   APROVADO: "Aprovado",
   VIGENTE: "Vigente",
   OBSOLETO: "Obsoleto"
+};
+
+// Estado da tela atual — preenchido em initializeSgiDetalhes/showDocument e
+// usado pelos handlers de clique dos botões de ação (revisão/aprovação).
+const viewState = {
+  userId: null,
+  permissions: null,
+  documento: null,
+  aprovacaoPendenteId: null
 };
 
 function getInitials(name = "Usuário") {
@@ -37,7 +53,94 @@ function setText(selector, value) {
   if (element) element.textContent = value ?? "—";
 }
 
+function escapeHtml(value = "") {
+  return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function updateActionButtons(documento) {
+  const permissions = viewState.permissions;
+
+  const canCreateRevision = permissions.has("sgi.criar") && documento.status === "VIGENTE";
+  newRevisionLink.hidden = !canCreateRevision;
+  if (canCreateRevision) newRevisionLink.href = `./cadastro.html?revisao_de=${documento.id}`;
+
+  const canSendApproval = permissions.has("sgi.enviar_aprovacao")
+    && documento.status === "EM_ELABORACAO"
+    && documento.elaborado_por === viewState.userId;
+  sendApprovalButton.hidden = !canSendApproval;
+
+  const canDecide = permissions.has("sgi.aprovar") && documento.status === "AGUARDANDO_APROVACAO";
+  approveButton.hidden = !canDecide;
+  rejectButton.hidden = !canDecide;
+}
+
+function renderRevisions(revisoes, documentoAtualId) {
+  if (!revisoes.length) {
+    revisionsList.innerHTML = `<li class="sgi-list-empty">Nenhuma revisão encontrada.</li>`;
+    return;
+  }
+  revisionsList.innerHTML = revisoes.map((revisao) => {
+    const atual = revisao.id === documentoAtualId;
+    const data = new Date(revisao.criado_em).toLocaleString("pt-BR");
+    const label = `Rev. ${String(revisao.numero_revisao).padStart(2, "0")} — ${STATUS_LABELS[revisao.status] ?? revisao.status}`;
+    return `
+      <li>
+        ${atual
+          ? `<strong>${escapeHtml(label)} (esta revisão)</strong>`
+          : `<a href="./detalhes.html?id=${revisao.id}">${escapeHtml(label)}</a>`}
+        <span class="sgi-list-meta">${escapeHtml(data)}</span>
+      </li>
+    `;
+  }).join("");
+}
+
+function renderHistory(eventos) {
+  if (!eventos.length) {
+    historyList.innerHTML = `<li class="sgi-list-empty">Nenhum evento registrado.</li>`;
+    return;
+  }
+  historyList.innerHTML = eventos.map((evento) => {
+    const data = new Date(evento.criado_em).toLocaleString("pt-BR");
+    const usuario = evento.usuarios?.nome ?? "Sistema";
+    return `
+      <li>
+        <strong>${escapeHtml(evento.acao)}</strong>
+        <span class="sgi-list-meta">${escapeHtml(usuario)} · ${escapeHtml(data)}</span>
+        ${evento.descricao ? `<span class="sgi-list-meta">${escapeHtml(evento.descricao)}</span>` : ""}
+      </li>
+    `;
+  }).join("");
+}
+
+async function handleSendApproval() {
+  if (!confirm("Enviar este documento para aprovação da área responsável?")) return;
+  try {
+    await window.LIDUTEC_SGI_DATA.enviarParaAprovacao(viewState.documento.id);
+    window.location.reload();
+  } catch (error) {
+    alert(`Não foi possível enviar para aprovação: ${error.message}`);
+  }
+}
+
+async function handleDecision(resultado) {
+  if (!viewState.aprovacaoPendenteId) {
+    alert("Solicitação de aprovação não encontrada.");
+    return;
+  }
+  const acao = resultado === "APROVADO" ? "aprovar" : "reprovar";
+  const comentario = prompt(`Comentário sobre a decisão (opcional) — ${acao} este documento:`, "");
+  if (comentario === null) return;
+  try {
+    await window.LIDUTEC_SGI_DATA.decidirAprovacao(viewState.aprovacaoPendenteId, resultado, comentario.trim() || null);
+    window.location.reload();
+  } catch (error) {
+    alert(`Não foi possível registrar a decisão: ${error.message}`);
+  }
+}
+
 async function showDocument(documento) {
+  viewState.documento = documento;
+
   documentTitle.textContent = `${documento.codigo} — ${documento.titulo}`;
   documentSubtitle.textContent = documento.sgi_tipos_documento?.nome ?? "";
 
@@ -59,6 +162,22 @@ async function showDocument(documento) {
     openFullPageLink.hidden = false;
   }
 
+  updateActionButtons(documento);
+
+  if (documento.status === "AGUARDANDO_APROVACAO" && viewState.permissions.has("sgi.aprovar")) {
+    const aprovacao = await window.LIDUTEC_SGI_DATA.aprovacaoPendente(documento.id);
+    viewState.aprovacaoPendenteId = aprovacao?.id ?? null;
+  } else {
+    viewState.aprovacaoPendenteId = null;
+  }
+
+  const [revisoes, eventos] = await Promise.all([
+    window.LIDUTEC_SGI_DATA.revisoesDaFamilia(documento.codigo),
+    window.LIDUTEC_SGI_DATA.historico(documento.id)
+  ]);
+  renderRevisions(revisoes, documento.id);
+  renderHistory(eventos);
+
   documentLoading.hidden = true;
   documentContent.hidden = false;
 }
@@ -77,6 +196,9 @@ async function initializeSgiDetalhes() {
     return;
   }
   window.LIDUTEC_APP.applyPermissionVisibility(permissions);
+
+  viewState.userId = user.id;
+  viewState.permissions = permissions;
 
   userName.textContent = profile.nome;
   userProfile.textContent = profile.perfil ?? "Usuário";
@@ -104,6 +226,10 @@ menuButton?.addEventListener("click", () => {
 logoutButton?.addEventListener("click", async () => {
   await window.LIDUTEC_APP.signOut();
 });
+
+sendApprovalButton?.addEventListener("click", handleSendApproval);
+approveButton?.addEventListener("click", () => handleDecision("APROVADO"));
+rejectButton?.addEventListener("click", () => handleDecision("REJEITADO"));
 
 initializeSgiDetalhes().catch((error) => {
   console.error(error);

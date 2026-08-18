@@ -139,6 +139,60 @@
 .sgi-status-aguardando_aprovacao { color: #6b4e00; background: #fff3d6; }
 .sgi-status-obsoleto { color: var(--color-danger); background: #fff0ef; }
 
+.sgi-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.button-danger {
+  border: 1px solid #a92d2d;
+  color: #ffffff;
+  background: #a92d2d;
+}
+
+.button-danger:hover {
+  background: #852222;
+}
+
+.sgi-simple-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.sgi-simple-list li {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.85rem;
+}
+
+.sgi-simple-list li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.sgi-simple-list a {
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sgi-simple-list .sgi-list-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+}
+
+.sgi-simple-list .sgi-list-empty {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
 .table-action {
   display: inline-flex;
   align-items: center;
