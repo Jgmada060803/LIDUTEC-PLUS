@@ -30,11 +30,30 @@ const acabamentoState = {
 const aq = (selector) => document.querySelector(selector);
 const aesc = (value = "") => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const anumber = (value) => Number(value || 0);
+const anormalize = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 const aFormatDateTime = (value) => (value ? new Date(value).toLocaleString("pt-BR") : "—");
 const aFormatMinutes = (value) => `${Math.floor(anumber(value) / 60)}h ${String(anumber(value) % 60).padStart(2, "0")}min`;
 const aDisplayDate = (value) => (value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : "—");
 const aIsoDate = (date) => date.toISOString().slice(0, 10);
 const aDaysBefore = (date, days) => { const value = new Date(`${date}T12:00:00`); value.setDate(value.getDate() - days); return aIsoDate(value); };
+const aFirstDayOfMonth = (date) => `${date.slice(0, 7)}-01`;
+const aDateRange = (from, to) => {
+  const dates = [];
+  const cursor = new Date(`${from}T12:00:00`);
+  const end = new Date(`${to}T12:00:00`);
+  while (cursor <= end) { dates.push(aIsoDate(cursor)); cursor.setDate(cursor.getDate() + 1); }
+  return dates;
+};
+let acabamentoChartsMonth = null;
+const acabamentoChartPeriod = () => {
+  const today = window.LIDUTEC_TURNOS.determineShift().dataOperacional;
+  const month = acabamentoChartsMonth || today.slice(0, 7);
+  const [year, monthNumber] = month.split("-").map(Number);
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+  const from = `${month}-01`;
+  const monthEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to: month === today.slice(0, 7) ? today : monthEnd };
+};
 
 function acabamentoMessage(text, type = "success", source = "general") {
   const el = aq("#production-message");
@@ -1091,12 +1110,12 @@ async function loadAcabamentoData() {
     return;
   }
   if (acabamentoPage === "charts") {
-    const from = aDaysBefore(today, 30);
+    const { from, to } = acabamentoChartPeriod();
     const [records, stops, shifts, scheduledStops] = await Promise.all([
-      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.records({ from, to: today, limit: 5000 }),
-      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.stops({ from, to: today, limit: 5000 }),
-      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shiftsInRange(from, today),
-      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.scheduledStops(from, today)
+      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.records({ from, to, limit: 5000 }),
+      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.stops({ from, to, limit: 5000 }),
+      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shiftsInRange(from, to),
+      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.scheduledStops(from, to)
     ]);
     acabamentoState.records = records;
     acabamentoState.stops = stops;
@@ -1409,6 +1428,427 @@ function renderAcabamentoCharts() {
   }
 }
 
+// Mesma paleta de turno do dashboard da Moldagem (assets/js/dashboard.js
+// shiftColors), pra manter o padrão visual entre os dois setores.
+const DELTA_LINHA2_TURNOS = [
+  { codigo: "MANHA", label: "Manhã", cor: "#f2ef85" },
+  { codigo: "TARDE", label: "Tarde", cor: "#79e98d" },
+  { codigo: "NOITE", label: "Noite", cor: "#82bdf2" }
+];
+
+// Espelha a regra de linha_2_ativa_acabamento(data, turno) — a Linha 2 não
+// roda os 3 turnos todos os dias: Manhã seg-sáb, Tarde seg-sex, Noite seg-qui.
+function linha2TurnoAtivo(day, turnoCodigo) {
+  const dow = new Date(`${day}T12:00:00`).getDay(); // 0=Dom ... 6=Sáb
+  if (turnoCodigo === "MANHA") return dow !== 0;
+  if (turnoCodigo === "TARDE") return dow !== 0 && dow !== 6;
+  if (turnoCodigo === "NOITE") return dow !== 0 && dow !== 5 && dow !== 6;
+  return true;
+}
+
+// Busca única (registros + meta por dia) reaproveitada pelos 3 gráficos de
+// indicadores da Linha 2, pra não repetir a mesma consulta 3x.
+async function loadLinha2IndicatorData() {
+  const linhaId = linha2Id();
+  if (!linhaId) return null;
+
+  const { from, to } = acabamentoChartPeriod();
+  const days = aDateRange(from, to);
+
+  const [records, metas, materiais] = await Promise.all([
+    window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.records({ from, to, limit: 5000 }),
+    Promise.all(days.map((day) => window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.metaPecasLiberadas(linhaId, day))),
+    window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.materiaisProdutos()
+  ]);
+  const metaByDay = new Map(days.map((day, index) => [day, metas[index] != null ? anumber(metas[index]) : null]));
+
+  // Só entra ferro base Nodular (o resto — Cinzento etc. — fica fora dos
+  // gráficos da Linha 2, a pedido explícito).
+  const produtosNodularIds = new Set(
+    materiais
+      .filter((item) => anormalize(item.tipo_material).includes("NODULAR"))
+      .map((item) => String(item.produto_id))
+  );
+
+  // Realizado = soma de liberadas por (dia, turno), só da Linha 2 e só
+  // Nodular — a meta gerencial (PECAS_LIBERADAS_PLANEJADAS) já é por turno,
+  // não por dia.
+  const recordsLinha2 = records.filter((record) =>
+    String(record.linha_maquina_id) === String(linhaId) && produtosNodularIds.has(String(record.produto_id))
+  );
+  const realizadoPorDiaTurno = new Map();
+  for (const record of recordsLinha2) {
+    const key = `${record.data_operacional}|${record.turno}`;
+    realizadoPorDiaTurno.set(key, (realizadoPorDiaTurno.get(key) || 0) + anumber(record.quantidade_liberada));
+  }
+
+  // Delta é acumulado por turno ao longo do mês, não reseta a cada dia: dia 1
+  // fez 1000 a menos → -1000; dia 2 fez 1500 a menos → acumulado -2500; dia 3
+  // sem meta programada e fez 3000 → acumulado sobe pra +500. Em dias que o
+  // turno não opera (Noite em sex/sáb/dom) não soma nem meta nem realizado —
+  // o acumulado simplesmente se mantém igual ao dia anterior.
+  const bars = [];
+  const acumuladoPorTurno = new Map(DELTA_LINHA2_TURNOS.map((t) => [t.codigo, { realizado: 0, meta: 0 }]));
+  for (const day of days) {
+    const meta = metaByDay.get(day);
+    for (const turno of DELTA_LINHA2_TURNOS) {
+      const ativo = linha2TurnoAtivo(day, turno.codigo);
+      const acc = acumuladoPorTurno.get(turno.codigo);
+      const realizadoDia = realizadoPorDiaTurno.get(`${day}|${turno.codigo}`) || 0;
+      acc.realizado += realizadoDia;
+      if (ativo && meta != null) acc.meta += anumber(meta);
+      bars.push({
+        day, turno: turno.codigo, ativo, realizadoDia,
+        realizadoAcum: acc.realizado, metaAcum: acc.meta, delta: acc.realizado - acc.meta
+      });
+    }
+  }
+
+  return { days, metaByDay, realizadoPorDiaTurno, bars, recordsLinha2 };
+}
+
+function renderDeltaLinha2Chart(data) {
+  const container = aq("#delta-linha2-chart");
+  if (!container) return;
+  const empty = aq("#delta-linha2-chart-empty");
+  if (!data) { container.innerHTML = ""; if (empty) empty.hidden = false; return; }
+  const { days, bars } = data;
+  if (empty) empty.hidden = true;
+
+  const width = Math.max(700, Math.round(container.clientWidth) || 900);
+  const height = Math.max(260, Math.round(container.clientHeight) || 320);
+  const margin = { top: 16, right: 16, bottom: 34, left: 64 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+
+  const maxAbs = Math.max(500, ...bars.map((b) => Math.abs(b.delta)));
+  const yMax = Math.ceil(maxAbs / 500) * 500;
+  const zeroY = margin.top + plotHeight / 2;
+  const yFor = (value) => zeroY - (value / yMax) * (plotHeight / 2);
+
+  const groupWidth = plotWidth / days.length;
+  const barWidth = Math.max(2, groupWidth / (DELTA_LINHA2_TURNOS.length + 1.4));
+  const barGap = barWidth * 0.18;
+
+  const ticks = [-yMax, -yMax / 2, 0, yMax / 2, yMax];
+  const grid = ticks.map((value) => {
+    const y = yFor(value);
+    return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" class="delta-linha2-grid-line ${value === 0 ? "is-zero" : ""}"/>
+      <text x="${margin.left - 10}" y="${y + 4}" class="delta-linha2-axis-label" text-anchor="end">${Math.round(value).toLocaleString("pt-BR")}</text>`;
+  }).join("");
+
+  const barsMarkup = days.map((day, dayIndex) => {
+    const groupX = margin.left + dayIndex * groupWidth;
+    const dayLabel = day.slice(8, 10);
+    const bars2 = DELTA_LINHA2_TURNOS.map((turno, turnoIndex) => {
+      const item = bars.find((b) => b.day === day && b.turno === turno.codigo);
+      const x = groupX + (groupWidth - DELTA_LINHA2_TURNOS.length * (barWidth + barGap)) / 2 + turnoIndex * (barWidth + barGap);
+      const y = Math.min(zeroY, yFor(item.delta));
+      const barHeight = Math.max(1, Math.abs(yFor(item.delta) - zeroY));
+      const sinal = item.delta >= 0 ? "+" : "";
+      const valorLabel = `${sinal}${Math.round(item.delta).toLocaleString("pt-BR")}`;
+      const labelX = x + barWidth / 2;
+      const labelY = y + barHeight / 2;
+      const inativoTexto = item.ativo ? "" : " (não opera esse turno nesse dia — acumulado mantido)";
+      return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${turno.cor}" class="delta-linha2-bar linha2-clickable-bar" onclick="selectLinha2Dia('${day}','${turno.codigo}')"><title>${aDisplayDate(day)} · ${turno.label}${inativoTexto}: realizado do dia ${item.realizadoDia.toLocaleString("pt-BR")} · acumulado realizado ${item.realizadoAcum.toLocaleString("pt-BR")} · acumulado meta ${item.metaAcum.toLocaleString("pt-BR")} · delta acumulado ${sinal}${item.delta.toLocaleString("pt-BR")}</title></rect>
+        <text x="${labelX}" y="${labelY}" class="delta-linha2-bar-value" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 ${labelX} ${labelY})">${valorLabel}</text>`;
+    }).join("");
+    return `${bars2}<text x="${groupX + groupWidth / 2}" y="${height - 10}" class="delta-linha2-axis-label" text-anchor="middle">${dayLabel}</text>`;
+  }).join("");
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" preserveAspectRatio="none" aria-hidden="true">
+      ${grid}
+      ${barsMarkup}
+    </svg>
+    <div class="delta-linha2-legend">
+      ${DELTA_LINHA2_TURNOS.map((turno) => `<span><i style="background:${turno.cor}"></i>${turno.label}</span>`).join("")}
+    </div>`;
+}
+
+// Gráfico "Peças liberadas por dia": barra empilhada (Noite embaixo, Tarde,
+// Manhã em cima) + linha do planejado diário (meta do turno × nº de turnos
+// com meta vigente naquele dia).
+function renderDiarioLinha2Chart(data) {
+  const container = aq("#diario-linha2-chart");
+  if (!container) return;
+  const empty = aq("#diario-linha2-chart-empty");
+  if (!data) { container.innerHTML = ""; if (empty) empty.hidden = false; return; }
+  const { days, metaByDay, realizadoPorDiaTurno } = data;
+  if (empty) empty.hidden = true;
+
+  const stackOrder = [DELTA_LINHA2_TURNOS[2], DELTA_LINHA2_TURNOS[1], DELTA_LINHA2_TURNOS[0]]; // Noite, Tarde, Manhã
+  const totals = days.map((day) => stackOrder.reduce((sum, t) => sum + (realizadoPorDiaTurno.get(`${day}|${t.codigo}`) || 0), 0));
+  const plannedDaily = days.map((day) => {
+    const meta = metaByDay.get(day);
+    if (meta == null) return null;
+    const turnosAtivos = DELTA_LINHA2_TURNOS.filter((t) => linha2TurnoAtivo(day, t.codigo)).length;
+    return anumber(meta) * turnosAtivos;
+  });
+
+  const width = Math.max(700, Math.round(container.clientWidth) || 900);
+  const height = Math.max(260, Math.round(container.clientHeight) || 320);
+  const margin = { top: 30, right: 16, bottom: 34, left: 64 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+
+  const maxValue = Math.max(1000, ...totals, ...plannedDaily.filter((v) => v != null));
+  const yMax = Math.ceil(maxValue / 1000) * 1000;
+  const yFor = (value) => margin.top + (1 - value / yMax) * plotHeight;
+
+  const groupWidth = plotWidth / days.length;
+  const barWidth = Math.max(4, groupWidth * 0.6);
+
+  const ticks = 5;
+  const grid = Array.from({ length: ticks }, (_, i) => {
+    const value = (yMax / (ticks - 1)) * i;
+    const y = yFor(value);
+    return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" class="delta-linha2-grid-line"/>
+      <text x="${margin.left - 10}" y="${y + 4}" class="delta-linha2-axis-label" text-anchor="end">${Math.round(value).toLocaleString("pt-BR")}</text>`;
+  }).join("");
+
+  const barsMarkup = days.map((day, dayIndex) => {
+    const x = margin.left + dayIndex * groupWidth + (groupWidth - barWidth) / 2;
+    let cursor = margin.top + plotHeight;
+    const segments = stackOrder.map((turno) => {
+      const valor = realizadoPorDiaTurno.get(`${day}|${turno.codigo}`) || 0;
+      if (!valor) return "";
+      const segHeight = Math.max(0, (valor / yMax) * plotHeight);
+      cursor -= segHeight;
+      return `<rect x="${x}" y="${cursor}" width="${barWidth}" height="${segHeight}" fill="${turno.cor}" class="linha2-clickable-bar" onclick="selectLinha2Dia('${day}','${turno.codigo}')"><title>${aDisplayDate(day)} · ${turno.label}: ${valor.toLocaleString("pt-BR")} pçs</title></rect>`;
+    }).join("");
+    const total = totals[dayIndex];
+    const totalLabel = total ? `<text x="${x + barWidth / 2}" y="${cursor - 6}" class="delta-linha2-axis-label" text-anchor="middle">${total.toLocaleString("pt-BR")}</text>` : "";
+    const dayLabel = day.slice(8, 10);
+    return `${segments}${totalLabel}<text x="${x + barWidth / 2}" y="${height - 10}" class="delta-linha2-axis-label" text-anchor="middle">${dayLabel}</text>`;
+  }).join("");
+
+  const plannedPoints = days
+    .map((day, index) => (plannedDaily[index] != null ? `${margin.left + index * groupWidth + groupWidth / 2},${yFor(plannedDaily[index])}` : null))
+    .filter(Boolean);
+  const plannedLine = plannedPoints.length ? `<path d="M${plannedPoints.join(" L")}" class="diario-linha2-planejado-line"/>` : "";
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" preserveAspectRatio="none" aria-hidden="true">
+      ${grid}
+      ${barsMarkup}
+      ${plannedLine}
+    </svg>
+    <div class="delta-linha2-legend">
+      ${stackOrder.map((turno) => `<span><i style="background:${turno.cor}"></i>${turno.label}</span>`).join("")}
+      <span><i class="is-line" style="border-color:#b90e2c"></i>Planejado</span>
+    </div>`;
+}
+
+// Gráfico "Planejado vs realizado acumulado": barras de atraso/adiantamento
+// acumulado no mês + linhas de planejado e realizado acumulados (escala
+// própria, já que os totais acumulados são bem maiores que o delta diário)
+// + painel de atingimento (%) por turno no mês.
+function renderAcumuladoLinha2Chart(data) {
+  const container = aq("#acumulado-linha2-chart");
+  const painel = aq("#acumulado-linha2-turnos");
+  if (!container) return;
+  const empty = aq("#acumulado-linha2-chart-empty");
+  if (!data) { container.innerHTML = ""; if (painel) painel.innerHTML = ""; if (empty) empty.hidden = false; return; }
+  const { days, metaByDay, realizadoPorDiaTurno } = data;
+  if (empty) empty.hidden = true;
+
+  let acumRealizado = 0, acumPlanejado = 0;
+  const pontos = days.map((day) => {
+    const meta = metaByDay.get(day);
+    const realizadoDia = DELTA_LINHA2_TURNOS.reduce((sum, t) => sum + (realizadoPorDiaTurno.get(`${day}|${t.codigo}`) || 0), 0);
+    acumRealizado += realizadoDia;
+    if (meta != null) {
+      const turnosAtivos = DELTA_LINHA2_TURNOS.filter((t) => linha2TurnoAtivo(day, t.codigo)).length;
+      acumPlanejado += anumber(meta) * turnosAtivos;
+    }
+    return { day, acumRealizado, acumPlanejado, atraso: acumRealizado - acumPlanejado };
+  });
+
+  const width = Math.max(700, Math.round(container.clientWidth) || 900);
+  const height = Math.max(260, Math.round(container.clientHeight) || 320);
+  const margin = { top: 16, right: 60, bottom: 34, left: 64 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+
+  const atrasos = pontos.map((p) => p.atraso);
+  const maxAbsAtraso = Math.max(500, ...atrasos.map((v) => Math.abs(v)));
+  const yMaxBar = Math.ceil(maxAbsAtraso / 500) * 500;
+  const zeroY = margin.top + plotHeight / 2;
+  const yForBar = (value) => zeroY - (value / yMaxBar) * (plotHeight / 2);
+
+  const maxAcumulado = Math.max(1000, ...pontos.map((p) => Math.max(p.acumRealizado, p.acumPlanejado)));
+  const yMaxLine = Math.ceil(maxAcumulado / 5000) * 5000;
+  const yForLine = (value) => margin.top + (1 - value / yMaxLine) * plotHeight;
+
+  const groupWidth = plotWidth / days.length;
+  const barWidth = Math.max(4, groupWidth * 0.55);
+
+  const ticksBar = [-yMaxBar, -yMaxBar / 2, 0, yMaxBar / 2, yMaxBar];
+  const gridLeft = ticksBar.map((value) => {
+    const y = yForBar(value);
+    return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" class="delta-linha2-grid-line ${value === 0 ? "is-zero" : ""}"/>
+      <text x="${margin.left - 10}" y="${y + 4}" class="delta-linha2-axis-label" text-anchor="end">${Math.round(value).toLocaleString("pt-BR")}</text>`;
+  }).join("");
+  const ticksRight = 5;
+  const gridRight = Array.from({ length: ticksRight }, (_, i) => {
+    const value = (yMaxLine / (ticksRight - 1)) * i;
+    const y = yForLine(value);
+    return `<text x="${width - margin.right + 8}" y="${y + 4}" class="delta-linha2-axis-label" text-anchor="start">${Math.round(value).toLocaleString("pt-BR")}</text>`;
+  }).join("");
+
+  const barsMarkup = pontos.map((p, index) => {
+    const x = margin.left + index * groupWidth + (groupWidth - barWidth) / 2;
+    const y = Math.min(zeroY, yForBar(p.atraso));
+    const barHeight = Math.max(1, Math.abs(yForBar(p.atraso) - zeroY));
+    const cls = p.atraso >= 0 ? "is-adiantado" : "is-atraso";
+    const valorLabel = Math.abs(Math.round(p.atraso)).toLocaleString("pt-BR");
+    const situacaoLabel = p.atraso >= 0 ? "adiantamento" : "atraso";
+    const labelX = x + barWidth / 2;
+    const labelY = p.atraso >= 0
+      ? Math.max(9, y - 11)
+      : Math.min(height - 23, y + barHeight + 11);
+    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" class="acumulado-linha2-bar ${cls} linha2-clickable-bar" onclick="selectLinha2Dia('${p.day}',null)"><title>${aDisplayDate(p.day)}: ${situacaoLabel} acumulado ${valorLabel} pçs</title></rect>
+      <text x="${labelX}" y="${labelY}" class="acumulado-linha2-bar-value" text-anchor="middle" dominant-baseline="middle">${valorLabel}</text>`;
+  }).join("");
+
+  const dayLabels = days.map((day, index) =>
+    `<text x="${margin.left + index * groupWidth + groupWidth / 2}" y="${height - 10}" class="delta-linha2-axis-label" text-anchor="middle">${day.slice(8, 10)}</text>`
+  ).join("");
+
+  const lineFor = (key) => pontos.map((p, index) => `${margin.left + index * groupWidth + groupWidth / 2},${yForLine(p[key])}`).join(" L");
+  const planejadoLine = `<path d="M${lineFor("acumPlanejado")}" class="acumulado-linha2-planejado-line"/>`;
+  const realLine = `<path d="M${lineFor("acumRealizado")}" class="acumulado-linha2-real-line"/>`;
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" preserveAspectRatio="none" aria-hidden="true">
+      ${gridLeft}
+      ${gridRight}
+      ${barsMarkup}
+      ${planejadoLine}
+      ${realLine}
+      ${dayLabels}
+    </svg>
+    <div class="delta-linha2-legend">
+      <span><i style="background:#ef233c"></i>Atraso acumulado (pçs)</span>
+      <span><i style="background:#00b84a"></i>Adiantamento acumulado (pçs)</span>
+      <span><i class="is-line" style="border-color:#b90e2c"></i>Planejado acumulado</span>
+      <span><i class="is-line" style="border-color:#218c4b"></i>Real acumulado</span>
+    </div>`;
+
+  if (painel) {
+    painel.innerHTML = DELTA_LINHA2_TURNOS.map((turno) => {
+      let realizadoTurno = 0, planejadoTurno = 0;
+      for (const day of days) {
+        if (!linha2TurnoAtivo(day, turno.codigo)) continue;
+        realizadoTurno += realizadoPorDiaTurno.get(`${day}|${turno.codigo}`) || 0;
+        const meta = metaByDay.get(day);
+        if (meta != null) planejadoTurno += anumber(meta);
+      }
+      const percent = planejadoTurno > 0 ? (realizadoTurno / planejadoTurno) * 100 : null;
+      const percentClass = percent == null ? "" : percent >= 100 ? "is-good" : percent >= 80 ? "is-warn" : "is-bad";
+      return `<div class="acumulado-linha2-turno-card" style="--turno-cor:${turno.cor}">
+        <strong>${turno.label}</strong>
+        <span class="acumulado-linha2-turno-percent ${percentClass}">${percent == null ? "—" : `${percent.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%`}</span>
+        <small>${realizadoTurno.toLocaleString("pt-BR")} / ${planejadoTurno.toLocaleString("pt-BR")} pçs</small>
+      </div>`;
+    }).join("");
+  }
+}
+
+// Estado da tabela de peças liberadas — guarda os dados já carregados dos
+// gráficos (evita nova consulta) e o dia/turno selecionado ao clicar numa
+// barra, tipo drill-down do Power BI.
+let linha2ChartsData = null;
+let linha2TableFilter = null; // { day, turno } | null
+
+function selectLinha2Dia(day, turno) {
+  linha2TableFilter = { day, turno: turno || null };
+  renderLinha2RecordsTable();
+  aq("#linha2-records-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function clearLinha2Filter() {
+  linha2TableFilter = null;
+  renderLinha2RecordsTable();
+}
+
+function renderLinha2RecordsTable() {
+  const thead = aq("#linha2-records-thead");
+  const tbody = aq("#linha2-records-rows");
+  const empty = aq("#linha2-records-empty");
+  const chip = aq("#linha2-table-filter-chip");
+  if (!thead || !tbody) return;
+  if (!linha2ChartsData) { thead.innerHTML = ""; tbody.innerHTML = ""; if (empty) empty.hidden = false; return; }
+
+  if (!linha2TableFilter) {
+    if (chip) chip.hidden = true;
+    thead.innerHTML = `<tr><th>Data</th><th>Manhã</th><th>Tarde</th><th>Noite</th><th>Total</th></tr>`;
+    const rows = linha2ChartsData.days.map((day) => {
+      const manha = linha2ChartsData.realizadoPorDiaTurno.get(`${day}|MANHA`) || 0;
+      const tarde = linha2ChartsData.realizadoPorDiaTurno.get(`${day}|TARDE`) || 0;
+      const noite = linha2ChartsData.realizadoPorDiaTurno.get(`${day}|NOITE`) || 0;
+      const total = manha + tarde + noite;
+      return `<tr class="linha2-table-row" onclick="selectLinha2Dia('${day}', null)">
+        <td>${aDisplayDate(day)}</td><td>${manha.toLocaleString("pt-BR")}</td><td>${tarde.toLocaleString("pt-BR")}</td><td>${noite.toLocaleString("pt-BR")}</td><td><strong>${total.toLocaleString("pt-BR")}</strong></td>
+      </tr>`;
+    });
+    tbody.innerHTML = rows.join("");
+    if (empty) empty.hidden = rows.length > 0;
+    return;
+  }
+
+  const { day, turno } = linha2TableFilter;
+  const turnoLabel = turno ? DELTA_LINHA2_TURNOS.find((t) => t.codigo === turno)?.label : null;
+  if (chip) {
+    chip.hidden = false;
+    chip.innerHTML = `<span>Detalhe de ${aDisplayDate(day)}${turnoLabel ? ` · ${turnoLabel}` : ""}</span><button type="button" onclick="clearLinha2Filter()">Ver todos os dias</button>`;
+  }
+
+  thead.innerHTML = `<tr><th>Turno</th><th>Produto</th><th>Liberadas</th><th>Rejeitadas</th><th>Retrabalhadas</th><th>Refugadas</th></tr>`;
+  const rows = (linha2ChartsData.recordsLinha2 || [])
+    .filter((r) => r.data_operacional === day && (!turno || r.turno === turno))
+    .sort((a, b) => a.turno.localeCompare(b.turno) || (a.produtos?.codigo || "").localeCompare(b.produtos?.codigo || ""));
+  tbody.innerHTML = rows.map((r) => {
+    const turnoInfo = DELTA_LINHA2_TURNOS.find((t) => t.codigo === r.turno);
+    return `<tr>
+      <td>${aesc(turnoInfo?.label || r.turno)}</td>
+      <td>${aesc(r.produtos?.codigo || "—")} — ${aesc(r.produtos?.nome || "")}</td>
+      <td>${anumber(r.quantidade_liberada).toLocaleString("pt-BR")}</td>
+      <td>${anumber(r.quantidade_rejeitada).toLocaleString("pt-BR")}</td>
+      <td>${anumber(r.quantidade_retrabalhada).toLocaleString("pt-BR")}</td>
+      <td>${anumber(r.quantidade_refugada).toLocaleString("pt-BR")}</td>
+    </tr>`;
+  }).join("");
+  if (empty) empty.hidden = rows.length > 0;
+}
+
+async function renderLinha2IndicatorCharts() {
+  const data = await loadLinha2IndicatorData();
+  linha2ChartsData = data;
+  linha2TableFilter = null;
+  renderAcumuladoLinha2Chart(data);
+  renderDiarioLinha2Chart(data);
+  renderDeltaLinha2Chart(data);
+  renderLinha2RecordsTable();
+}
+
+async function reloadAcabamentoChartsMonth() {
+  const input = aq("#charts-month");
+  const loading = aq("#production-loading");
+  if (!input?.value) return;
+  acabamentoChartsMonth = input.value;
+  input.disabled = true;
+  if (loading) { loading.textContent = "Carregando indicadores..."; loading.hidden = false; }
+  try {
+    await loadAcabamentoData();
+    renderAcabamentoCharts();
+    await renderLinha2IndicatorCharts();
+  } finally {
+    input.disabled = false;
+    if (loading) loading.hidden = true;
+  }
+}
+
 async function initializeAcabamentoProduction() {
   const user = await window.LIDUTEC_APP.requireAuthenticatedUser();
   if (!user) return;
@@ -1424,6 +1864,13 @@ async function initializeAcabamentoProduction() {
   aq("#user-name").textContent = profile.nome;
   aq("#user-profile").textContent = profile.perfil || "Usuário";
   aq("#user-avatar").textContent = profile.nome.slice(0, 1).toUpperCase();
+
+  if (acabamentoPage === "charts") {
+    const today = window.LIDUTEC_TURNOS.determineShift().dataOperacional;
+    acabamentoChartsMonth = today.slice(0, 7);
+    const input = aq("#charts-month");
+    if (input) { input.value = acabamentoChartsMonth; input.max = acabamentoChartsMonth; }
+  }
 
   await loadAcabamentoSupport();
   if (acabamentoPage !== "entry") await loadAcabamentoData();
@@ -1446,7 +1893,11 @@ async function initializeAcabamentoProduction() {
     });
     aq("#stop-export-button")?.addEventListener("click", exportVisibleAcabamentoStops);
   }
-  if (acabamentoPage === "charts") renderAcabamentoCharts();
+  if (acabamentoPage === "charts") {
+    renderAcabamentoCharts();
+    await renderLinha2IndicatorCharts();
+    aq("#charts-month")?.addEventListener("change", () => reloadAcabamentoChartsMonth().catch((error) => acabamentoMessage(error.message, "error")));
+  }
   if (acabamentoPage === "entry") {
     if (!permissions.has("producao_acabamento.lancar")) throw new Error("Usuário sem permissão para lançar produção de acabamento.");
     await initializeShiftEntry();

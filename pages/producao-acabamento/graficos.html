@@ -9,9 +9,25 @@
 <body class="app-page" data-production-page="charts">
   <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
   <div class="app-shell">
-    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Indicadores de Acabamento</h1><p>Disponibilidade, eficiência, qualidade e OEE — últimos 30 dias</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Indicadores de Acabamento</h1><p>Disponibilidade, eficiência, qualidade e OEE — período mensal</p></div><label class="charts-month-filter" for="charts-month"><span>Mês</span><input type="month" id="charts-month" aria-label="Mês dos indicadores"></label><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
     <main class="main-content">
       <div id="production-loading" class="loading-state">Carregando...</div>
+      <section class="panel">
+        <div class="panel-header"><h3>Planejado vs. realizado acumulado — Linha 2</h3><p class="production-muted">Atraso/adiantamento acumulado no mês, planejado x real acumulados e atingimento por turno.</p></div>
+        <div id="acumulado-linha2-turnos" class="acumulado-linha2-turnos-grid"></div>
+        <div id="acumulado-linha2-chart" class="delta-linha2-chart"></div>
+        <p id="acumulado-linha2-chart-empty" class="production-muted" hidden>Sem dados de produção da Linha 2 nesse período.</p>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h3>Peças liberadas por dia — Linha 2</h3><p class="production-muted">Total realizado por dia (empilhado por turno) vs. planejado diário.</p></div>
+        <div id="diario-linha2-chart" class="delta-linha2-chart"></div>
+        <p id="diario-linha2-chart-empty" class="production-muted" hidden>Sem dados de produção da Linha 2 nesse período.</p>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h3>Delta por turno — Linha 2</h3><p class="production-muted">Atraso/adiantamento acumulado no mês, turno a turno, vs. meta gerencial de 3.000 peças por turno.</p></div>
+        <div id="delta-linha2-chart" class="delta-linha2-chart"></div>
+        <p id="delta-linha2-chart-empty" class="production-muted" hidden>Sem dados de produção da Linha 2 nesse período.</p>
+      </section>
       <section class="production-donut-grid">
         <article class="panel production-donut-panel"><h3>Disponibilidade</h3><p>Operadores presentes e paradas registradas</p><div id="gauge-disponibilidade" class="production-donut-chart production-gauge"></div></article>
         <article class="panel production-donut-panel"><h3>Eficiência</h3><p>Tempo teórico × tempo disponível</p><div id="gauge-eficiencia" class="production-donut-chart production-gauge"></div></article>
@@ -21,6 +37,12 @@
       <section class="panel">
         <div class="panel-header"><h3>Equipamentos avulsos</h3><p class="production-muted">Não entram na disponibilidade da linha — taxa própria de utilização no período.</p></div>
         <div id="equipamentos-avulsos-rows" class="equipamentos-avulsos-grid"></div>
+      </section>
+      <section class="panel" id="linha2-records-panel">
+        <div class="panel-header"><h3>Peças liberadas — Linha 2</h3><p class="production-muted">Clique numa barra dos gráficos acima pra ver o detalhe daquele dia (ou turno).</p></div>
+        <div id="linha2-table-filter-chip" class="linha2-table-filter-chip" hidden></div>
+        <div class="table-wrapper"><table class="products-table"><thead id="linha2-records-thead"></thead><tbody id="linha2-records-rows"></tbody></table></div>
+        <p id="linha2-records-empty" class="production-muted" hidden>Sem dados de produção da Linha 2 nesse período.</p>
       </section>
     </main>
   </div>

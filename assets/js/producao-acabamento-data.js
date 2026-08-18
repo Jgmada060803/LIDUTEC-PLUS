@@ -56,6 +56,15 @@
       if (error) throw error;
       return data;
     },
+    materiaisProdutos: () => result(client().rpc("materiais_produtos_producao_acabamento")),
+    metaPecasLiberadas: async (linhaId, date) => {
+      const { data, error } = await client().rpc("meta_vigente", {
+        p_area_id: await areaId(), p_linha_maquina_id: linhaId, p_turno: null,
+        p_indicador_codigo: "PECAS_LIBERADAS_PLANEJADAS", p_data: date
+      });
+      if (error) throw error;
+      return data;
+    },
     linha2Ativa: async (date, turno) => {
       const { data, error } = await client().rpc("linha_2_ativa_acabamento", { p_data_operacional: date, p_turno: turno });
       if (error) throw error;

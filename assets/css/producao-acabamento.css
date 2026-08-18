@@ -50,5 +50,50 @@
 .equipamento-avulso-card span{font-size:1.4rem;font-weight:900;color:var(--color-primary)}
 .equipamento-avulso-card small{color:var(--color-text-muted);font-size:.68rem}
 
-@media(max-width:900px){.acabamento-shift-header{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){.acabamento-shift-header{grid-template-columns:1fr}.acabamento-operadores-field{white-space:normal;flex-wrap:wrap}}
+.charts-month-filter{display:grid;gap:3px;margin-left:auto;color:var(--color-text-muted);font-size:.66rem;font-weight:800}
+.charts-month-filter input{min-width:150px;height:36px;padding:5px 9px;border:1px solid var(--color-border);border-radius:7px;color:var(--color-text);background:#fff;font:700 .78rem system-ui,sans-serif}
+.charts-month-filter+.user-box{margin-left:18px}
+
+/* Gráfico de delta (realizado - meta) por turno da Linha 2, mês atual */
+.delta-linha2-chart{width:100%;height:320px}
+.delta-linha2-chart svg{display:block;width:100%;height:100%}
+.delta-linha2-grid-line{stroke:#e2e8f0;stroke-width:1}
+.delta-linha2-grid-line.is-zero{stroke:#94a3b8;stroke-width:1.4}
+.delta-linha2-axis-label{fill:#64748b;font:700 11px system-ui,sans-serif}
+.delta-linha2-bar{rx:1.5}
+.delta-linha2-bar-value{fill:#334155;font:800 10px system-ui,sans-serif;pointer-events:none}
+.delta-linha2-legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:8px;font-size:.76rem;font-weight:700;color:var(--color-text-muted)}
+.delta-linha2-legend span{display:inline-flex;align-items:center;gap:6px}
+.delta-linha2-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.delta-linha2-legend i.is-sem-meta{background:#cbd5e1}
+.delta-linha2-legend i.is-line{width:16px;height:0;border-top:3px solid;background:none;border-radius:0}
+
+.diario-linha2-planejado-line{fill:none;stroke:#b90e2c;stroke-width:2.4;stroke-dasharray:8 5;stroke-linejoin:round;stroke-linecap:round}
+
+.acumulado-linha2-bar.is-atraso{fill:#ef233c}
+.acumulado-linha2-bar.is-adiantado{fill:#00b84a}
+.acumulado-linha2-bar-value{fill:#172033;font:800 10px system-ui,sans-serif;pointer-events:none}
+.acumulado-linha2-planejado-line{fill:none;stroke:#b90e2c;stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}
+.acumulado-linha2-real-line{fill:none;stroke:#218c4b;stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}
+
+.acumulado-linha2-turnos-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:12px;margin:14px 0 20px}
+.acumulado-linha2-turno-card{display:grid;gap:4px;padding:14px;border:1px solid var(--turno-cor,var(--color-border));border-radius:10px;background:var(--turno-cor,#fff);text-align:center}
+.acumulado-linha2-turno-card strong{font-size:.78rem;color:var(--color-text-muted)}
+.acumulado-linha2-turno-percent{font-size:1.4rem;font-weight:900;color:var(--color-primary)}
+.acumulado-linha2-turno-percent.is-good{color:#218c4b}
+.acumulado-linha2-turno-percent.is-warn{color:#b7791f}
+.acumulado-linha2-turno-percent.is-bad{color:#b90e2c}
+.acumulado-linha2-turno-card small{color:var(--color-text-muted);font-size:.68rem}
+
+/* Barras clicáveis dos 3 gráficos de indicadores da Linha 2 — abrem o
+   detalhe do dia/turno na tabela "Peças liberadas — Linha 2" no fim da
+   página, tipo drill-down do Power BI. */
+.linha2-clickable-bar{cursor:pointer}
+.linha2-clickable-bar:hover{opacity:.75}
+.linha2-table-row{cursor:pointer}
+.linha2-table-row:hover{background:#f8fafc}
+.linha2-table-filter-chip{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;border:1px solid var(--color-border);border-radius:8px;background:#eef2ff;font-size:.8rem;font-weight:700;color:var(--color-primary)}
+.linha2-table-filter-chip button{padding:2px 10px;border:1px solid var(--color-primary);border-radius:14px;background:#fff;color:var(--color-primary);font-size:.7rem;font-weight:800;cursor:pointer}
+
+@media(max-width:900px){.acabamento-shift-header{grid-template-columns:repeat(2,minmax(0,1fr))}.charts-month-filter input{min-width:130px}.charts-month-filter+.user-box{margin-left:10px}}
+@media(max-width:600px){.acabamento-shift-header{grid-template-columns:1fr}.acabamento-operadores-field{white-space:normal;flex-wrap:wrap}.acumulado-linha2-turnos-grid{grid-template-columns:1fr}}
