@@ -44,6 +44,39 @@ body {
   background: var(--color-background);
 }
 
+/* Foto de fundo do setor/máquina, usada nas telas de apontamento de
+   produção. A foto crua (colorida, nítida, com gente/objetos no meio) fica
+   "barulhenta" atrás da interface — por isso vai num ::before à parte, em
+   preto-e-branco, desfocada e bem apagada, lida mais como uma textura de
+   ambientação do que como uma foto literal. Fica atrás de tudo (z-index
+   -1) sem interferir na leitura dos painéis, que continuam opacos. */
+.app-shell.shell-photo-bg {
+  position: relative;
+  isolation: isolate;
+}
+.app-shell.shell-photo-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--bg-photo);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: grayscale(65%) blur(6px) brightness(1.12);
+  opacity: 0.3;
+  pointer-events: none;
+}
+/* Painéis um pouco translúcidos nessas telas, pra "puxar" a foto de fundo
+   pra dentro do conteúdo em vez dela só aparecer nas bordas — o desfoque
+   próprio (backdrop-filter) mantém o texto por cima sempre nítido, então a
+   opacidade alta (92%) é só um respiro, não compromete a leitura. */
+.shell-photo-bg .panel {
+  background: rgb(255 255 255 / 92%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
 button,
 input,
 select,

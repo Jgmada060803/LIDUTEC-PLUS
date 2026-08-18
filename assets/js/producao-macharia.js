@@ -424,6 +424,10 @@ function updateMaquinaBanner() {
   const maquina = currentMaquina();
   const banner = aq("#maquina-banner-name");
   if (banner) banner.textContent = maquina ? maquina.nome : "—";
+  const shell = aq(".app-shell");
+  if (shell && maquina?.codigo) {
+    shell.style.setProperty("--bg-photo", `url(../../assets/images/${maquina.codigo.toLowerCase()}.jpeg)`);
+  }
 }
 // Linha do tempo do turno (mesmo padrão visual da Moldagem, CSS
 // reaproveitado de producao-moldes.css) — sempre lida da máquina
