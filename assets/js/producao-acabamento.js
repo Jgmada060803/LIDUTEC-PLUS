@@ -672,12 +672,18 @@ function applyLinha2Visibility() {
   const label = aq("#linha2-title");
   const operatorsField = aq("#operadores-presentes-l2-field");
   if (!section) return;
+  const operatorsInput = operatorsField.querySelector("input");
   if (acabamentoState.linha2Ativa) {
     label.textContent = "Linha 2";
     operatorsField.hidden = false;
+    if (operatorsInput) operatorsInput.required = true;
   } else {
     label.textContent = "Linha 2 — Produção extraordinária (opcional)";
     operatorsField.hidden = true;
+    // Campo escondido não pode continuar "required" — o navegador tenta
+    // focar nele pra validar e não consegue (elemento oculto), travando o
+    // envio do formulário inteiro sem nenhum aviso visível ao usuário.
+    if (operatorsInput) operatorsInput.required = false;
   }
 }
 
@@ -1041,13 +1047,6 @@ async function initializeShiftEntry() {
   if (!restoreShiftDraft()) { /* checkShiftStatus abaixo decide entre rascunho compartilhado e formulário em branco */ }
   await checkShiftStatus();
 
-  window.supabaseClient.channel("shared-production-shift-acabamento").on("postgres_changes", { event: "*", schema: "public", table: "turnos_producao_acabamento" }, (payload) => {
-    const row = payload.new;
-    if (!document.hidden && row && row.data_operacional === form.elements.data_operacional.value && row.turno === form.elements.turno.value &&
-      String(row.atualizado_por) !== String(acabamentoState.user?.id)) {
-      refreshContext();
-    }
-  }).subscribe();
   aq("#edit-shift-button").addEventListener("click", () => editClosedShift().catch((error) => acabamentoMessage(error.message, "error")));
   aq("#delete-shift-button").addEventListener("click", deleteClosedShift);
 }
