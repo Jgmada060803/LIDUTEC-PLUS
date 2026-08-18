@@ -30,7 +30,9 @@
       const [products, lines, categories, sectors] = await Promise.all([
         result(client().from("produtos").select("id,codigo,nome,cavidades_molde,peso_peca_kg").eq("status", "ATIVO").order("codigo")),
         result(client().from("linhas_maquinas_producao").select("id,codigo,nome").eq("ativo", true).order("codigo")),
-        result(client().from("categorias_parada_producao").select("id,codigo,nome").eq("ativo", true).order("nome")),
+        // area_id=1 é MOLDAGEM (areas_checklist); area_id nulo = motivo
+        // genérico, aparece pra todas as áreas.
+        result(client().from("categorias_parada_producao").select("id,codigo,nome").eq("ativo", true).or("area_id.eq.1,area_id.is.null").order("nome")),
         result(client().from("setores_responsaveis_parada").select("id,codigo,nome").eq("ativo", true).order("nome"))
       ]);
       return { products, lines, categories, sectors };

@@ -31,7 +31,9 @@
       const [products, lines, categories, sectors, postos] = await Promise.all([
         result(client().from("produtos").select("id,codigo,nome").eq("status", "ATIVO").order("codigo")),
         result(client().from("linhas_maquinas_producao").select("id,codigo,nome,areas_checklist!inner(codigo)").eq("areas_checklist.codigo", "ACABAMENTO").eq("ativo", true).order("codigo")),
-        result(client().from("categorias_parada_producao").select("id,codigo,nome").eq("ativo", true).order("nome")),
+        // area_id=5 é ACABAMENTO (areas_checklist); area_id nulo = motivo
+        // genérico, aparece pra todas as áreas.
+        result(client().from("categorias_parada_producao").select("id,codigo,nome").eq("ativo", true).or("area_id.eq.5,area_id.is.null").order("nome")),
         result(client().from("setores_responsaveis_parada").select("id,codigo,nome").eq("ativo", true).order("nome")),
         result(client().from("postos_equipamentos_acabamento").select("id,codigo,nome,tipo,linha_maquina_id").eq("ativo", true).order("ordem"))
       ]);
