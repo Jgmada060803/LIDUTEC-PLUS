@@ -116,11 +116,12 @@
     q("#macharia-hourly-chart-empty").hidden = withData.length > 0;
     if (!withData.length) { container.innerHTML = ""; return; }
 
-    // Largura/altura fixas no viewBox (não crescem com o nº de horas) — o
-    // espaçamento entre pontos é que se ajusta, e o CSS escala o SVG pra
-    // sempre caber na tela (width:100%), sem precisar rolar.
-    const width = 1400;
-    const height = 420;
+    // ViewBox no tamanho real do espaço disponível (medido no container),
+    // não um tamanho fixo arbitrário — assim o SVG preenche 100% da largura
+    // E da altura sem sobrar borda vazia e sem esticar/distorcer os
+    // círculos e o texto (o que preserveAspectRatio sozinho não evita).
+    const width = Math.max(600, Math.round(container.clientWidth) || 1400);
+    const height = Math.max(240, Math.round(container.clientHeight) || 420);
     const margin = { top: 46, right: 30, bottom: 50, left: 66 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
@@ -168,7 +169,7 @@
       : "";
 
     container.innerHTML = `
-      <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" aria-hidden="true">
+      <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" preserveAspectRatio="none" aria-hidden="true">
         ${watermark}
         ${grid}
         <line x1="${margin.left}" y1="${margin.top + plotHeight}" x2="${width - margin.right}" y2="${margin.top + plotHeight}" class="macharia-hourly-axis"/>
@@ -331,6 +332,16 @@
   q("#macharia-dashboard-maquina").addEventListener("change", () => reload().catch((error) => message(error.message)));
 
   await reload();
+
+  // Tela pensada pra ficar projetada, sem ninguém mexendo — precisa se
+  // atualizar sozinha. Evita sobrepor com um reload já em andamento, e não
+  // atualiza com a aba em segundo plano (evita gasto à toa).
+  let refreshing = false;
+  setInterval(() => {
+    if (document.hidden || refreshing) return;
+    refreshing = true;
+    reload().catch((error) => message(error.message)).finally(() => { refreshing = false; });
+  }, 60000);
 })().catch((error) => {
   console.error(error);
   const element = document.querySelector("#macharia-dashboard-message");
