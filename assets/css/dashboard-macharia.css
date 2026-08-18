@@ -1,0 +1,130 @@
+.macharia-dashboard-filters select {
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  background: #fff;
+  color: #333;
+  font-size: .76rem;
+}
+
+/* Tela pensada pra ficar projetada na área de produção (TV/monitor visto
+   de longe) — sem menu lateral pra aproveitar toda a largura, e com
+   respiro reduzido nas margens. */
+.macharia-kiosk .sidebar,
+.macharia-kiosk .menu-button {
+  display: none;
+}
+.macharia-kiosk .app-shell {
+  width: 100%;
+  margin-left: 0;
+}
+.macharia-kiosk .dashboard-report {
+  padding: 10px 18px;
+}
+
+.macharia-dashboard-layout {
+  display: grid;
+  gap: 14px;
+}
+
+/* Indicadores + gráfico precisam caber inteiros na tela, sem rolar, no
+   zoom de 100% — por isso ficam num bloco com altura limitada ao que
+   sobra da viewport depois da barra de topo, e o SVG do gráfico escala
+   por dentro (preserveAspectRatio) pra nunca estourar essa altura. */
+.macharia-dashboard-top {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: calc(100vh - 105px);
+  max-height: calc(100vh - 105px);
+  overflow: hidden;
+}
+
+/* Indicadores redondos em linha, acima do gráfico, sem caixa/borda ao
+   redor — só o círculo e o título flutuando. */
+.macharia-dashboard-gauges {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 48px;
+  padding: 4px 0 8px;
+  background: transparent;
+  border: none;
+}
+.macharia-gauge-item {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.macharia-gauge-item h3 { margin: 0; font-size: clamp(1rem, 1.6vw, 1.35rem); font-weight: 800; color: var(--color-text); }
+.macharia-gauge-item .production-donut { width: clamp(110px, 11vw, 170px); }
+.macharia-gauge-item .production-donut > div strong { font-size: clamp(1.4rem, 2.4vw, 2.1rem); }
+
+.macharia-hourly-panel {
+  flex: 3 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 16px;
+}
+.macharia-hourly-panel .panel-header { flex: 0 0 auto; margin-bottom: 2px; }
+.macharia-hourly-panel .panel-header p { margin: 2px 0 0; }
+.macharia-hourly-panel .macharia-hourly-chart { flex: 1 1 auto; min-height: 0; }
+
+/* Tabela de machos produzidos entra no mesmo bloco que precisa caber
+   inteiro na tela — se tiver mais linhas do que cabe, só ela rola por
+   dentro, sem precisar rolar a página toda. */
+.macharia-machos-panel {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px;
+}
+.macharia-machos-panel .panel-header { flex: 0 0 auto; margin-bottom: 2px; }
+.macharia-machos-panel .table-wrapper { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+.macharia-dashboard-layout .panel-header h2 { font-size: 1.4rem; }
+.macharia-dashboard-layout .panel-header p { font-size: .95rem; }
+.macharia-dashboard-layout table { font-size: 1.35rem; }
+.macharia-dashboard-layout table th { font-size: 1.05rem; }
+.macharia-dashboard-layout table td,
+.macharia-dashboard-layout table th { padding: 10px 12px; }
+
+/* Gráfico de sopros/hora: linha cheia = real, tracejadas = faixa de meta
+   (mín/máx ±20%). Mesmo padrão visual do gráfico de temperatura de
+   vazamento, adaptado pra essa tela — com os valores reais escritos acima
+   de cada ponto (não só em hover), pra dar pra ler de longe. */
+/* O SVG usa viewBox + preserveAspectRatio (padrão) pra caber tanto na
+   largura quanto na altura disponíveis, sem nunca estourar nem precisar
+   rolar (essa tela é projetada, sem mouse pra rolar). */
+.macharia-hourly-chart { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.macharia-hourly-chart svg { display: block; width: 100%; flex: 1 1 auto; min-height: 0; }
+.macharia-hourly-chart .macharia-hourly-legend { flex: 0 0 auto; }
+.macharia-hourly-grid-line { stroke: #dfe7ea; stroke-width: 1; }
+.macharia-hourly-axis { stroke: #8da0a8; stroke-width: 1.2; }
+.macharia-hourly-axis-label { fill: #445; font: 700 16px system-ui, sans-serif; }
+.macharia-hourly-value-label { fill: #1f45a8; font: 900 20px system-ui, sans-serif; }
+.macharia-hourly-value-label.outside { fill: #b90e2c; }
+.macharia-hourly-measured-line,
+.macharia-hourly-limit-min,
+.macharia-hourly-limit-max {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.macharia-hourly-measured-line { stroke: #1f45a8; stroke-width: 3; }
+.macharia-hourly-limit-min { stroke: #b90e2c; stroke-width: 2; stroke-dasharray: 8 5; }
+.macharia-hourly-limit-max { stroke: #b7791f; stroke-width: 2; stroke-dasharray: 8 5; }
+.macharia-hourly-point { fill: #1f45a8; stroke: #fff; stroke-width: 2; }
+.macharia-hourly-point-outside { fill: #b90e2c; stroke: #fff; stroke-width: 2; }
+.macharia-hourly-watermark { fill: #1f45a8; opacity: .07; font: 900 90px system-ui, sans-serif; text-transform: uppercase; letter-spacing: .04em; }
+.macharia-hourly-legend { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 10px; color: var(--color-text-muted); font-size: .95rem; font-weight: 700; }
+.macharia-hourly-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.macharia-hourly-legend i { width: 20px; height: 0; border-top: 3px solid; }
+.macharia-hourly-legend i.dashed { border-top-style: dashed; }

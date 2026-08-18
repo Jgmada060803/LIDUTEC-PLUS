@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard Macharia | Metalsider</title><link rel="icon" type="image/svg+xml" href="../assets/images/favicon.svg"><link rel="manifest" href="../manifest.webmanifest"><meta name="theme-color" content="#1f45a8"><link rel="stylesheet" href="../assets/css/app.css"><link rel="stylesheet" href="../assets/css/dashboard.css"><link rel="stylesheet" href="../assets/css/producao-moldes.css"><link rel="stylesheet" href="../assets/css/dashboard-report.css"><link rel="stylesheet" href="../assets/css/dashboard-macharia.css"></head>
+<body class="app-page dashboard-page macharia-kiosk"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+<div class="app-shell"><header class="topbar dashboard-report-topbar"><button type="button" class="menu-button" id="menu-button">☰</button>
+  <div class="report-dates macharia-dashboard-filters">
+    <label>Data<input id="macharia-dashboard-data" type="date"></label>
+    <label>Turno<select id="macharia-dashboard-turno"><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option><option value="TODOS">Todos os turnos</option><option value="ULTIMAS_24H">Últimas 24 horas</option></select></label>
+    <label>Máquina<select id="macharia-dashboard-maquina"></select></label>
+  </div>
+  <div class="topbar-title"><h1>Resumo do turno · Setor de Macharia</h1><p id="macharia-dashboard-subtitle"></p></div>
+  <a href="./producao-macharia/index.html" class="topbar-return-shift">Voltar</a>
+  <div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div class="user-avatar" id="user-avatar">U</div></div>
+</header>
+<main class="dashboard-report">
+  <div id="macharia-dashboard-loading" class="report-loading">Carregando indicadores...</div>
+  <div id="macharia-dashboard-message" class="form-message error" hidden></div>
+  <div class="macharia-dashboard-layout">
+    <div class="macharia-dashboard-top">
+      <section class="macharia-dashboard-gauges">
+        <article class="macharia-gauge-item"><h3>Disponibilidade</h3><div id="gauge-disponibilidade" class="production-donut-chart production-gauge"></div></article>
+        <article class="macharia-gauge-item"><h3>Eficiência</h3><div id="gauge-eficiencia" class="production-donut-chart production-gauge"></div></article>
+        <article class="macharia-gauge-item"><h3>Qualidade</h3><div id="gauge-qualidade" class="production-donut-chart production-gauge"></div></article>
+        <article class="macharia-gauge-item"><h3>OEE</h3><div id="gauge-oee" class="production-donut-chart production-gauge"></div></article>
+      </section>
+      <section class="panel macharia-hourly-panel">
+        <div class="panel-header"><h2>Sopros por hora — real x meta</h2><p>Meta por hora é a média ponderada da meta de cada macho ativo (peso = nº de estações), faixa de controle ±20%.</p></div>
+        <div id="macharia-hourly-chart" class="macharia-hourly-chart"></div>
+        <p id="macharia-hourly-chart-empty" class="production-muted" hidden>Nenhuma produção lançada nesse turno.</p>
+      </section>
+      <section class="panel macharia-machos-panel">
+        <div class="panel-header"><h2>Machos produzidos</h2></div>
+        <div class="table-wrapper"><table class="products-table"><thead><tr><th>Macho</th><th>Sopros</th><th>Machos produzidos</th><th>Machos refugados</th><th>Aproveitados</th></tr></thead><tbody id="macharia-dashboard-machos-rows"></tbody></table></div>
+        <p id="macharia-dashboard-machos-empty" class="production-muted" hidden>Nenhum macho produzido nesse turno.</p>
+      </section>
+    </div>
+    <section class="panel">
+      <div class="panel-header"><h2>Ocorrências de parada</h2></div>
+      <div class="table-wrapper"><table class="products-table"><thead><tr><th>Início</th><th>Fim</th><th>Duração</th><th>Setor</th><th>Motivo</th><th>Observações</th></tr></thead><tbody id="macharia-dashboard-stops-rows"></tbody></table></div>
+      <p id="macharia-dashboard-stops-empty" class="production-muted" hidden>Nenhuma parada registrada nesse turno.</p>
+    </section>
+  </div>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../assets/js/config.js"></script><script src="../assets/js/supabase.js"></script><script src="../assets/js/app.js"></script><script src="../assets/js/turnos.js"></script><script src="../assets/js/producao-macharia-data.js"></script><script src="../assets/js/dashboard-macharia.js"></script></body></html>
