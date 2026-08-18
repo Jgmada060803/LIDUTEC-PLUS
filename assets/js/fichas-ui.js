@@ -16,7 +16,7 @@
       codigo: "MACHARIA",
       nome: "Macharia",
       template: "macharia_v1",
-      page: null
+      page: "macharia.html"
     },
     {
       codigo: "ACABAMENTO",

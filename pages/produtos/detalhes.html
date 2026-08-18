@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="../../assets/css/produto-tempo-ciclo.css">
   <link rel="prefetch" href="./moldagem.html">
   <link rel="prefetch" href="./fusao-vazamento.html">
+  <link rel="prefetch" href="./macharia.html">
   <link rel="prefetch" href="../../assets/js/produtos-moldagem.js" as="script">
 </head>
 
@@ -233,6 +234,14 @@
           <button
             type="button"
             class="product-tab"
+            data-tab="macharia"
+          >
+            Macharia
+          </button>
+
+          <button
+            type="button"
+            class="product-tab"
             data-tab="moldagem"
           >
             Moldagem
@@ -380,6 +389,31 @@
             <div id="module-detail-content"></div>
           </article>
 
+        </section>
+
+        <section
+          class="product-tab-panel"
+          data-panel="macharia"
+          hidden
+        >
+          <article class="panel module-placeholder">
+            <span class="eyebrow">Ficha técnica</span>
+            <h3>Especificações de Macharia</h3>
+
+            <p>
+              Este produto pode ter mais de um tipo de macho — cada
+              macho cadastrado na Ficha de Macho tem sua própria ficha
+              técnica de parâmetros de máquina, receita de areia e
+              pintura.
+            </p>
+
+            <ul id="macharia-machos-list" class="macharia-machos-list"></ul>
+
+            <p id="macharia-sem-macho" class="production-muted" hidden>
+              Este produto ainda não tem nenhum macho cadastrado.
+              <a href="../producao-macharia/ficha-macho.html">Cadastrar macho</a>
+            </p>
+          </article>
         </section>
 
         <section
@@ -621,6 +655,7 @@
   <script src="../../assets/js/app.js"></script>
   <script src="../../assets/js/fichas-preview.js"></script>
   <script src="../../assets/js/fichas-ui.js"></script>
+  <script src="../../assets/js/produto-header-nav.js"></script>
   <script src="../../assets/js/produtos-detalhes.js"></script>
   <script src="../../assets/js/produto-tempo-ciclo.js"></script>
 

@@ -11,6 +11,8 @@ const importElements = {
   product: document.querySelector("#import-product"),
   type: document.querySelector("#import-type"),
   template: document.querySelector("#import-template"),
+  machoField: document.querySelector("#import-macho-field"),
+  macho: document.querySelector("#import-macho"),
   documentCode: document.querySelector("#import-document-code"),
   revision: document.querySelector("#import-revision"),
   date: document.querySelector("#import-date"),
@@ -49,7 +51,8 @@ const importState = {
 
 const templateByType = {
   MOLDAGEM: "moldagem_v1",
-  FUSAO_VAZAMENTO: "fusao_vazamento_v1"
+  FUSAO_VAZAMENTO: "fusao_vazamento_v1",
+  MACHARIA: "macharia_v1"
 };
 
 function getInitials(name = "Usuário") {
@@ -59,6 +62,56 @@ function getInitials(name = "Usuário") {
 
 function getImportId() {
   return new URLSearchParams(window.location.search).get("importacao");
+}
+
+function escapeHtml(value = "") {
+  return String(value).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+// Macharia é o único tipo com mais de uma ficha por produto (uma por
+// macho) — esse campo só aparece quando o tipo escolhido é Macharia, e
+// lista os machos já cadastrados (Ficha de Macho) pro produto selecionado.
+async function syncMachoField() {
+  if (!importElements.machoField) {
+    return;
+  }
+  const isMacharia = importElements.type.value === "MACHARIA";
+  importElements.machoField.hidden = !isMacharia;
+  if (!isMacharia) {
+    importElements.macho.innerHTML = '<option value="">Selecione</option>';
+    return;
+  }
+
+  const productId = importElements.product.value;
+  if (!productId) {
+    importElements.macho.innerHTML =
+      '<option value="">Selecione o produto primeiro</option>';
+    return;
+  }
+
+  const { data, error } = await window.supabaseClient
+    .from("machos_macharia_produtos")
+    .select("macho_id, machos_macharia(id, caixa, macho, ativo)")
+    .eq("produto_id", Number(productId));
+
+  if (error) {
+    console.error(error);
+    importElements.macho.innerHTML =
+      '<option value="">Erro ao carregar machos</option>';
+    return;
+  }
+
+  const machos = (data ?? [])
+    .map((item) => item.machos_macharia)
+    .filter((macho) => macho && macho.ativo);
+
+  importElements.macho.innerHTML = ['<option value="">Selecione</option>']
+    .concat(machos.map((macho) =>
+      `<option value="${macho.id}">Caixa ${escapeHtml(macho.caixa)} · Macho ${escapeHtml(macho.macho)}</option>`
+    ))
+    .join("");
 }
 
 function applyImportContextFromUrl() {
@@ -571,6 +624,14 @@ async function saveImport() {
     throw new Error("Reconheça os campos do PDF antes de salvar.");
   }
 
+  if (
+    importElements.type.value === "MACHARIA" &&
+    !importState.sheet?.id &&
+    !importElements.macho?.value
+  ) {
+    throw new Error("Selecione o macho para esta ficha de Macharia.");
+  }
+
   const pdf = await uploadPdfIfNeeded();
   const values = collectValues();
   const changedFields = [...importState.changedFields];
@@ -606,7 +667,10 @@ async function saveImport() {
       p_pdf_mime_type: pdf?.mimeType ?? null,
       p_pdf_tamanho_bytes: pdf?.size ?? null,
       p_pdf_hash_sha256: pdf?.hash ?? null,
-      p_ficha_id: importState.sheet?.id ?? null
+      p_ficha_id: importState.sheet?.id ?? null,
+      p_macho_id: importElements.macho?.value
+        ? Number(importElements.macho.value)
+        : null
     }
   );
 
@@ -907,6 +971,10 @@ async function initializeImportPage() {
   } else {
     applyImportContextFromUrl();
   }
+  await syncMachoField();
+  if (importState.sheet?.macho_id) {
+    importElements.macho.value = String(importState.sheet.macho_id);
+  }
 
   updateState();
   importElements.loading.hidden = true;
@@ -924,6 +992,10 @@ importElements.logoutButton?.addEventListener("click", async () => {
 importElements.type?.addEventListener("change", () => {
   importElements.template.value =
     templateByType[importElements.type.value] ?? "";
+  syncMachoField().catch(console.error);
+});
+importElements.product?.addEventListener("change", () => {
+  syncMachoField().catch(console.error);
 });
 
 importElements.file?.addEventListener("change", () => {

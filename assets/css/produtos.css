@@ -1472,6 +1472,14 @@
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 
+  body[data-ficha-tipo="MACHARIA"] .sheet-layout-fusion {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  body[data-ficha-tipo="MACHARIA"] .sheet-layout-fusion .molding-group {
+    grid-column: auto !important;
+  }
+
   .sheet-layout-fusion :is(
     .group-fv-inoculacao,
     .group-fv-nodularizacao,
@@ -1810,6 +1818,204 @@
   }
 }
 
+.macharia-machos-list {
+  width: 100%;
+  max-width: 640px;
+
+  display: grid;
+  gap: 8px;
+
+  margin: 18px 0 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.macharia-macho-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 12px 14px;
+
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+
+  background: #f8fafb;
+}
+
+.macharia-macho-row strong {
+  display: block;
+}
+
+.macharia-macho-row .production-muted {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.8rem;
+}
+
+.illustrations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+
+  margin: 14px 0;
+}
+
+.illustration-item {
+  position: relative;
+
+  margin: 0;
+  padding: 0;
+
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+
+  aspect-ratio: 1 / 1;
+
+  background: #f8fafb;
+}
+
+.illustration-item img {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+  cursor: zoom-in;
+}
+
+.illustration-item.illustration-pdf {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  padding: 10px;
+
+  cursor: zoom-in;
+  background: #eef1f3;
+}
+
+.illustration-pdf-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.illustration-pdf-name {
+  overflow: hidden;
+
+  max-width: 100%;
+
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.illustration-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+
+  width: 26px;
+  height: 26px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 50%;
+
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.illustration-remove:hover {
+  background: rgba(169, 45, 45, 0.9);
+}
+
+.illustrations-upload-button {
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.illustrations-upload-button.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.illustration-lightbox {
+  max-width: 92vw;
+  max-height: 92vh;
+
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+
+  background: transparent;
+}
+
+.illustration-lightbox::backdrop {
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.illustration-lightbox img {
+  display: block;
+
+  max-width: 92vw;
+  max-height: 92vh;
+
+  border-radius: 10px;
+}
+
+.illustration-lightbox iframe {
+  display: block;
+
+  width: 88vw;
+  height: 88vh;
+
+  border: none;
+  border-radius: 10px;
+
+  background: #fff;
+}
+
+.illustration-lightbox-close {
+  position: fixed;
+  top: 18px;
+  right: 24px;
+
+  width: 40px;
+  height: 40px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.illustration-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 .molding-heading {
   min-width: 0;
   max-width: 100%;
@@ -2141,6 +2347,17 @@
   .group-fv-matriz
 ) > :is(.panel-header, .molding-group-description) {
   grid-column: 1 / -1;
+}
+
+/* Macharia reaproveita o layout de Fusão/Vazamento (mesma classe
+   sheet-layout-fusion), mas aqui cada GRUPO inteiro vira uma coluna —
+   os parâmetros continuam empilhados dentro do grupo. */
+body[data-ficha-tipo="MACHARIA"] .sheet-layout-fusion {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body[data-ficha-tipo="MACHARIA"] .sheet-layout-fusion .molding-group {
+  grid-column: auto;
 }
 
 .sheet-layout-fusion :is(

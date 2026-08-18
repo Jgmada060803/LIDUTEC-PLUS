@@ -3,11 +3,6 @@ const menuButton = document.querySelector("#menu-button");
 const logoutButton = document.querySelector("#logout-button");
 
 const topbarProductNav = document.querySelector("#topbar-product-nav");
-const prevProductLink = document.querySelector("#prev-product-link");
-const nextProductLink = document.querySelector("#next-product-link");
-const headerProductSearch = document.querySelector("#header-product-search");
-const headerSearchResults = document.querySelector("#header-search-results");
-const headerSearchEmpty = document.querySelector("#header-search-empty");
 
 const userName = document.querySelector("#user-name");
 const userProfile = document.querySelector("#user-profile");
@@ -79,6 +74,12 @@ const castingStatus =
 const castingRevision =
   document.querySelector("#casting-revision");
 
+const machariaMachosList =
+  document.querySelector("#macharia-machos-list");
+
+const machariaSemMacho =
+  document.querySelector("#macharia-sem-macho");
+
 const productModuleCards =
   document.querySelector("#product-module-cards");
 
@@ -94,8 +95,7 @@ const moduleDetailContent =
 const productDetailsState = {
   product: null,
   sheets: [],
-  permissions: new Set(),
-  directory: []
+  permissions: new Set()
 };
 
 function getInitials(name = "Usuário") {
@@ -537,6 +537,11 @@ function renderModuleCards() {
     ? `Revisão ${casting.numero_revisao}`
     : "—";
 
+  const importButtonSelectors = {
+    MOLDAGEM: "#import-molding-button",
+    FUSAO_VAZAMENTO: "#import-casting-button"
+  };
+
   for (const [typeCode, sheet, button] of [
     [
       "MOLDAGEM",
@@ -559,9 +564,7 @@ function renderModuleCards() {
     }
 
     const importButton = document.querySelector(
-      typeCode === "MOLDAGEM"
-        ? "#import-molding-button"
-        : "#import-casting-button"
+      importButtonSelectors[typeCode]
     );
     const importAction = getModuleImportAction(
       ui.getType(typeCode),
@@ -574,6 +577,89 @@ function renderModuleCards() {
       }
     }
   }
+}
+
+// Macharia é diferente dos demais módulos: um produto pode ter mais de um
+// macho (Ficha de Macho, tabela machos_macharia), e cada macho tem sua
+// própria ficha técnica — por isso não cabe no card único genérico, é uma
+// lista à parte.
+async function renderMachariaList() {
+  if (!machariaMachosList) {
+    return;
+  }
+  const productId = productDetailsState.product?.id;
+  if (!productId) {
+    return;
+  }
+
+  const { data: vinculos, error: vinculosError } = await window.supabaseClient
+    .from("machos_macharia_produtos")
+    .select("macho_id, machos_macharia(id, caixa, macho, status, ativo)")
+    .eq("produto_id", productId);
+
+  if (vinculosError) {
+    throw vinculosError;
+  }
+
+  const machos = (vinculos ?? [])
+    .map((vinculo) => vinculo.machos_macharia)
+    .filter((macho) => macho && macho.ativo);
+
+  if (machos.length === 0) {
+    machariaMachosList.hidden = true;
+    if (machariaSemMacho) {
+      machariaSemMacho.hidden = false;
+    }
+    return;
+  }
+  machariaMachosList.hidden = false;
+  if (machariaSemMacho) {
+    machariaSemMacho.hidden = true;
+  }
+
+  const { data: fichas, error: fichasError } = await window.supabaseClient
+    .from("fichas_tecnicas")
+    .select("id, macho_id, status, numero_revisao")
+    .eq("produto_id", productId)
+    .eq("tipo", "MACHARIA")
+    .in("macho_id", machos.map((macho) => macho.id));
+
+  if (fichasError) {
+    throw fichasError;
+  }
+
+  const ui = window.LIDUTEC_FICHAS_UI;
+  const canCreate = productDetailsState.permissions.has("ficha.criar");
+  const canView = productDetailsState.permissions.has("ficha.visualizar");
+
+  machariaMachosList.innerHTML = machos.map((macho) => {
+    const ficha = (fichas ?? [])
+      .filter((item) => String(item.macho_id) === String(macho.id))
+      .sort(ui.compareSheets)[0] ?? null;
+
+    const label = `Caixa ${ui.escapeHtml(macho.caixa)} · Macho ${ui.escapeHtml(macho.macho)}`;
+    const statusText = ficha
+      ? `${ui.escapeHtml(ui.getStatusData(ficha).label)} · Revisão ${ficha.numero_revisao}`
+      : "Sem ficha técnica";
+
+    const action = ficha
+      ? (canView
+        ? `<a href="./macharia.html?produto=${productId}&ficha=${ficha.id}" class="button button-secondary">Abrir ficha</a>`
+        : "")
+      : (canCreate
+        ? `<a href="./macharia.html?produto=${productId}&macho=${macho.id}" class="button button-primary">Criar ficha</a>`
+        : "");
+
+    return `
+      <li class="macharia-macho-row">
+        <div>
+          <strong>${label}</strong>
+          <span class="production-muted">${statusText}</span>
+        </div>
+        ${action}
+      </li>
+    `;
+  }).join("");
 }
 
 function renderModuleDetail(typeCode) {
@@ -731,6 +817,13 @@ function initializeTabs() {
           isSelected
         );
       }
+
+      // Moldagem/Vazamento navegam pra outra página (sem esse botão);
+      // Macharia fica na própria detalhes.html, então precisa esconder
+      // manualmente pra não editar dados do produto por essa aba.
+      if (editProductButton) {
+        editProductButton.hidden = selectedTab === "macharia";
+      }
     });
   }
 
@@ -755,141 +848,10 @@ function initializeTabs() {
       panel.hidden = !isSelected;
       panel.classList.toggle("active", isSelected);
     }
+    if (editProductButton) {
+      editProductButton.hidden = initialTab === "macharia";
+    }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Busca + navegação anterior/próximo no cabeçalho — lista leve de todos os
-// produtos (sem filtro de status, já que o detalhe mostra qualquer produto
-// via ?id=), usada tanto pra sugerir na busca quanto pra achar o vizinho por
-// código. Padrão de sugestão (<a href> navegando direto) copiado do quick
-// search de produtos-lista.js — não usa o window.LIDUTEC_TYPEAHEAD genérico
-// porque aqui a seleção precisa NAVEGAR, não preencher um campo de formulário.
-// ---------------------------------------------------------------------------
-async function loadProductDirectory() {
-  const { data, error } = await window.supabaseClient
-    .from("produtos")
-    .select("id, codigo, nome, codigo_cliente, part_number, clientes(nome)")
-    .order("codigo");
-
-  if (error) {
-    console.error("Erro ao carregar lista de produtos para navegação:", error);
-    return;
-  }
-
-  productDetailsState.directory = data ?? [];
-}
-
-function updateProductNav(currentId) {
-  const directory = productDetailsState.directory;
-  const index = directory.findIndex(
-    (item) => String(item.id) === String(currentId)
-  );
-  const prev = index > 0 ? directory[index - 1] : null;
-  const next =
-    index >= 0 && index < directory.length - 1
-      ? directory[index + 1]
-      : null;
-
-  if (prev) {
-    prevProductLink.href = `./detalhes.html?id=${prev.id}`;
-    prevProductLink.classList.remove("is-disabled");
-    prevProductLink.removeAttribute("aria-disabled");
-  } else {
-    prevProductLink.removeAttribute("href");
-    prevProductLink.classList.add("is-disabled");
-    prevProductLink.setAttribute("aria-disabled", "true");
-  }
-
-  if (next) {
-    nextProductLink.href = `./detalhes.html?id=${next.id}`;
-    nextProductLink.classList.remove("is-disabled");
-    nextProductLink.removeAttribute("aria-disabled");
-  } else {
-    nextProductLink.removeAttribute("href");
-    nextProductLink.classList.add("is-disabled");
-    nextProductLink.setAttribute("aria-disabled", "true");
-  }
-}
-
-function matchesDirectoryEntry(product, search) {
-  const searchable = [
-    product.codigo,
-    product.nome,
-    product.codigo_cliente,
-    product.part_number,
-    product.clientes?.nome
-  ].filter(Boolean).join(" ").toLowerCase();
-  return searchable.includes(search);
-}
-
-function closeHeaderSuggestions() {
-  headerSearchResults.replaceChildren();
-  headerSearchResults.hidden = true;
-  headerSearchEmpty.hidden = true;
-  headerProductSearch.setAttribute("aria-expanded", "false");
-}
-
-function renderHeaderSuggestions(products) {
-  const ui = window.LIDUTEC_FICHAS_UI;
-
-  headerSearchResults.replaceChildren();
-
-  if (!products.length) {
-    headerSearchResults.hidden = true;
-    headerSearchEmpty.hidden = false;
-    headerProductSearch.setAttribute("aria-expanded", "false");
-    return;
-  }
-
-  headerSearchEmpty.hidden = true;
-  headerSearchResults.hidden = false;
-  headerProductSearch.setAttribute("aria-expanded", "true");
-
-  headerSearchResults.innerHTML = products.slice(0, 20).map((product) => `
-    <li role="none">
-      <a
-        href="./detalhes.html?id=${product.id}"
-        role="option"
-        class="quick-search-result"
-      >
-        <span class="product-code">${ui.escapeHtml(product.codigo)}</span>
-        <span class="product-name">${ui.escapeHtml(product.nome)}</span>
-        <span class="product-secondary">
-          ${ui.escapeHtml(product.clientes?.nome ?? "Sem cliente vinculado")}
-        </span>
-      </a>
-    </li>
-  `).join("");
-}
-
-function getHeaderSearchMatches() {
-  const search = headerProductSearch.value.trim().toLowerCase();
-  if (!search) {
-    return null;
-  }
-  return productDetailsState.directory.filter((product) =>
-    matchesDirectoryEntry(product, search)
-  );
-}
-
-function handleHeaderSearchInput() {
-  const matches = getHeaderSearchMatches();
-  if (matches === null) {
-    closeHeaderSuggestions();
-    return;
-  }
-  renderHeaderSuggestions(matches);
-}
-
-function handleHeaderSearchSubmit() {
-  const matches = getHeaderSearchMatches();
-  if (matches && matches.length === 1) {
-    window.location.href = `./detalhes.html?id=${matches[0].id}`;
-    return;
-  }
-  handleHeaderSearchInput();
-  headerProductSearch.focus();
 }
 
 async function initializeProductDetails() {
@@ -1016,6 +978,10 @@ async function initializeProductDetails() {
     moldingRevision.textContent = "—";
     castingStatus.textContent = "Sem permissão";
     castingRevision.textContent = "—";
+    if (machariaMachosList) {
+      machariaMachosList.innerHTML =
+        "<li class=\"production-muted\">Sem permissão para visualizar.</li>";
+    }
   }
 
   const [product, sheets] = await Promise.all([
@@ -1025,9 +991,17 @@ async function initializeProductDetails() {
   productDetailsState.product = product;
   productDetailsState.sheets = sheets;
   renderModuleCards();
+  if (canViewMolding) {
+    renderMachariaList().catch((error) => {
+      console.error(error);
+      if (machariaMachosList) {
+        machariaMachosList.innerHTML =
+          `<li class="production-muted">Não foi possível carregar os machos: ${error.message}</li>`;
+      }
+    });
+  }
 
-  await loadProductDirectory();
-  updateProductNav(product.id);
+  await window.LIDUTEC_PRODUCT_HEADER_NAV?.updateProductNav(product.id);
 
   productLoading.hidden = true;
   productContent.hidden = false;
@@ -1039,27 +1013,6 @@ menuButton?.addEventListener("click", () => {
 
 logoutButton?.addEventListener("click", async () => {
   await window.LIDUTEC_APP.signOut();
-});
-
-headerProductSearch?.addEventListener("input", handleHeaderSearchInput);
-headerProductSearch?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    handleHeaderSearchSubmit();
-  }
-});
-headerProductSearch?.addEventListener("focus", () => {
-  if (headerProductSearch.value.trim()) {
-    handleHeaderSearchInput();
-  }
-});
-headerProductSearch?.addEventListener("focusout", () => {
-  window.setTimeout(() => {
-    if (!headerProductSearch.matches(":focus") &&
-        !headerSearchResults.contains(document.activeElement)) {
-      closeHeaderSuggestions();
-    }
-  }, 150);
 });
 
 productModuleCards?.addEventListener("click", (event) => {

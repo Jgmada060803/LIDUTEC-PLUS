@@ -49,6 +49,18 @@
       <div class="topbar-title">
         <h1>Ficha Técnica de Moldagem</h1>
       </div>
+      <div class="topbar-product-nav" id="topbar-product-nav">
+        <a id="prev-product-link" class="topbar-nav-arrow" aria-label="Produto anterior">‹</a>
+        <div class="topbar-search-field">
+          <label class="sr-only" for="header-product-search">Pesquisar produto</label>
+          <div class="quick-search-field">
+            <input type="search" id="header-product-search" placeholder="Pesquisar por código, nome, cliente ou part number..." autocomplete="off" role="combobox" aria-expanded="false" aria-controls="header-search-results" aria-autocomplete="list">
+          </div>
+          <ul id="header-search-results" class="quick-search-results" role="listbox" hidden></ul>
+          <p id="header-search-empty" class="quick-search-empty" hidden>Nenhum produto encontrado para essa busca.</p>
+        </div>
+        <a id="next-product-link" class="topbar-nav-arrow" aria-label="Próximo produto">›</a>
+      </div>
       <strong id="molding-document-code" class="topbar-sheet-code">Documento ainda não emitido</strong>
       <div class="user-box">
         <div>
@@ -96,6 +108,7 @@
         </section>
         <nav class="product-tabs sheet-product-tabs" aria-label="Módulos do produto">
           <a class="product-tab" data-product-tab-link="geral" href="./detalhes.html">Geral</a>
+          <a class="product-tab" data-product-tab-link="macharia" href="./macharia.html">Macharia</a>
           <a class="product-tab active" data-product-tab-link="moldagem" href="./moldagem.html">Moldagem</a>
           <a class="product-tab" data-product-tab-link="vazamento" href="./fusao-vazamento.html">Fusão / Vazamento</a>
           <a class="product-tab" data-product-tab-link="embalagem" href="./detalhes.html">Embalagem</a>
@@ -214,6 +227,7 @@
   <script src="../../assets/js/app.js"></script>
   <script src="../../assets/js/fichas-ui.js"></script>
   <script src="../../assets/js/fichas-preview.js"></script>
+  <script src="../../assets/js/produto-header-nav.js"></script>
   <script src="../../assets/js/produtos-moldagem.js"></script>
 </body>
 </html>

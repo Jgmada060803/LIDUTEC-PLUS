@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ficha Técnica de Fusão/Vazamento | Metalsider</title>
+  <title>Ficha Técnica de Macharia | Metalsider</title>
   <link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8">
   <link rel="stylesheet" href="../../assets/css/app.css">
   <link rel="stylesheet" href="../../assets/css/dashboard.css">
@@ -34,7 +34,7 @@
     <header class="topbar">
       <button type="button" class="menu-button" id="menu-button" aria-label="Abrir ou fechar menu">☰</button>
       <div class="topbar-title">
-        <h1>Ficha Técnica de Fusão/Vazamento</h1>
+        <h1>Ficha Técnica de Macharia</h1>
       </div>
       <div class="topbar-product-nav" id="topbar-product-nav">
         <a id="prev-product-link" class="topbar-nav-arrow" aria-label="Produto anterior">‹</a>
@@ -59,7 +59,8 @@
       <div id="preview-banner" class="preview-banner" hidden>
         Modo de visualização com dados locais
       </div>
-      <div id="molding-loading" class="loading-state">Carregando ficha de Fusão/Vazamento...</div>
+      <div id="molding-loading" class="loading-state">Carregando ficha de Macharia...</div>
+
       <div id="molding-content" hidden>
         <div class="sheet-sticky-header">
         <section class="product-hero">
@@ -80,6 +81,9 @@
                   <span>Status da ficha</span>
                   <strong id="molding-sheet-status">Nova ficha</strong>
                   <small id="molding-sheet-revision">Revisão 0</small>
+                  <small id="molding-header-issue-date">Emissão: —</small>
+                  <small id="molding-header-validity">Vigência: —</small>
+                  <small id="molding-administrative-status">Situação: —</small>
                 </div>
               </div>
             </div>
@@ -88,9 +92,9 @@
         </section>
         <nav class="product-tabs sheet-product-tabs" aria-label="Módulos do produto">
           <a class="product-tab" data-product-tab-link="geral" href="./detalhes.html">Geral</a>
-          <a class="product-tab" data-product-tab-link="macharia" href="./macharia.html">Macharia</a>
+          <a class="product-tab active" data-product-tab-link="macharia" href="./macharia.html">Macharia</a>
           <a class="product-tab" data-product-tab-link="moldagem" href="./moldagem.html">Moldagem</a>
-          <a class="product-tab active" data-product-tab-link="vazamento" href="./fusao-vazamento.html">Fusão / Vazamento</a>
+          <a class="product-tab" data-product-tab-link="vazamento" href="./fusao-vazamento.html">Fusão / Vazamento</a>
           <a class="product-tab" data-product-tab-link="embalagem" href="./detalhes.html">Embalagem</a>
           <a class="product-tab" data-product-tab-link="processo" href="./detalhes.html">Controle de Processo</a>
           <a class="product-tab" data-product-tab-link="documentos" href="./detalhes.html">Documentos</a>
@@ -98,11 +102,43 @@
         </nav>
         </div>
 
+        <section id="illustrations-panel" class="panel">
+          <div class="panel-header">
+            <span class="eyebrow">Ilustrações</span>
+            <h3>Fotos e instruções</h3>
+          </div>
+          <p class="production-muted">
+            Fotos e PDFs ilustrativos do macho — clique num item para ampliar.
+            Também aceita colar uma imagem copiada (Ctrl+V).
+          </p>
+          <div id="illustrations-grid" class="illustrations-grid"></div>
+          <p id="illustrations-empty" class="production-muted" hidden>
+            Nenhuma imagem adicionada ainda.
+          </p>
+          <label id="illustrations-upload-label" class="button button-secondary illustrations-upload-button" hidden>
+            Adicionar imagem ou PDF
+            <input id="illustrations-upload-input" type="file" accept="image/*,application/pdf" multiple hidden>
+          </label>
+          <div id="illustrations-message" class="form-message" hidden role="status"></div>
+        </section>
+
+        <dialog id="illustration-lightbox" class="illustration-lightbox">
+          <button type="button" id="illustration-lightbox-close" class="illustration-lightbox-close" aria-label="Fechar">×</button>
+          <img id="illustration-lightbox-image" alt="">
+          <iframe id="illustration-lightbox-pdf" title="Documento" hidden></iframe>
+        </dialog>
+
         <form id="molding-form">
           <div id="molding-parameters" class="molding-groups"></div>
-          <div id="molding-empty" class="panel empty-state" hidden>Nenhum parâmetro de Fusão/Vazamento foi configurado.</div>
+          <div id="molding-empty" class="panel empty-state" hidden>
+            Nenhum parâmetro de Macharia foi configurado.
+          </div>
+
           <section class="panel molding-metadata">
-            <div class="panel-header"><span class="eyebrow">Controle da ficha</span><h3>Dados da revisão</h3></div>
+            <div class="panel-header">
+              <span class="eyebrow">Controle da ficha</span>
+              <h3>Dados da revisão</h3>
+            </div>
             <div class="product-form-grid">
               <div class="form-group">
                 <label for="molding-issue-date">Data de emissão</label>
@@ -114,19 +150,85 @@
               </div>
             </div>
           </section>
+
           <div id="molding-message" class="form-message" hidden role="status"></div>
+
           <div class="molding-actions">
-            <a id="back-to-product" href="./lista.html" class="button button-secondary">Voltar ao produto</a>
-            <button id="save-molding-button" type="submit" class="button button-primary">Salvar rascunho</button>
-            <button id="molding-delete-draft" type="button" class="button button-danger" hidden>Excluir rascunho</button>
-            <button id="molding-submit-approval" type="button" class="button button-primary" hidden>Enviar para aprovação</button>
-            <button id="molding-approve" type="button" class="button button-primary" hidden>Aprovar</button>
-            <button id="molding-reject" type="button" class="button button-danger" hidden>Reprovar</button>
-            <button id="molding-print-button" type="button"
-              class="button button-secondary">Imprimir</button>
+            <a id="back-to-product" href="./lista.html" class="button button-secondary">
+              Voltar ao produto
+            </a>
+            <button id="save-molding-button" type="submit" class="button button-primary">
+              Salvar rascunho
+            </button>
+            <button id="create-molding-button" type="button" class="button button-primary" hidden>
+              Criar ficha
+            </button>
           </div>
         </form>
+
+        <section id="molding-revision-history" class="panel molding-revision-history" hidden>
+          <div class="panel-header">
+            <h3>Histórico de Macharia</h3>
+          </div>
+          <div id="molding-revision-list" class="molding-revision-list"></div>
+        </section>
+        <nav class="molding-toolbar molding-footer-toolbar" aria-label="Ações da ficha">
+          <button id="molding-history-button" type="button" class="button button-secondary" hidden>
+            Histórico
+          </button>
+          <a id="molding-import-button" class="button button-secondary" href="./importar-ficha.html" hidden>
+            Conferir importação
+          </a>
+          <button id="molding-pdf-button" type="button" class="button button-secondary" hidden>
+            Ver PDF original
+          </button>
+          <button id="molding-new-revision-button" type="button" class="button button-secondary" hidden>
+            Criar nova revisão
+          </button>
+          <button id="molding-edit-button" type="button" class="button button-primary" hidden>
+            Editar ajustes
+          </button>
+          <button id="molding-delete-draft" type="button" class="button button-danger" hidden>
+            Excluir rascunho
+          </button>
+          <button id="molding-submit-approval" type="button" class="button button-primary" hidden>Enviar para aprovação</button>
+          <button id="molding-approve" type="button" class="button button-primary" hidden>Aprovar</button>
+          <button id="molding-reject" type="button" class="button button-danger" hidden>Reprovar</button>
+          <button id="molding-print-button" type="button" class="button button-secondary">
+            Imprimir
+          </button>
+        </nav>
+
+        <dialog id="molding-edit-dialog" class="molding-edit-dialog">
+          <div class="panel-header">
+            <span class="eyebrow">Preparar edição</span>
+            <h3>Como deseja iniciar os ajustes?</h3>
+          </div>
+          <p>
+            A ficha permanecerá sem alterações no banco até você clicar em
+            Salvar rascunho.
+          </p>
+          <div class="molding-edit-options">
+            <button id="molding-edit-current" type="button" class="button button-secondary">
+              Continuar valores atuais
+            </button>
+            <button id="molding-edit-empty" type="button" class="button button-secondary">
+              Começar do zero
+            </button>
+            <label for="molding-base-sheet">Usar outra ficha semelhante</label>
+            <select id="molding-base-sheet">
+              <option value="">Selecione uma ficha</option>
+            </select>
+            <button id="molding-edit-base" type="button" class="button button-primary">
+              Usar ficha selecionada
+            </button>
+          </div>
+          <button id="molding-edit-cancel" type="button" class="button button-secondary">
+            Cancelar
+          </button>
+        </dialog>
       </div>
+
       <div id="molding-error" class="form-message error" hidden></div>
     </main>
   </div>

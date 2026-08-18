@@ -34,7 +34,17 @@ const moldingElements = {
   editDialog: document.querySelector("#molding-edit-dialog"),
   baseSheetSelect: document.querySelector("#molding-base-sheet"),
   issueDate: document.querySelector("#molding-issue-date"),
-  reason: document.querySelector("#molding-reason")
+  reason: document.querySelector("#molding-reason"),
+  illustrationsPanel: document.querySelector("#illustrations-panel"),
+  illustrationsGrid: document.querySelector("#illustrations-grid"),
+  illustrationsEmpty: document.querySelector("#illustrations-empty"),
+  illustrationsUploadLabel: document.querySelector("#illustrations-upload-label"),
+  illustrationsUploadInput: document.querySelector("#illustrations-upload-input"),
+  illustrationsMessage: document.querySelector("#illustrations-message"),
+  lightbox: document.querySelector("#illustration-lightbox"),
+  lightboxImage: document.querySelector("#illustration-lightbox-image"),
+  lightboxPdf: document.querySelector("#illustration-lightbox-pdf"),
+  lightboxClose: document.querySelector("#illustration-lightbox-close")
 };
 
 const moldingState = {
@@ -50,7 +60,8 @@ const moldingState = {
   originValues: new Map(),
   editable: false,
   mode: "LEITURA",
-  editRequested: false
+  editRequested: false,
+  illustrations: []
 };
 
 const fichaConfig = window.location.pathname.includes(
@@ -61,6 +72,12 @@ const fichaConfig = window.location.pathname.includes(
       nome: "Fusão / Vazamento",
       classeLayout: "sheet-layout-fusion"
     }
+  : window.location.pathname.includes("macharia")
+  ? {
+      tipo: "MACHARIA",
+      nome: "Macharia",
+      classeLayout: "sheet-layout-fusion"
+    }
   : {
       tipo: "MOLDAGEM",
       nome: "Moldagem",
@@ -68,6 +85,19 @@ const fichaConfig = window.location.pathname.includes(
     };
 
 document.body.dataset.fichaTipo = fichaConfig.tipo;
+
+// Seta anterior/próximo no topbar navega direto pra mesma tela de ficha do
+// produto vizinho — exceto Macharia, que pode ter mais de um macho por
+// produto (não dá pra adivinhar qual), então cai na lista de machos.
+window.LIDUTEC_PRODUCT_HEADER_NAV?.setLinkBuilder((id) => {
+  if (fichaConfig.tipo === "MOLDAGEM") {
+    return `./moldagem.html?produto=${id}`;
+  }
+  if (fichaConfig.tipo === "FUSAO_VAZAMENTO") {
+    return `./fusao-vazamento.html?produto=${id}`;
+  }
+  return `./detalhes.html?id=${id}&tab=macharia`;
+});
 
 function getMoldingProductId() {
   return new URLSearchParams(window.location.search).get("produto");
@@ -77,6 +107,17 @@ function getExplicitSheetId() {
   const value = new URLSearchParams(
     window.location.search
   ).get("ficha");
+  return value && !["null", "undefined", "0"].includes(value)
+    ? value
+    : null;
+}
+
+// Só relevante pra Macharia — um produto pode ter mais de um macho, e
+// cada macho tem sua própria ficha técnica (fichas_tecnicas.macho_id).
+function getExplicitMachoId() {
+  const value = new URLSearchParams(
+    window.location.search
+  ).get("macho");
   return value && !["null", "undefined", "0"].includes(value)
     ? value
     : null;
@@ -598,7 +639,10 @@ function renderizarFichaFusaoVazamento(groups, parameters) {
 }
 
 function renderizarFichaPorTipo(groups, parameters) {
-  if (fichaConfig.tipo === "FUSAO_VAZAMENTO") {
+  if (
+    fichaConfig.tipo === "FUSAO_VAZAMENTO" ||
+    fichaConfig.tipo === "MACHARIA"
+  ) {
     renderizarFichaFusaoVazamento(groups, parameters);
     prepareTechnicalSheetPrint();
     return;
@@ -990,7 +1034,7 @@ function getMoldingMode() {
     return "CONFERENCIA_IMPORTACAO";
   }
   return canEditCurrentSheet() && (
-    fichaConfig.tipo !== "MOLDAGEM" ||
+    (fichaConfig.tipo !== "MOLDAGEM" && fichaConfig.tipo !== "MACHARIA") ||
     moldingState.editRequested
   )
     ? "EDICAO"
@@ -1008,12 +1052,16 @@ function renderMoldingHistory() {
     )
     .sort(ui.compareSheets);
   moldingElements.historyList.replaceChildren();
+  const currentPage = window.location.pathname.split("/").pop();
+  const machoParam = moldingState.machoId
+    ? `&macho=${encodeURIComponent(moldingState.machoId)}`
+    : "";
   for (const sheet of rows) {
     const link = document.createElement("a");
     link.className = "molding-history-item";
-    link.href = `./moldagem.html?produto=${encodeURIComponent(
+    link.href = `./${currentPage}?produto=${encodeURIComponent(
       moldingState.product.id
-    )}&ficha=${encodeURIComponent(sheet.id)}`;
+    )}&ficha=${encodeURIComponent(sheet.id)}${machoParam}`;
     const title = document.createElement("strong");
     const description = document.createElement("span");
     title.textContent = `Revisão ${sheet.numero_revisao}`;
@@ -1024,6 +1072,322 @@ function renderMoldingHistory() {
     moldingElements.historyList.append(link);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Ilustrações da ficha (fotos/instruções) — 0..N imagens soltas por ficha,
+// guardadas na rede interna via dev-server.cjs (mesmo backend do SGI), não
+// no Supabase Storage. Só a ficha de Macharia tem essa seção na tela hoje.
+// ---------------------------------------------------------------------------
+function escapeAttr(value = "") {
+  return String(value).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+async function illustrationAccessToken() {
+  const { data } = await window.supabaseClient.auth.getSession();
+  return data.session?.access_token || null;
+}
+
+async function uploadIllustrationFile(file) {
+  const token = await illustrationAccessToken();
+  if (!token) {
+    throw new Error("Sessão expirada. Faça login novamente.");
+  }
+  const params = new URLSearchParams({
+    modulo: "fichas-tecnicas-ilustracoes",
+    kind: "oficial",
+    nome: file.name
+  });
+  const response = await fetch(`/api/arquivos/upload?${params}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": file.type || "application/octet-stream"
+    },
+    body: file
+  });
+  if (!response.ok) {
+    throw new Error(`Não foi possível enviar a imagem (${response.status}).`);
+  }
+  return response.json();
+}
+
+async function illustrationImageUrl(caminhoRelativo) {
+  const token = await illustrationAccessToken();
+  const params = new URLSearchParams({
+    caminho: caminhoRelativo,
+    token: token || ""
+  });
+  return `/api/arquivos/arquivo?${params}`;
+}
+
+async function loadIllustrations(fichaId) {
+  if (!fichaId) {
+    return [];
+  }
+  const { data, error } = await window.supabaseClient
+    .from("fichas_tecnicas_imagens")
+    .select("id, nome_original, caminho_relativo, mime_type, legenda, criado_em")
+    .eq("ficha_tecnica_id", fichaId)
+    .order("criado_em", { ascending: true });
+  if (error) {
+    throw error;
+  }
+  return data ?? [];
+}
+
+async function renderIllustrations() {
+  const panel = moldingElements.illustrationsPanel;
+  const grid = moldingElements.illustrationsGrid;
+  if (!panel || !grid) {
+    return;
+  }
+
+  if (!moldingState.sheet?.id) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+
+  if (moldingElements.illustrationsUploadLabel) {
+    moldingElements.illustrationsUploadLabel.hidden = !moldingState.editable;
+  }
+
+  let images;
+  try {
+    images = await loadIllustrations(moldingState.sheet.id);
+  } catch (error) {
+    grid.innerHTML = "";
+    if (moldingElements.illustrationsEmpty) {
+      moldingElements.illustrationsEmpty.hidden = true;
+    }
+    showIllustrationsMessage(
+      `Não foi possível carregar as ilustrações: ${error.message}`,
+      "error"
+    );
+    return;
+  }
+  moldingState.illustrations = images;
+
+  if (!images.length) {
+    grid.innerHTML = "";
+    if (moldingElements.illustrationsEmpty) {
+      moldingElements.illustrationsEmpty.hidden = false;
+    }
+    return;
+  }
+  if (moldingElements.illustrationsEmpty) {
+    moldingElements.illustrationsEmpty.hidden = true;
+  }
+
+  const urls = await Promise.all(
+    images.map((image) => illustrationImageUrl(image.caminho_relativo))
+  );
+  grid.innerHTML = images.map((image, index) => {
+    const isPdf = image.mime_type === "application/pdf";
+    const removeButton = moldingState.editable
+      ? `<button type="button" class="illustration-remove" data-image-id="${image.id}" aria-label="Remover imagem">×</button>`
+      : "";
+    const content = isPdf
+      ? `
+        <span class="illustration-pdf-icon" aria-hidden="true">📄</span>
+        <span class="illustration-pdf-name">${escapeAttr(image.legenda || image.nome_original)}</span>
+      `
+      : `<img src="${escapeAttr(urls[index])}" alt="${escapeAttr(image.legenda || image.nome_original)}" loading="lazy">`;
+    return `
+      <figure class="illustration-item${isPdf ? " illustration-pdf" : ""}" data-image-id="${image.id}" data-image-url="${escapeAttr(urls[index])}" data-image-mime="${escapeAttr(image.mime_type || "")}">
+        ${content}
+        ${removeButton}
+      </figure>
+    `;
+  }).join("");
+}
+
+function showIllustrationsMessage(text, type) {
+  if (!moldingElements.illustrationsMessage) {
+    return;
+  }
+  moldingElements.illustrationsMessage.textContent = text;
+  moldingElements.illustrationsMessage.className = `form-message ${type}`;
+  moldingElements.illustrationsMessage.hidden = false;
+}
+
+async function handleIllustrationUpload(files) {
+  if (!moldingState.sheet?.id || !files?.length) {
+    return;
+  }
+  if (moldingElements.illustrationsMessage) {
+    moldingElements.illustrationsMessage.hidden = true;
+  }
+  if (moldingElements.illustrationsUploadLabel) {
+    moldingElements.illustrationsUploadLabel.classList.add("is-disabled");
+  }
+  try {
+    for (const file of files) {
+      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+        throw new Error(`"${file.name}" precisa ser uma imagem ou um PDF.`);
+      }
+      const uploaded = await uploadIllustrationFile(file);
+      const { error } = await window.supabaseClient.rpc(
+        "adicionar_imagem_ficha_tecnica",
+        {
+          p_ficha_id: moldingState.sheet.id,
+          p_nome_original: uploaded.nome_original,
+          p_caminho_relativo: uploaded.caminho_relativo,
+          p_mime_type: uploaded.mime_type,
+          p_tamanho_bytes: uploaded.tamanho_bytes,
+          p_hash_sha256: uploaded.hash_sha256
+        }
+      );
+      if (error) {
+        throw error;
+      }
+    }
+    await renderIllustrations();
+  } catch (error) {
+    showIllustrationsMessage(
+      `Não foi possível adicionar a imagem: ${error.message}`,
+      "error"
+    );
+  } finally {
+    if (moldingElements.illustrationsUploadLabel) {
+      moldingElements.illustrationsUploadLabel.classList.remove("is-disabled");
+    }
+  }
+}
+
+async function handleIllustrationRemove(imageId) {
+  if (!window.confirm("Remover esta imagem?")) {
+    return;
+  }
+  try {
+    const { error } = await window.supabaseClient.rpc(
+      "remover_imagem_ficha_tecnica",
+      { p_imagem_id: Number(imageId) }
+    );
+    if (error) {
+      throw error;
+    }
+    await renderIllustrations();
+  } catch (error) {
+    showIllustrationsMessage(
+      `Não foi possível remover a imagem: ${error.message}`,
+      "error"
+    );
+  }
+}
+
+function openIllustrationLightbox(url, alt, isPdf) {
+  if (!moldingElements.lightbox) {
+    return;
+  }
+  if (isPdf) {
+    if (moldingElements.lightboxPdf) {
+      moldingElements.lightboxPdf.src = url;
+      moldingElements.lightboxPdf.hidden = false;
+    }
+    if (moldingElements.lightboxImage) {
+      moldingElements.lightboxImage.hidden = true;
+      moldingElements.lightboxImage.removeAttribute("src");
+    }
+  } else {
+    if (moldingElements.lightboxImage) {
+      moldingElements.lightboxImage.src = url;
+      moldingElements.lightboxImage.alt = alt ?? "";
+      moldingElements.lightboxImage.hidden = false;
+    }
+    if (moldingElements.lightboxPdf) {
+      moldingElements.lightboxPdf.hidden = true;
+      moldingElements.lightboxPdf.removeAttribute("src");
+    }
+  }
+  moldingElements.lightbox.showModal();
+}
+
+moldingElements.illustrationsGrid?.addEventListener("click", (event) => {
+  const removeButton = event.target.closest(".illustration-remove");
+  if (removeButton) {
+    handleIllustrationRemove(removeButton.dataset.imageId);
+    return;
+  }
+  const item = event.target.closest(".illustration-item");
+  if (!item || event.target.closest(".illustration-remove")) {
+    return;
+  }
+  const isPdf = item.dataset.imageMime === "application/pdf";
+  if (isPdf || event.target.tagName === "IMG") {
+    openIllustrationLightbox(
+      item.dataset.imageUrl,
+      item.querySelector("img")?.alt,
+      isPdf
+    );
+  }
+});
+
+moldingElements.illustrationsUploadInput?.addEventListener("change", () => {
+  const files = [...(moldingElements.illustrationsUploadInput.files ?? [])];
+  handleIllustrationUpload(files).finally(() => {
+    moldingElements.illustrationsUploadInput.value = "";
+  });
+});
+
+function closeIllustrationLightbox() {
+  moldingElements.lightbox?.close();
+  if (moldingElements.lightboxImage) {
+    moldingElements.lightboxImage.removeAttribute("src");
+  }
+  if (moldingElements.lightboxPdf) {
+    moldingElements.lightboxPdf.removeAttribute("src");
+  }
+}
+
+moldingElements.lightboxClose?.addEventListener(
+  "click",
+  closeIllustrationLightbox
+);
+
+moldingElements.lightbox?.addEventListener("click", (event) => {
+  if (event.target === moldingElements.lightbox) {
+    closeIllustrationLightbox();
+  }
+});
+
+moldingElements.lightbox?.addEventListener(
+  "close",
+  closeIllustrationLightbox
+);
+
+// Colar uma imagem copiada (print/screenshot, ou copiada de outro programa)
+// direto na tela, sem precisar salvar em arquivo primeiro e escolher no
+// seletor. Só ativo quando a ficha existe e está em edição — mesma regra do
+// botão "Adicionar imagem".
+document.addEventListener("paste", (event) => {
+  if (!moldingElements.illustrationsPanel || !moldingState.editable || !moldingState.sheet?.id) {
+    return;
+  }
+  const items = [...(event.clipboardData?.items ?? [])];
+  const imageFiles = items
+    .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+    .map((item) => item.getAsFile())
+    .filter(Boolean);
+  if (!imageFiles.length) {
+    return;
+  }
+  event.preventDefault();
+  const named = imageFiles.map((file, index) => {
+    if (file.name && file.name !== "image.png") {
+      return file;
+    }
+    const extension = (file.type.split("/")[1] || "png").replace("jpeg", "jpg");
+    return new File(
+      [file],
+      `colado-${Date.now()}-${index + 1}.${extension}`,
+      { type: file.type }
+    );
+  });
+  handleIllustrationUpload(named);
+});
 
 function updateMoldingActions() {
   const ui = window.LIDUTEC_FICHAS_UI;
@@ -1126,12 +1490,19 @@ function applyMoldingReadOnly() {
     );
   }
   updateMoldingActions();
+  renderIllustrations().catch((error) => {
+    console.error(error);
+    showIllustrationsMessage(
+      `Não foi possível carregar as ilustrações: ${error.message}`,
+      "error"
+    );
+  });
 
   if (moldingState.mode === "SEM_FICHA") {
     showMoldingMessage(
       moldingState.permissions.has("ficha.criar")
-        ? "Este produto ainda não possui ficha técnica de Moldagem. Use Criar ficha para iniciar um rascunho."
-        : "Este produto ainda não possui ficha técnica de Moldagem. Você não possui permissão para criar.",
+        ? `Este produto ainda não possui ficha técnica de ${fichaConfig.nome}. Use Criar ficha para iniciar um rascunho.`
+        : `Este produto ainda não possui ficha técnica de ${fichaConfig.nome}. Você não possui permissão para criar.`,
       "error"
     );
   } else if (!moldingState.editable) {
@@ -1274,7 +1645,8 @@ async function saveMoldingDraft() {
       p_data_emissao: emptyToNull(
         moldingElements.issueDate.value
       ),
-      p_valores: values
+      p_valores: values,
+      p_macho_id: moldingState.machoId ?? null
     });
 
   if (error) {
@@ -1286,6 +1658,7 @@ async function saveMoldingDraft() {
     id: sheetId,
     produto_id: moldingState.product.id,
     tipo: fichaConfig.tipo,
+    macho_id: moldingState.machoId ?? moldingState.sheet?.macho_id ?? null,
     numero_revisao:
       moldingState.sheet?.numero_revisao ?? 0,
     status: "RASCUNHO",
@@ -1314,18 +1687,23 @@ async function createMoldingDraft() {
       p_ficha_id: null,
       p_motivo_revisao: null,
       p_data_emissao: null,
-      p_valores: []
+      p_valores: [],
+      p_macho_id: moldingState.machoId ?? null
     });
 
   if (error) {
     if (/já existe um rascunho/i.test(error.message ?? "")) {
+      let draftQuery = window.supabaseClient
+        .from("fichas_tecnicas")
+        .select("id")
+        .eq("produto_id", moldingState.product.id)
+        .eq("tipo", fichaConfig.tipo)
+        .eq("status", "RASCUNHO");
+      draftQuery = moldingState.machoId
+        ? draftQuery.eq("macho_id", moldingState.machoId)
+        : draftQuery.is("macho_id", null);
       const { data: existingDraft, error: draftError } =
-        await window.supabaseClient
-          .from("fichas_tecnicas")
-          .select("id")
-          .eq("produto_id", moldingState.product.id)
-          .eq("tipo", fichaConfig.tipo)
-          .eq("status", "RASCUNHO")
+        await draftQuery
           .order("numero_revisao", { ascending: false })
           .order("criado_em", { ascending: false })
           .order("id", { ascending: false })
@@ -1568,15 +1946,35 @@ async function initializeMolding() {
     getMoldingInitials(profile.nome);
 
   const explicitSheetId = getExplicitSheetId();
+  const explicitMachoId = fichaConfig.tipo === "MACHARIA"
+    ? getExplicitMachoId()
+    : null;
+
+  if (
+    fichaConfig.tipo === "MACHARIA" &&
+    !explicitSheetId &&
+    !explicitMachoId
+  ) {
+    throw new Error(
+      "Nenhum macho foi informado. Volte à aba Macharia do produto e escolha um macho."
+    );
+  }
+
+  const sheetsDoMacho = explicitMachoId
+    ? sheets.filter(
+        (item) => String(item.macho_id) === String(explicitMachoId)
+      )
+    : sheets;
+
   let sheet = window.LIDUTEC_FICHAS_UI.selectPrimarySheet(
-    sheets,
+    sheetsDoMacho,
     fichaConfig.tipo,
     permissions,
     explicitSheetId
   );
   if (explicitSheetId && !sheet) {
     sheet = window.LIDUTEC_FICHAS_UI.selectPrimarySheet(
-      sheets,
+      sheetsDoMacho,
       fichaConfig.tipo,
       permissions
     );
@@ -1586,9 +1984,11 @@ async function initializeMolding() {
   }
   moldingState.product = product;
   moldingState.sheet = sheet;
-  moldingState.sheets = sheets;
+  moldingState.sheets = sheetsDoMacho;
+  moldingState.machoId = explicitMachoId ?? sheet?.macho_id ?? null;
+  window.LIDUTEC_PRODUCT_HEADER_NAV?.updateProductNav(product.id);
   moldingState.originSheet = sheet?.revisao_origem_id
-    ? sheets.find(
+    ? sheetsDoMacho.find(
         (item) =>
           String(item.id) === String(sheet.revisao_origem_id)
       ) ?? null
@@ -1676,6 +2076,8 @@ function prepareTechnicalSheetPrint() {
     createPrintHeader();
   const typeLabel = fichaConfig.tipo === "FUSAO_VAZAMENTO"
     ? "FUSÃO / VAZAMENTO"
+    : fichaConfig.tipo === "MACHARIA"
+    ? "MACHARIA"
     : "MOLDAÇÃO";
   header.querySelector("[data-print-sheet-type]").textContent = typeLabel;
   header.querySelector("[data-print-code]").textContent =
