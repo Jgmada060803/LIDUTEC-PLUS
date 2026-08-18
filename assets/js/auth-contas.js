@@ -95,6 +95,21 @@ async function requestRecovery(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const email = corporateEmail(form);
+
+  const { data: temEmailProprio, error: checkError } =
+    await window.supabaseClient.rpc("usuario_tem_email_proprio", {
+      p_email: email,
+    });
+  if (checkError) throw checkError;
+  if (temEmailProprio === false) {
+    form.reset();
+    showAccountMessage(
+      "Esta conta não tem e-mail próprio cadastrado. Procure o administrador do sistema para redefinir sua senha.",
+      "error",
+    );
+    return;
+  }
+
   const redirect = new URL("./redefinir-senha.html", location.href);
   const { error } = await window.supabaseClient.auth
     .resetPasswordForEmail(email, { redirectTo: redirect.href });
@@ -120,6 +135,7 @@ async function updatePassword(event) {
     password,
   });
   if (error) throw error;
+  await window.supabaseClient.rpc("limpar_flag_trocar_senha");
   await window.supabaseClient.auth.signOut();
   showAccountMessage("Senha atualizada. Retornando ao login...", "success");
   setTimeout(() => location.replace("./login.html"), 1200);

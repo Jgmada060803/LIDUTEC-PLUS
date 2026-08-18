@@ -77,10 +77,11 @@ Deno.serve(async (request) => {
     }
 
     if (body.action === "invite") {
-      const { email, nome, perfil_id: profileId } = body;
+      const { email, nome, perfil_id: profileId, senha } = body;
       const corporateEmail = String(email || "").trim().toLowerCase();
+      const semEmailProprio = Boolean(senha);
 
-      if (!nome || !profileId) {
+      if (!nome || !profileId || !corporateEmail) {
         throw new Error("Nome, email e perfil são obrigatórios.");
       }
       if (!/^[^@\s]+@metalsider\.com\.br$/.test(corporateEmail)) {
@@ -89,11 +90,30 @@ Deno.serve(async (request) => {
         );
       }
 
-      const { data: invited, error } =
-        await admin.auth.admin.inviteUserByEmail(corporateEmail, {
-          data: { nome },
+      let userId: string;
+      if (semEmailProprio) {
+        // Operador sem e-mail próprio: em vez de mandar convite (que
+        // nunca seria visto), o administrador já define a senha
+        // provisória e a conta nasce confirmada e pronta pra logar.
+        if (String(senha).length < 8) {
+          throw new Error("A senha provisória deve ter pelo menos 8 caracteres.");
+        }
+        const { data: created, error } = await admin.auth.admin.createUser({
+          email: corporateEmail,
+          password: String(senha),
+          email_confirm: true,
+          user_metadata: { nome },
         });
-      if (error) throw error;
+        if (error) throw error;
+        userId = created.user.id;
+      } else {
+        const { data: invited, error } =
+          await admin.auth.admin.inviteUserByEmail(corporateEmail, {
+            data: { nome },
+          });
+        if (error) throw error;
+        userId = invited.user.id;
+      }
 
       const { data: profile } = await admin
         .from("perfis")
@@ -101,17 +121,19 @@ Deno.serve(async (request) => {
         .eq("id", profileId)
         .single();
       await admin.from("usuarios").upsert({
-        id: invited.user.id,
+        id: userId,
         nome,
         email: corporateEmail,
         perfil: profile?.codigo || "CLIENTE",
         status: "ATIVO",
+        sem_email_proprio: semEmailProprio,
+        deve_trocar_senha: semEmailProprio,
       });
       await admin.from("usuario_perfis").upsert({
-        usuario_id: invited.user.id,
+        usuario_id: userId,
         perfil_id: profileId,
       });
-      return json({ ok: true, id: invited.user.id });
+      return json({ ok: true, id: userId });
     }
 
     if (body.action === "status") {

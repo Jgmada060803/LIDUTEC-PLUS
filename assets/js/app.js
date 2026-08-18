@@ -238,6 +238,9 @@ function syncSidebarNavigation() {
        class="${activeClass(isActive("dashboard"))}">
       Dashboard
     </a>
+    <a href="${prefix}redefinir-senha.html" class="nav-link">
+      Trocar minha senha
+    </a>
 
     ${navSection("Engenharia", `
       <a href="${prefix}produtos/lista.html"
@@ -656,10 +659,9 @@ if (window.location.pathname.endsWith("/administracao/codigos-parada.html")) {
   document.head.append(importScript);
 }
 
-// O apontamento de Moldagem já tem seu próprio alerta embutido
-// (producao-checklist-alerts.js), cobrindo inclusive os checklists de setup
-// que o widget flutuante abaixo não sabe calcular — por isso fica de fora
-// daqui, senão os dois mecanismos disputam a mesma tela e duplicam alertas.
+// O apontamento de Moldagem não deve exibir nenhum alerta de checklist
+// (removido a pedido do usuário) — por isso fica de fora daqui, senão o
+// widget flutuante volta a aparecer nessa tela.
 const checklistAlertPagePath = window.location.pathname.replace(/\\/g, "/");
 const isChecklistAlertPage = /\/pages\/(producao-moldes|producao-acabamento|producao-macharia|controle-processo)\//.test(
   checklistAlertPagePath

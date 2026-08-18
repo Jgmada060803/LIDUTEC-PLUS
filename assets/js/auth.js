@@ -36,7 +36,14 @@ async function redirectAuthenticatedUser() {
   }
 
   if (session) {
-    window.location.replace("./inicio.html");
+    const { data: profile } = await window.supabaseClient
+      .from("usuarios")
+      .select("deve_trocar_senha")
+      .eq("id", session.user.id)
+      .maybeSingle();
+    window.location.replace(
+      profile?.deve_trocar_senha ? "./redefinir-senha.html" : "./inicio.html"
+    );
   }
 }
 
@@ -91,7 +98,7 @@ loginForm.addEventListener("submit", async (event) => {
 
     const { data: profile } = await window.supabaseClient
       .from("usuarios")
-      .select("status")
+      .select("status,deve_trocar_senha")
       .eq("id", data.user.id)
       .maybeSingle();
 
@@ -108,6 +115,11 @@ loginForm.addEventListener("submit", async (event) => {
       "Login realizado com sucesso.",
       "success"
     );
+
+    if (profile?.deve_trocar_senha) {
+      window.location.replace("./redefinir-senha.html");
+      return;
+    }
 
     window.location.replace("./inicio.html");
   } catch (error) {
