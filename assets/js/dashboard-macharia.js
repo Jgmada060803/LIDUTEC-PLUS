@@ -324,7 +324,7 @@
   }
 
   q("#macharia-dashboard-data").value = window.LIDUTEC_TURNOS.determineShift().dataOperacional;
-  q("#macharia-dashboard-turno").value = window.LIDUTEC_TURNOS.determineShift().codigo;
+  q("#macharia-dashboard-turno").value = "ULTIMAS_24H";
   await loadMaquinas();
 
   q("#macharia-dashboard-data").addEventListener("change", () => reload().catch((error) => message(error.message)));
