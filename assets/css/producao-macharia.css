@@ -6,6 +6,16 @@
 .macharia-sopros:focus { outline: 2px solid var(--color-primary); outline-offset: -2px; background: #fff; }
 .macharia-grid .checklist-grid-itemcol { font-size: .82rem; }
 
+/* stop-entry-table é classe compartilhada com Moldagem/Acabamento
+   (producao-moldes.css); lá a coluna 6 é "Observações" (regra
+   :nth-child(6){width:34%}), mas aqui a tabela ganhou 2 colunas
+   (Condição, Perda equivalente) entre "Tempo total" e "Setor responsável",
+   então "Observações" virou a 8ª. Como este arquivo só carrega nas páginas
+   da Macharia, a regra abaixo não afeta as outras telas. */
+.stop-entry-table :is(th,td):nth-child(6) { width: auto; }
+.stop-entry-table :is(th,td):nth-child(8) { width: 34%; }
+.stop-entry-table select[name="condicao"] { min-width: 168px; }
+
 /* O título da coluna (th) já fica à esquerda pelo padrão global — os campos
    de input/output do shift-entry-table, porém, vêm centralizados por padrão;
    aqui alinhamos com o título pra não ficar descolado. */

@@ -23,7 +23,7 @@
         </section>
 
         <section class="panel shift-timeline-panel" aria-label="Linha do tempo do turno">
-          <div class="shift-timeline-heading"><strong>Linha do tempo — <span id="timeline-maquina-name">—</span></strong><span><i class="timeline-key production"></i>Sopro</span><span><i class="timeline-key stop"></i>Parada</span><span><i class="timeline-key planned"></i>Parada planejada</span></div>
+          <div class="shift-timeline-heading"><strong>Linha do tempo — <span id="timeline-maquina-name">—</span></strong><span><i class="timeline-key production"></i>Sopro</span><span><i class="timeline-key stop"></i>Parada</span><span><i class="timeline-key planned"></i>Parada planejada</span><span><i class="timeline-key partial"></i>Parada parcial</span></div>
           <div class="shift-timeline-labels"><span id="timeline-start">—</span><span id="timeline-end">—</span></div>
           <div id="shift-timeline" class="shift-timeline"><div class="shift-timeline-production"></div><div id="shift-production-segments"></div><div id="shift-stop-segments"></div></div>
         </section>
@@ -35,7 +35,7 @@
 
         <section class="panel shift-table-panel">
           <div class="shift-section-heading"><div><h2 id="stops-maquina-title">Parada</h2></div></div>
-          <div class="table-wrapper"><table class="products-table shift-entry-table stop-entry-table"><thead><tr><th>Hora início</th><th>Hora fim</th><th>Tempo total</th><th>Setor responsável</th><th>Motivo da parada</th><th>Observações</th><th></th></tr></thead><tbody id="stop-entry-rows"></tbody></table></div>
+          <div class="table-wrapper"><table class="products-table shift-entry-table stop-entry-table"><thead><tr><th>Hora início</th><th>Hora fim</th><th>Tempo total</th><th>Condição</th><th>Perda equivalente</th><th>Setor responsável</th><th>Motivo da parada</th><th>Observações</th><th></th></tr></thead><tbody id="stop-entry-rows"></tbody></table></div>
           <button id="add-stop-row" type="button" class="row-add-button" aria-label="Adicionar linha de parada" title="Adicionar linha">+</button>
         </section>
 

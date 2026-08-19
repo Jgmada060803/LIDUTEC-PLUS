@@ -258,6 +258,24 @@ function removeMachoEntryRow(removeButton) {
 // Motivo, Observações), sempre da máquina selecionada no menu superior (o
 // turno em tela já é só dessa máquina).
 // ---------------------------------------------------------------------------
+// Uma máquina com N estações pode ter 1 ou 2 delas paradas sem que a máquina
+// pare de produzir — a opção "N de 3 estações" só aparece quando N-1 delas já
+// deixa pelo menos 1 estação de folga (N>=2) e "2 de N" só faz sentido com
+// N>=3 (senão seria a máquina inteira parada, ou seja, TOTAL). A SPM-20 tem
+// só 1 estação, então nunca oferece opção parcial — só Parada total mesmo.
+// Codifica tipo+quantidade num único valor "TIPO:qtd" pra caber num <select>
+// só, no mesmo estilo compacto das outras colunas desta tabela.
+function stopConditionOptionsHtml(maquina) {
+  const total = anumber(maquina?.numero_estacoes);
+  let html = '<option value="TOTAL:">Parada total</option>';
+  if (total >= 2) html += `<option value="PARCIAL:1">1 de ${total} estações parada</option>`;
+  if (total >= 3) html += `<option value="PARCIAL:2">2 de ${total} estações paradas</option>`;
+  return html;
+}
+function stopConditionValue(row) {
+  const [tipo, qtd] = (row.querySelector('[name="condicao"]')?.value || "TOTAL:").split(":");
+  return { tipo, componentesIndisponiveis: qtd ? anumber(qtd) : null };
+}
 function stopRow() {
   const row = document.createElement("tr");
   row.className = "shift-stop-row";
@@ -265,12 +283,17 @@ function stopRow() {
     <td><input name="inicio" type="time" step="60"></td>
     <td><input name="fim" type="time" step="60"></td>
     <td><output data-duration>0h 00min</output></td>
+    <td><select name="condicao">${stopConditionOptionsHtml(currentMaquina())}</select></td>
+    <td><output data-perda>—</output></td>
     <td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("setor_id", 'name="setor_id"', "Buscar setor...", "Setor responsável")}</td>
     <td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("categoria_id", 'name="categoria_id"', "Buscar motivo...", "Motivo da parada")}</td>
     <td><input name="observacao" type="text" maxlength="500"></td>
     <td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
   return row;
 }
+// A perda equivalente mostrada aqui é só pra feedback imediato do operador —
+// o valor que realmente entra nos indicadores é recalculado no banco (RPC de
+// fechar/editar turno), que é a fonte única da fórmula.
 function updateStopRow(row) {
   const start = row.querySelector('[name="inicio"]').value;
   const end = row.querySelector('[name="fim"]').value;
@@ -284,6 +307,19 @@ function updateStopRow(row) {
     minutes = window.LIDUTEC_TURNOS.stopDurationMinutes(resolvedStart.toISOString(), resolvedEnd.toISOString());
   }
   row.querySelector("[data-duration]").textContent = formatMinutes(minutes);
+  const perdaOutput = row.querySelector("[data-perda]");
+  if (perdaOutput) {
+    if (!start || !end) {
+      perdaOutput.textContent = "—";
+    } else {
+      const { tipo, componentesIndisponiveis } = stopConditionValue(row);
+      const totalEstacoes = anumber(currentMaquina()?.numero_estacoes);
+      const perda = tipo === "PARCIAL" && totalEstacoes > 0 && componentesIndisponiveis
+        ? Math.round(minutes * componentesIndisponiveis / totalEstacoes)
+        : minutes;
+      perdaOutput.textContent = formatMinutes(perda);
+    }
+  }
 }
 function renderStopsTable() {
   const maquina = currentMaquina();
@@ -312,6 +348,7 @@ function renderStopsTable() {
     applyRowValues(row, {
       inicio: toTimeInput(item.inicio),
       fim: toTimeInput(item.fim),
+      condicao: `${item.tipo_ocorrencia || "TOTAL"}:${item.tipo_ocorrencia === "PARCIAL" ? (item.componentes_indisponiveis ?? "") : ""}`,
       setor_id: item.setor_responsavel_id ?? item.setor_id ?? "",
       categoria_id: item.categoria_id ?? "",
       observacao: item.observacao ?? ""
@@ -342,9 +379,12 @@ function collectMachineStops(strict = false) {
       if (strict) throw new Error("Os horários da parada devem estar dentro do turno selecionado.");
       continue;
     }
+    const { tipo, componentesIndisponiveis } = stopConditionValue(row);
     stops.push({
       linha_id: maquina.id, inicio: start.toISOString(), fim: end.toISOString(),
-      setor_id: anumber(value("setor_id")), categoria_id: anumber(value("categoria_id")), observacao: value("observacao")
+      setor_id: anumber(value("setor_id")), categoria_id: anumber(value("categoria_id")),
+      tipo_ocorrencia: tipo, componentes_indisponiveis: tipo === "PARCIAL" ? componentesIndisponiveis : null,
+      observacao: value("observacao")
     });
   }
   if (strict && window.LIDUTEC_TURNOS.findOverlappingInterval(stops)) {
@@ -512,8 +552,12 @@ function renderShiftTimeline() {
     if (visibleEnd <= visibleStart) continue;
     const sector = row.querySelector('[data-typeahead="setor_id"] .typeahead-input')?.value || "Parada";
     const reason = row.querySelector('[data-typeahead="categoria_id"] .typeahead-input')?.value || "Motivo não informado";
-    const title = `${aesc(sector)} — ${aesc(reason)} — ${formatMinutes(Math.round((visibleEnd - visibleStart) / 60000))}`;
-    segments.push(spanFor({ start: new Date(visibleStart), end: new Date(visibleEnd) }, "shift-stop-segment", title));
+    const { tipo, componentesIndisponiveis } = stopConditionValue(row);
+    const totalEstacoes = anumber(currentMaquina()?.numero_estacoes);
+    const condicaoLabel = tipo === "PARCIAL" ? ` — ${componentesIndisponiveis} de ${totalEstacoes} estações` : "";
+    const title = `${aesc(sector)} — ${aesc(reason)}${aesc(condicaoLabel)} — ${formatMinutes(Math.round((visibleEnd - visibleStart) / 60000))}`;
+    const segmentClass = tipo === "PARCIAL" ? "shift-stop-segment shift-stop-segment-partial" : "shift-stop-segment";
+    segments.push(spanFor({ start: new Date(visibleStart), end: new Date(visibleEnd) }, segmentClass, title));
   }
   productionContainer.innerHTML = productionSegments.join("");
   container.innerHTML = segments.join("");
@@ -739,6 +783,12 @@ async function initializeShiftEntry() {
   form.addEventListener("change", (event) => {
     if (event.target.matches(".macharia-macho") || event.target.closest(".shift-stop-row")) saveDraft();
     if (event.target.matches(".macharia-macho")) renderDescarteTable();
+    const stopRowEl = event.target.closest(".shift-stop-row");
+    // "condicao" é <select>: só dispara "change", não "input" — sem isto a
+    // perda equivalente mostrada na linha não atualiza ao trocar a opção.
+    if (stopRowEl && event.target.matches('[name="condicao"]')) {
+      try { updateStopRow(stopRowEl); } catch { /* horário incompleto, ignora */ }
+    }
     if (event.target.closest(".descarte-entry-row")) saveDraft();
     renderShiftTimeline();
   });
@@ -756,6 +806,8 @@ async function initializeShiftEntry() {
     const tbody = row.parentElement;
     if (tbody.children.length === 1) {
       for (const control of row.querySelectorAll("input,select")) control.value = "";
+      const condicao = row.querySelector('[name="condicao"]');
+      if (condicao) condicao.value = "TOTAL:";
       try { updateStopRow(row); } catch { /* ambos vazios, sem erro */ }
     } else {
       row.remove();
@@ -868,7 +920,12 @@ function renderMachariaCharts() {
   container.innerHTML = machariaState.maquinas.map((maquina) => {
     const records = machariaState.chartsRecords.filter((item) => String(item.linha_maquina_id) === String(maquina.id));
     const stops = machariaState.chartsStops.filter((item) => String(item.linha_maquina_id) === String(maquina.id));
-    const minutosParada = stops.reduce((sum, item) => sum + anumber(item.duracao_minutos), 0);
+    // Soma o tempo perdido EQUIVALENTE, não a duração real da parada — uma
+    // parada parcial (só 1 ou 2 estações indisponíveis) não derruba a
+    // disponibilidade como se a máquina tivesse parado 100% do intervalo.
+    // Registros antigos (sem o campo) e paradas totais têm os dois valores
+    // iguais, então o comportamento anterior fica preservado.
+    const minutosParada = stops.reduce((sum, item) => sum + anumber(item.tempo_perdido_equivalente_minutos ?? item.duracao_minutos), 0);
     const minutosPeriodo = shiftInfo.minutos;
     const disponibilidade = window.LIDUTEC_TURNOS.calcularTaxaEquipamento({ minutosPeriodo, minutosParada });
     const minutosDisponivel = Math.max(0, minutosPeriodo - minutosParada);
@@ -937,11 +994,20 @@ function updateMachariaStopSortHeaders() {
     button.title = active ? `Classificação ${direction === "asc" ? "crescente" : "decrescente"}. Clique para inverter.` : "Clique para classificar em ordem crescente.";
   }
 }
-const machariaStopExportHeaders = ["Data", "Turno", "Data e hora início", "Data e hora fim", "Tempo total", "Máquina", "Setor responsável", "Motivo da parada", "Observações"];
+// Condição vem de tipo_ocorrencia + componentes_indisponiveis (estruturado no
+// banco); o total de estações não é duplicado por parada, vem junto no join
+// com a máquina (linhas_maquinas_producao.numero_estacoes).
+function machariaStopConditionLabel(item) {
+  if (item.tipo_ocorrencia !== "PARCIAL") return "Parada total";
+  const total = item.linhas_maquinas_producao?.numero_estacoes;
+  return `${item.componentes_indisponiveis} de ${total ?? "?"} estações`;
+}
+const machariaStopExportHeaders = ["Data", "Turno", "Data e hora início", "Data e hora fim", "Tempo total", "Condição", "Perda equivalente", "Máquina", "Setor responsável", "Motivo da parada", "Observações"];
 function machariaStopExportValues(item) {
   return [
     displayDate(item.data_operacional), item.turno, formatDateTime(item.inicio), formatDateTime(item.fim),
-    formatMinutes(item.duracao_minutos), item.linhas_maquinas_producao?.nome || "—",
+    formatMinutes(item.duracao_minutos), machariaStopConditionLabel(item),
+    formatMinutes(item.tempo_perdido_equivalente_minutos ?? item.duracao_minutos), item.linhas_maquinas_producao?.nome || "—",
     item.setores_responsaveis_parada?.nome || "—", item.categorias_parada_producao?.nome || item.motivo || "—",
     item.observacao || "—"
   ].map(String);
@@ -968,7 +1034,7 @@ function exportMachariaStopsExcel(rows) {
   downloadMachariaFile(`﻿${html}`, "application/vnd.ms-excel;charset=utf-8", "xls", "paradas-macharia");
 }
 function exportMachariaStopsSvg(rows) {
-  const widths = [90, 90, 170, 170, 100, 130, 190, 250, 300];
+  const widths = [90, 90, 170, 170, 100, 150, 110, 130, 190, 250, 300];
   const rowHeight = 28;
   const width = widths.reduce((sum, value) => sum + value, 0);
   const height = (rows.length + 1) * rowHeight + 2;
@@ -1008,6 +1074,8 @@ function renderMachariaStopsQuery() {
     terms.every((term) => normalizeText(item.observacao).includes(term)));
   const getters = {
     start: (item) => item.inicio, end: (item) => item.fim, duration: (item) => anumber(item.duracao_minutos),
+    condition: (item) => (item.tipo_ocorrencia === "PARCIAL" ? anumber(item.componentes_indisponiveis) : 0),
+    loss: (item) => anumber(item.tempo_perdido_equivalente_minutos ?? item.duracao_minutos),
     maquina: (item) => item.linhas_maquinas_producao?.nome, sector: (item) => item.setores_responsaveis_parada?.nome,
     reason: (item) => item.categorias_parada_producao?.nome || item.motivo, notes: (item) => item.observacao,
     date: (item) => item.data_operacional, shift: (item) => item.turno
@@ -1025,7 +1093,10 @@ function renderMachariaStopsQuery() {
   aq("#stop-records").innerHTML = rows.map((x) => `<tr>
       <td>${displayDate(x.data_operacional)}</td><td>${aesc(x.turno)}</td>
       <td>${formatDateTime(x.inicio)}</td><td>${formatDateTime(x.fim)}</td>
-      <td>${formatMinutes(x.duracao_minutos)}</td><td>${aesc(x.linhas_maquinas_producao?.nome || "—")}</td>
+      <td>${formatMinutes(x.duracao_minutos)}</td>
+      <td>${aesc(machariaStopConditionLabel(x))}</td>
+      <td>${formatMinutes(x.tempo_perdido_equivalente_minutos ?? x.duracao_minutos)}</td>
+      <td>${aesc(x.linhas_maquinas_producao?.nome || "—")}</td>
       <td>${aesc(x.setores_responsaveis_parada?.nome || "—")}</td>
       <td>${aesc(x.categorias_parada_producao?.nome || x.motivo || "—")}</td>
       <td>${aesc(x.observacao || "—")}</td>

@@ -51,8 +51,9 @@
 
         <section class="panel shift-table-panel">
           <div class="shift-section-heading"><div><h2>Parada</h2></div></div>
-          <div class="table-wrapper"><table class="products-table shift-entry-table stop-entry-table"><thead><tr><th>Hora início</th><th>Hora fim</th><th>Tempo total</th><th>Posto/Equipamento</th><th>Setor de origem</th><th>Motivo da parada</th><th>Observações</th><th></th></tr></thead><tbody id="stop-entry-rows"></tbody></table></div>
+          <div class="table-wrapper"><table class="products-table shift-entry-table stop-entry-table"><thead><tr><th>Hora início</th><th>Hora fim</th><th>Tempo total</th><th>Posto/Equipamento</th><th>Condição</th><th>Perda equivalente</th><th>Setor de origem</th><th>Motivo da parada</th><th>Observações</th><th></th></tr></thead><tbody id="stop-entry-rows"></tbody></table></div>
           <button id="add-stop-row" type="button" class="row-add-button" aria-label="Adicionar parada" title="Adicionar parada">+</button>
+          <div class="acabamento-equip-legend"><span><i class="timeline-key stop"></i>Parada</span><span><i class="timeline-key planned"></i>Parada planejada</span><span><i class="timeline-key partial"></i>Parada parcial</span></div>
           <div class="acabamento-equip-timelines" id="equipamentos-timelines"></div>
         </section>
 

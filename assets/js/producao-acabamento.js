@@ -160,6 +160,37 @@ function productionRow() {
     <td><button type="button" class="row-remove" aria-label="Remover linha">×</button></td>`;
   return row;
 }
+// Só o Jato (postos com numero_turbinas cadastrado — Jato 1/2 têm 4
+// turbinas, Jato Gancheira tem 3) oferece capacidade reduzida; postos de
+// linha e demais equipamentos avulsos (correias, VS automática) não têm
+// numero_turbinas, então só aparece "Parada total" pra eles. O total nunca é
+// fixo em 4: vem do próprio posto selecionado na linha.
+function stopConditionOptionsHtml(postoId) {
+  const posto = acabamentoState.postos.find((p) => String(p.id) === String(postoId));
+  const total = anumber(posto?.numero_turbinas);
+  let html = '<option value="TOTAL:">Parada total</option>';
+  if (total >= 2) html += `<option value="PARCIAL:1">1 de ${total} turbinas desabilitada</option>`;
+  if (total >= 3) html += `<option value="PARCIAL:2">2 de ${total} turbinas desabilitadas</option>`;
+  return html;
+}
+function stopConditionValue(row) {
+  const [tipo, qtd] = (row.querySelector('[name="condicao"]')?.value || "TOTAL:").split(":");
+  return { tipo, componentesIndisponiveis: qtd ? anumber(qtd) : null };
+}
+// Reconstrói as opções de condição quando o posto/equipamento da linha muda
+// (cada um pode ter um número de turbinas diferente). Memoiza o posto já
+// aplicado pra não reconstruir (e perder a seleção do operador) toda vez que
+// updateStopRow roda por outro motivo, como digitar o horário.
+function refreshStopConditionOptions(row) {
+  const select = row.querySelector('[name="condicao"]');
+  if (!select) return;
+  const postoId = row.querySelector('[name="posto_id"]')?.value || "";
+  if (select.dataset.postoId === postoId) return;
+  const previous = select.value;
+  select.dataset.postoId = postoId;
+  select.innerHTML = stopConditionOptionsHtml(postoId);
+  select.value = [...select.options].some((o) => o.value === previous) ? previous : "TOTAL:";
+}
 function stopRow() {
   const row = document.createElement("tr");
   row.className = "shift-stop-row";
@@ -168,6 +199,8 @@ function stopRow() {
     <td><input name="fim" type="time" step="60"></td>
     <td><output data-duration>0h 00min</output></td>
     <td><select name="posto_id"><option value="">Selecione</option>${postoOptionsHtml()}</select></td>
+    <td><select name="condicao">${stopConditionOptionsHtml("")}</select></td>
+    <td><output data-perda>—</output></td>
     <td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("setor_id", 'name="setor_id"', "Buscar setor...", "Setor de origem")}</td>
     <td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("categoria_id", 'name="categoria_id"', "Buscar motivo...", "Motivo da parada")}</td>
     <td><input name="observacao" type="text" maxlength="500"></td>
@@ -209,7 +242,7 @@ function stoppedOverlapsForPosto(postoId, bounds) {
     if (!start || !end || end <= start) continue;
     const overlapStart = Math.max(start.getTime(), bounds.start.getTime());
     const overlapEnd = Math.min(end.getTime(), bounds.end.getTime());
-    if (overlapEnd > overlapStart) overlaps.push([overlapStart, overlapEnd]);
+    if (overlapEnd > overlapStart) overlaps.push([overlapStart, overlapEnd, stopConditionValue(row).tipo]);
   }
   return overlaps;
 }
@@ -247,10 +280,10 @@ function equipmentSegmentsHtml(posto, bounds) {
   // aparece em amarelo, tenha ou não parada real lançada nesse horário; as
   // paradas realmente registradas ficam em vermelho, por cima.
   const planejados = plannedWindowIntervals(bounds, { turno, dataOperacional, equipamentoCodigo: posto.codigo });
-  const paradas = stoppedOverlapsForPosto(posto.id, bounds).map(([start, end]) => ({ start: new Date(start), end: new Date(end) }));
+  const paradas = stoppedOverlapsForPosto(posto.id, bounds).map(([start, end, tipo]) => ({ start: new Date(start), end: new Date(end), tipo }));
   return [
     ...planejados.map((interval) => spanFor(interval, "acabamento-equip-planned", "Parada programada")),
-    ...paradas.map((interval) => spanFor(interval, "acabamento-equip-stop"))
+    ...paradas.map((interval) => spanFor(interval, interval.tipo === "PARCIAL" ? "acabamento-equip-stop acabamento-equip-stop-partial" : "acabamento-equip-stop"))
   ].join("");
 }
 function renderEquipmentTimelines(bounds) {
@@ -271,7 +304,11 @@ function renderAcabamentoIllustrations() {
   if (dotsL2) { if (acabamentoState.linha2Ativa) renderPostoDots("#postos-dots-l2", linha2Id(), bounds); else dotsL2.innerHTML = ""; }
   renderEquipmentTimelines(bounds);
 }
+// A perda equivalente mostrada aqui é só feedback imediato pro operador — o
+// valor que entra nos indicadores é recalculado no banco (RPC de
+// fechar/editar turno), que é a fonte única da fórmula.
 function updateStopRow(row) {
+  refreshStopConditionOptions(row);
   const start = row.querySelector('[name="inicio"]').value;
   const end = row.querySelector('[name="fim"]').value;
   let minutes = 0;
@@ -284,6 +321,21 @@ function updateStopRow(row) {
     minutes = window.LIDUTEC_TURNOS.stopDurationMinutes(resolvedStart.toISOString(), resolvedEnd.toISOString());
   }
   row.querySelector("[data-duration]").textContent = aFormatMinutes(minutes);
+  const perdaOutput = row.querySelector("[data-perda]");
+  if (perdaOutput) {
+    if (!start || !end) {
+      perdaOutput.textContent = "—";
+    } else {
+      const { tipo, componentesIndisponiveis } = stopConditionValue(row);
+      const postoId = row.querySelector('[name="posto_id"]')?.value;
+      const posto = acabamentoState.postos.find((p) => String(p.id) === String(postoId));
+      const totalTurbinas = anumber(posto?.numero_turbinas);
+      const perda = tipo === "PARCIAL" && totalTurbinas > 0 && componentesIndisponiveis
+        ? Math.round(minutes * componentesIndisponiveis / totalTurbinas)
+        : minutes;
+      perdaOutput.textContent = aFormatMinutes(perda);
+    }
+  }
 }
 function appendEntryRow(target, row) {
   aq(target).append(row);
@@ -353,6 +405,19 @@ function populateShiftRows(productions, stops, linhas) {
     });
     appendEntryRow("#stop-entry-rows", row);
     try { updateStopRow(row); } catch { /* horário incompleto no carregamento inicial */ }
+    // condicao depende do posto (turbinas) — só dá pra aplicar depois que
+    // updateStopRow() acima já reconstruiu as opções pro posto_id certo.
+    const condicaoSelect = row.querySelector('[name="condicao"]');
+    if (condicaoSelect) {
+      // "condicao" é o formato bruto do rascunho local/compartilhado (vem
+      // direto do <select>, via rowValues); tipo_ocorrencia/componentes_indis-
+      // poniveis é o formato do turno fechado, vindo do banco — mesmo padrão
+      // dual já usado acima pra posto_id.
+      const desired = item.condicao
+        ?? `${item.tipo_ocorrencia || "TOTAL"}:${item.tipo_ocorrencia === "PARCIAL" ? (item.componentes_indisponiveis ?? "") : ""}`;
+      if ([...condicaoSelect.options].some((o) => o.value === desired)) condicaoSelect.value = desired;
+      try { updateStopRow(row); } catch { /* horário incompleto no carregamento inicial */ }
+    }
   }
   lockAutoAbsenteeismoRows();
 }
@@ -400,7 +465,13 @@ function serializeShift() {
       if (!window.LIDUTEC_TURNOS.intervalWithinShift(form.elements.data_operacional.value, form.elements.turno.value, start.toISOString(), end.toISOString())) {
         throw new Error("A parada deve estar dentro do turno selecionado.");
       }
-      return { inicio: start.toISOString(), fim: end.toISOString(), posto_id: anumber(value("posto_id")), setor_id: anumber(value("setor_id")), categoria_id: anumber(value("categoria_id")), observacao: value("observacao") };
+      const { tipo, componentesIndisponiveis } = stopConditionValue(row);
+      return {
+        inicio: start.toISOString(), fim: end.toISOString(), posto_id: anumber(value("posto_id")),
+        setor_id: anumber(value("setor_id")), categoria_id: anumber(value("categoria_id")),
+        tipo_ocorrencia: tipo, componentes_indisponiveis: tipo === "PARCIAL" ? componentesIndisponiveis : null,
+        observacao: value("observacao")
+      };
     });
   // No Acabamento cada parada é vinculada a um posto/equipamento, então
   // paradas em postos diferentes podem ter o mesmo horário — só bloqueia
@@ -1138,7 +1209,9 @@ function renderAcabamentoDashboard() {
   const records = acabamentoState.records.filter((x) => x.data_operacional === today);
   const stops = acabamentoState.stops.filter((x) => x.data_operacional === today);
   const totals = productionTotals(records);
-  const stopMinutes = stops.reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
+  // "Tempo de parada" é indicador de perda, não um log de duração — soma o
+  // tempo perdido EQUIVALENTE (perda parcial não conta como parada total).
+  const stopMinutes = stops.reduce((sum, x) => sum + anumber(x.tempo_perdido_equivalente_minutos ?? x.duracao_minutos), 0);
   // Absenteísmo é do turno atual, não do dia inteiro: turnos_acabamento_linhas
   // guarda linhas de qualquer turno com apontamento iniciado nessa data, então
   // sem filtrar por turno o cálculo misturaria manhã/tarde/noite entre si (e
@@ -1207,11 +1280,20 @@ function updateAcabamentoStopSortHeaders() {
     button.title = active ? `Classificação ${direction === "asc" ? "crescente" : "decrescente"}. Clique para inverter.` : "Clique para classificar em ordem crescente.";
   }
 }
-const acabamentoStopExportHeaders = ["Data", "Turno", "Início", "Fim", "Tempo total", "Posto/Equipamento", "Setor de origem", "Motivo", "Observações"];
+// Condição vem de tipo_ocorrencia + componentes_indisponiveis (estruturado no
+// banco); o total de turbinas não é duplicado por parada, vem junto no join
+// com o posto/equipamento (postos_equipamentos_acabamento.numero_turbinas).
+function acabamentoStopConditionLabel(item) {
+  if (item.tipo_ocorrencia !== "PARCIAL") return "Parada total";
+  const total = item.postos_equipamentos_acabamento?.numero_turbinas;
+  return `${item.componentes_indisponiveis} de ${total ?? "?"} turbinas`;
+}
+const acabamentoStopExportHeaders = ["Data", "Turno", "Início", "Fim", "Tempo total", "Condição", "Perda equivalente", "Posto/Equipamento", "Setor de origem", "Motivo", "Observações"];
 function acabamentoStopExportValues(item) {
   return [
     aDisplayDate(item.data_operacional), item.turno, aFormatDateTime(item.inicio), aFormatDateTime(item.fim),
-    aFormatMinutes(item.duracao_minutos), item.postos_equipamentos_acabamento?.nome || "—",
+    aFormatMinutes(item.duracao_minutos), acabamentoStopConditionLabel(item),
+    aFormatMinutes(item.tempo_perdido_equivalente_minutos ?? item.duracao_minutos), item.postos_equipamentos_acabamento?.nome || "—",
     item.setores_responsaveis_parada?.nome || "—", item.categorias_parada_producao?.nome || "—",
     item.observacao || "—"
   ].map(String);
@@ -1238,7 +1320,7 @@ function exportAcabamentoStopsExcel(rows) {
   downloadAcabamentoFile(`﻿${html}`, "application/vnd.ms-excel;charset=utf-8", "xls", "paradas-acabamento");
 }
 function exportAcabamentoStopsSvg(rows) {
-  const widths = [90, 90, 170, 170, 100, 190, 190, 190, 300];
+  const widths = [90, 90, 170, 170, 100, 150, 110, 190, 190, 190, 300];
   const rowHeight = 28;
   const width = widths.reduce((sum, value) => sum + value, 0);
   const height = (rows.length + 1) * rowHeight + 2;
@@ -1280,6 +1362,8 @@ function renderAcabamentoStops() {
     terms.every((term) => normalizeText(item.observacao).includes(term)));
   const getters = {
     start: (item) => item.inicio, end: (item) => item.fim, duration: (item) => anumber(item.duracao_minutos),
+    condition: (item) => (item.tipo_ocorrencia === "PARCIAL" ? anumber(item.componentes_indisponiveis) : 0),
+    loss: (item) => anumber(item.tempo_perdido_equivalente_minutos ?? item.duracao_minutos),
     posto: (item) => item.postos_equipamentos_acabamento?.nome, sector: (item) => item.setores_responsaveis_parada?.nome,
     reason: (item) => item.categorias_parada_producao?.nome, notes: (item) => item.observacao,
     date: (item) => item.data_operacional, shift: (item) => item.turno
@@ -1300,6 +1384,8 @@ function renderAcabamentoStops() {
       <td>${aFormatDateTime(x.inicio)}</td>
       <td>${aFormatDateTime(x.fim)}</td>
       <td>${aFormatMinutes(x.duracao_minutos)}</td>
+      <td>${aesc(acabamentoStopConditionLabel(x))}</td>
+      <td>${aFormatMinutes(x.tempo_perdido_equivalente_minutos ?? x.duracao_minutos)}</td>
       <td>${aesc(x.postos_equipamentos_acabamento?.nome || "—")}</td>
       <td>${aesc(x.setores_responsaveis_parada?.nome || "—")}</td>
       <td>${aesc(x.categorias_parada_producao?.nome || "—")}</td>
@@ -1361,6 +1447,14 @@ function renderAcabamentoCharts() {
   for (const stop of acabamentoState.stops) {
     const posto = postoById.get(stop.posto_equipamento_id);
     if (!posto) continue;
+    // Fração da duração real que de fato conta como perda: 1 pra parada
+    // total, <1 pra capacidade reduzida (turbinas do Jato etc.) — aplicada
+    // sobre a duração já descontada da janela programada abaixo, então os
+    // dois ajustes (programado + capacidade parcial) se combinam sem
+    // duplicar nem perder nenhum dos dois.
+    const perdaRatio = anumber(stop.duracao_minutos) > 0
+      ? anumber(stop.tempo_perdido_equivalente_minutos ?? stop.duracao_minutos) / anumber(stop.duracao_minutos)
+      : 1;
     if (posto.tipo === "POSTO_LINHA") {
       // Paradas de Absenteísmo (Setor ADM) já são contabilizadas na disponibilidade
       // pela proporção operadoresPresentes/operadoresPlanejados — somar de novo
@@ -1371,14 +1465,14 @@ function renderAcabamentoCharts() {
       const overlapProgramado = paradaProgramadaOverlapMinutos(stop, { linhaId: posto.linha_maquina_id });
       const key = `${stop.turno_producao_id}|${posto.linha_maquina_id}`;
       const lista = stopsPorTurnoLinha.get(key) || [];
-      lista.push({ ...stop, duracao_minutos: Math.max(0, anumber(stop.duracao_minutos) - overlapProgramado) });
+      lista.push({ ...stop, tempo_perdido_ajustado: Math.max(0, anumber(stop.duracao_minutos) - overlapProgramado) * perdaRatio });
       stopsPorTurnoLinha.set(key, lista);
     } else {
       // Mesma lógica: tempo do equipamento avulso parado numa janela programada
       // (refeição, manutenção preventiva etc.) não reduz a taxa de utilização dele.
       const overlapProgramado = paradaProgramadaOverlapMinutos(stop, { equipamentoCodigo: posto.codigo });
       const lista = stopsPorEquipamento.get(posto.id) || [];
-      lista.push({ ...stop, duracao_minutos: Math.max(0, anumber(stop.duracao_minutos) - overlapProgramado) });
+      lista.push({ ...stop, tempo_perdido_ajustado: Math.max(0, anumber(stop.duracao_minutos) - overlapProgramado) * perdaRatio });
       stopsPorEquipamento.set(posto.id, lista);
     }
   }
@@ -1390,7 +1484,7 @@ function renderAcabamentoCharts() {
     const minutosTurno = window.LIDUTEC_TURNOS.shifts[turno]?.minutos || 0;
     if (!minutosTurno) continue;
     const numeroPostos = postoPorLinha.get(shift.linha_maquina_id) || 1;
-    const minutosParada = (stopsPorTurnoLinha.get(`${shift.turno_producao_id}|${shift.linha_maquina_id}`) || []).reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
+    const minutosParada = (stopsPorTurnoLinha.get(`${shift.turno_producao_id}|${shift.linha_maquina_id}`) || []).reduce((sum, x) => sum + anumber(x.tempo_perdido_ajustado), 0);
     const disponibilidadeTurno = window.LIDUTEC_TURNOS.calcularDisponibilidade({
       minutosTurno, numeroPostos,
       operadoresPlanejados: shift.operadores_planejados, operadoresPresentes: shift.operadores_presentes,
@@ -1421,7 +1515,7 @@ function renderAcabamentoCharts() {
   const container = aq("#equipamentos-avulsos-rows");
   if (container) {
     container.innerHTML = equipamentosAvulsos.map((equipamento) => {
-      const minutosParada = (stopsPorEquipamento.get(equipamento.id) || []).reduce((sum, x) => sum + anumber(x.duracao_minutos), 0);
+      const minutosParada = (stopsPorEquipamento.get(equipamento.id) || []).reduce((sum, x) => sum + anumber(x.tempo_perdido_ajustado), 0);
       const taxa = window.LIDUTEC_TURNOS.calcularTaxaEquipamento({ minutosPeriodo: totalMinutosTurno, minutosParada });
       return `<div class="equipamento-avulso-card"><strong>${aesc(equipamento.nome)}</strong><span>${(taxa * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span><small>${aFormatMinutes(minutosParada)} parado</small></div>`;
     }).join("");

@@ -35,7 +35,7 @@
         // genérico, aparece pra todas as áreas.
         result(client().from("categorias_parada_producao").select("id,codigo,nome").eq("ativo", true).or("area_id.eq.5,area_id.is.null").order("nome")),
         result(client().from("setores_responsaveis_parada").select("id,codigo,nome").eq("ativo", true).order("nome")),
-        result(client().from("postos_equipamentos_acabamento").select("id,codigo,nome,tipo,linha_maquina_id").eq("ativo", true).order("ordem"))
+        result(client().from("postos_equipamentos_acabamento").select("id,codigo,nome,tipo,linha_maquina_id,numero_turbinas").eq("ativo", true).order("ordem"))
       ]);
       return { products, lines, categories, sectors, postos };
     },
@@ -90,7 +90,7 @@
       .order("data_operacional", { ascending: false }), filters)),
     stops: (filters = {}) => result(applyFilters(client()
       .from("paradas_producao_acabamento")
-      .select("*,categorias_parada_producao(nome),setores_responsaveis_parada(nome),postos_equipamentos_acabamento(codigo,nome,tipo,linha_maquina_id)")
+      .select("*,categorias_parada_producao(nome),setores_responsaveis_parada(nome),postos_equipamentos_acabamento(codigo,nome,tipo,linha_maquina_id,numero_turbinas)")
       .order("data_operacional", { ascending: false }), filters)),
     monthShifts: (from, to, shift) => result(client().from("turnos_producao_acabamento").select("data_operacional,turno,status,rascunho_producoes,rascunho_paradas,rascunho_linhas").gte("data_operacional", from).lte("data_operacional", to).eq("turno", shift).limit(40)),
     calendarEvents: (from, to, shift) => result(client().from("calendario_operacional").select("id,nome,tipo,escopo,data_inicio,data_fim,turno,observacao").eq("ativo", true).lte("data_inicio", to).gte("data_fim", from).or(`turno.eq.TODOS,turno.eq.${shift}`).order("data_inicio").limit(200)),
@@ -109,7 +109,7 @@
       .select("linha_maquina_id,produto_id,quantidade_liberada,quantidade_rejeitada,quantidade_retrabalhada,quantidade_refugada")
       .eq("turno_producao_id", id).order("linha_maquina_id").order("produto_id")),
     shiftStops: (id) => result(client().from("paradas_producao_acabamento")
-      .select("inicio,fim,setor_origem_id,categoria_id,posto_equipamento_id,observacao").eq("turno_producao_id", id).order("inicio")),
+      .select("inicio,fim,setor_origem_id,categoria_id,posto_equipamento_id,tipo_ocorrencia,componentes_indisponiveis,observacao").eq("turno_producao_id", id).order("inicio")),
     history: async (id) => result(client().from("historico_edicoes_turno_acabamento")
       .select("alterado_em,descricao,dados_anteriores,dados_novos,usuarios(nome)")
       .eq("turno_producao_id", id).order("alterado_em", { ascending: false })),
