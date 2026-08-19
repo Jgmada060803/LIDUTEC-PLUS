@@ -606,9 +606,16 @@ document.addEventListener("keydown", (event) => {
     if (item) { event.preventDefault(); selectTypeaheadMatch(activeTypeaheadField, item); }
   }
 });
-document.addEventListener("click", (event) => {
+// pointerdown (não click) + preventDefault: em toque, o click da sugestão
+// costuma chegar depois do focusout/limpeza de 150ms do campo (ver abaixo),
+// fazendo o toque "não pegar" no tablet. pointerdown com preventDefault
+// evita que o campo perca o foco ao tocar na sugestão, então o focusout
+// nem dispara — elimina a corrida em vez de tentar vencer ela no tempo.
+document.addEventListener("pointerdown", (event) => {
   const li = event.target.closest(".typeahead-results li[data-index]");
-  if (li && activeTypeaheadField) selectTypeaheadMatch(activeTypeaheadField, activeTypeaheadField.matches[Number(li.dataset.index)]);
+  if (!li || !activeTypeaheadField) return;
+  event.preventDefault();
+  selectTypeaheadMatch(activeTypeaheadField, activeTypeaheadField.matches[Number(li.dataset.index)]);
 });
 document.addEventListener("focusout", (event) => {
   const input = event.target.closest(".typeahead-input");

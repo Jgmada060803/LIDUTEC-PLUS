@@ -10,6 +10,8 @@ const machariaState = {
   editingClosed: false,
   draftSaveTimer: null,
   draftSaveInFlight: false,
+  draftSaveQueued: false,
+  draftConflictRetries: 0,
   records: [],
   descartes: [],
   fichaProdutos: [],
@@ -375,6 +377,15 @@ function renderDescarteTable() {
   const descartesExistentes = new Map((machariaState.currentShift?.rascunho_descartes || [])
     .filter((item) => String(item.linha_id ?? item.linha_maquina_id) === String(maquina.id))
     .map((item) => [String(item.macho_id), item]));
+  // Essa tabela é recriada a cada sopro digitado na grade horária (a lista de
+  // machos exibidos muda conforme sopros > 0), então guarda antes o que já
+  // está digitado em "Descartados"/observação e ainda não foi salvo — senão
+  // mexer em qualquer hora da grade apaga um descarte em digitação, voltando
+  // pro último valor salvo (ou 0).
+  const descartesEmTela = new Map([...tbody.querySelectorAll(".descarte-entry-row")].map((row) => [
+    row.dataset.machoId,
+    { quantidade_descartada: row.querySelector('[name="quantidade_descartada"]')?.value, observacao: row.querySelector('[name="observacao"]')?.value }
+  ]));
   const machoIds = [...soprosPorMacho.keys()].filter((id) => soprosPorMacho.get(id) > 0);
   tbody.replaceChildren();
   if (empty) empty.hidden = machoIds.length > 0;
@@ -383,8 +394,10 @@ function renderDescarteTable() {
     const macho = findMachoById(machoId);
     const sopros = soprosPorMacho.get(machoId);
     const estimado = sopros * anumber(macho?.machos_por_sopro);
+    const emTela = descartesEmTela.get(String(machoId));
     const existente = descartesExistentes.get(String(machoId));
-    const descartado = anumber(existente?.quantidade_descartada);
+    const descartado = emTela ? anumber(emTela.quantidade_descartada) : anumber(existente?.quantidade_descartada);
+    const observacao = emTela ? (emTela.observacao || "") : (existente?.observacao || "");
     const row = document.createElement("tr");
     row.className = "descarte-entry-row";
     row.dataset.machoId = machoId;
@@ -394,7 +407,7 @@ function renderDescarteTable() {
       <td data-estimado="${estimado}">${estimado}</td>
       <td><input name="quantidade_descartada" type="number" min="0" step="1" value="${descartado}" ${disabledAttr}></td>
       <td><output data-liquido>${Math.max(0, estimado - descartado)}</output></td>
-      <td><input name="observacao" type="text" maxlength="500" value="${aesc(existente?.observacao || "")}" ${disabledAttr}></td>`;
+      <td><input name="observacao" type="text" maxlength="500" value="${aesc(observacao)}" ${disabledAttr}></td>`;
     tbody.append(row);
   }
 }
@@ -517,8 +530,14 @@ function saveDraft() {
   machariaState.draftSaveTimer = setTimeout(persistDraft, 800);
 }
 async function persistDraft() {
-  if (machariaState.currentShift?.status === "FECHADO" || machariaState.editingClosed || machariaState.draftSaveInFlight) return;
+  if (machariaState.currentShift?.status === "FECHADO" || machariaState.editingClosed) return;
+  // Edição feita enquanto um salvamento anterior ainda está em andamento (rede
+  // lenta no tablet, por exemplo) não pode ser simplesmente descartada — senão
+  // a linha digitada nesse meio-tempo nunca é salva. Marca como pendente e
+  // refaz assim que o salvamento em andamento terminar.
+  if (machariaState.draftSaveInFlight) { machariaState.draftSaveQueued = true; return; }
   machariaState.draftSaveInFlight = true;
+  machariaState.draftSaveQueued = false;
   const form = aq("#shift-entry-form");
   const maquina = currentMaquina();
   try {
@@ -537,16 +556,31 @@ async function persistDraft() {
     });
     machariaState.currentShift = { ...(machariaState.currentShift || {}), ...saved, rascunho_producoes: producoes, rascunho_paradas: paradas, rascunho_descartes: descartes, status: "ABERTO" };
     aq("#shift-status").textContent = "Em apontamento · salvo agora";
+    machariaState.draftConflictRetries = 0;
   } catch (error) {
-    if (/CONFLITO_RASCUNHO|40001/i.test(`${error.message || ""} ${error.code || ""}`)) {
+    if (/CONFLITO_RASCUNHO|40001/i.test(`${error.message || ""} ${error.code || ""}`) && machariaState.draftConflictRetries < 3) {
+      // Só a versão está desatualizada (outra aba/usuário salvou primeiro) —
+      // NÃO chama checkShiftStatus()/renderMachineView() aqui, porque isso
+      // redesenharia a grade inteira a partir do servidor e apagaria qualquer
+      // linha que o operador ainda esteja digitando em tela. Busca só a nova
+      // versão e tenta salvar de novo com o conteúdo atual da tela.
       machariaState.draftSaveInFlight = false;
-      machariaMessage("Este turno foi atualizado por outro usuário. Carregamos a versão mais recente.", "error");
-      await checkShiftStatus();
+      machariaState.draftConflictRetries = (machariaState.draftConflictRetries || 0) + 1;
+      const fresh = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.shift(form.elements.data_operacional.value, form.elements.turno.value, maquina.id);
+      if (fresh?.status === "FECHADO") {
+        machariaMessage("Este turno foi fechado por outro usuário.", "error");
+        await checkShiftStatus();
+        return;
+      }
+      machariaState.currentShift = { ...(machariaState.currentShift || {}), versao: fresh?.versao ?? null };
+      await persistDraft();
       return;
     }
+    machariaState.draftConflictRetries = 0;
     machariaMessage(`Não foi possível salvar o rascunho: ${error.message}`, "error");
   } finally {
     machariaState.draftSaveInFlight = false;
+    if (machariaState.draftSaveQueued) { machariaState.draftSaveQueued = false; persistDraft(); }
   }
 }
 async function loadShiftHistory(turnId) {
@@ -631,15 +665,29 @@ async function closeShift(event) {
       await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.editShift({ p_turno_id: machariaState.currentShift.id, p_producoes: producoes, p_paradas: paradas, p_descartes: descartes });
       machariaMessage("Alterações do turno salvas com sucesso.");
     } else {
-      await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.closeShift({
-        p_data_operacional: form.elements.data_operacional.value,
-        p_turno: form.elements.turno.value,
-        p_linha_maquina_id: maquina.id,
-        p_producoes: producoes,
-        p_paradas: paradas,
-        p_descartes: descartes,
-        p_versao: machariaState.currentShift?.versao ?? null
-      });
+      // A versão local pode ter ficado desatualizada entre abrir a tela e
+      // clicar em "Fechar turno" (um autosave terminou nesse meio-tempo) —
+      // busca a versão atual e tenta de novo antes de expor o erro cru
+      // (CONFLITO_RASCUNHO/40001) pro operador.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.closeShift({
+            p_data_operacional: form.elements.data_operacional.value,
+            p_turno: form.elements.turno.value,
+            p_linha_maquina_id: maquina.id,
+            p_producoes: producoes,
+            p_paradas: paradas,
+            p_descartes: descartes,
+            p_versao: machariaState.currentShift?.versao ?? null
+          });
+          break;
+        } catch (error) {
+          if (attempt >= 2 || !/CONFLITO_RASCUNHO|40001/i.test(`${error.message || ""} ${error.code || ""}`)) throw error;
+          const fresh = await window.LIDUTEC_PRODUCAO_MACHARIA_DATA.shift(form.elements.data_operacional.value, form.elements.turno.value, maquina.id);
+          if (fresh?.status === "FECHADO") throw new Error("Este turno já foi fechado por outro usuário.");
+          machariaState.currentShift = { ...(machariaState.currentShift || {}), versao: fresh?.versao ?? null };
+        }
+      }
       machariaMessage("Turno fechado com sucesso.");
     }
     await checkShiftStatus();
