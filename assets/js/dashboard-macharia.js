@@ -110,7 +110,14 @@
     });
   }
 
-  function renderHourlyChart(points, maquinaNome) {
+  // Guarda os últimos pontos renderizados pra poder redesenhar o gráfico sob
+  // demanda (zoom do navegador, redimensionamento da janela) sem precisar
+  // recarregar os dados — ver o ResizeObserver no fim do arquivo.
+  function renderHourlyChart(points, maquinaNome, stops, period) {
+    state.lastHourlyPoints = points;
+    state.lastHourlyMaquinaNome = maquinaNome;
+    state.lastHourlyStops = stops;
+    state.lastHourlyPeriod = period;
     const container = q("#macharia-hourly-chart");
     const withData = points.filter((p) => p.hasData);
     q("#macharia-hourly-chart-empty").hidden = withData.length > 0;
@@ -120,8 +127,17 @@
     // não um tamanho fixo arbitrário — assim o SVG preenche 100% da largura
     // E da altura sem sobrar borda vazia e sem esticar/distorcer os
     // círculos e o texto (o que preserveAspectRatio sozinho não evita).
+    // Como o width/height do <svg> abaixo são atributos fixos (não CSS
+    // percentual), essa medição só fica correta enquanto o container não
+    // mudar de tamanho depois do render — por isso o ResizeObserver no fim
+    // do arquivo chama esta função de novo sempre que o container muda
+    // (zoom do navegador, redimensionamento da janela etc.), sem o quê o
+    // gráfico ficava "congelado" no tamanho de quando a página carregou e
+    // distorcia (texto esmagado ou esparso) até a próxima atualização de dados.
     const width = Math.max(600, Math.round(container.clientWidth) || 1400);
     const height = Math.max(240, Math.round(container.clientHeight) || 420);
+    // top tem que caber a faixa da linha do tempo (linha 8-22) + respiro
+    // antes da grade do gráfico começar em si.
     const margin = { top: 46, right: 30, bottom: 50, left: 66 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
@@ -130,6 +146,44 @@
     const maxY = Math.ceil((rawMax * 1.25) / 10) * 10;
     const xFor = (index) => margin.left + (points.length > 1 ? (index / (points.length - 1)) * plotWidth : plotWidth / 2);
     const yFor = (value) => margin.top + (1 - value / maxY) * plotHeight;
+
+    // Linha do tempo (sopro/parada), alinhada ao mesmo eixo X do gráfico —
+    // usa o mesmo margin.left/plotWidth de xFor(), só que mapeando por
+    // horário real (contínuo), não por índice de hora, porque uma parada
+    // pode começar/terminar no meio da hora. Nas bordas do período (início
+    // de slot = index 0, fim de slot = último index) as duas mapeações
+    // coincidem exatamente, então a faixa fica alinhada aos rótulos de hora
+    // do eixo abaixo sem nenhum ajuste extra.
+    const timelineMarkup = (() => {
+      if (!period || !stops) return "";
+      const periodStartMs = period.start.getTime(), periodEndMs = period.end.getTime();
+      const spanMs = periodEndMs - periodStartMs;
+      if (spanMs <= 0) return "";
+      const xForTime = (value) => margin.left + Math.min(1, Math.max(0, (new Date(value).getTime() - periodStartMs) / spanMs)) * plotWidth;
+      const y = 8, h = 14;
+      const track = `<rect x="${margin.left}" y="${y}" width="${plotWidth}" height="${h}" rx="3" class="macharia-hourly-timeline-track"/>`;
+      const production = points.filter((p) => p.hasData).map((p) => {
+        const end = new Date(p.horaIso), start = new Date(end.getTime() - 3600000);
+        const x1 = xForTime(start), x2 = xForTime(end);
+        return `<rect x="${x1}" y="${y}" width="${Math.max(1, x2 - x1)}" height="${h}" class="macharia-hourly-timeline-production"/>`;
+      }).join("");
+      const stopsMarkup = stops.map((stop) => {
+        if (!stop.inicio || !stop.fim) return "";
+        const x1 = xForTime(stop.inicio), x2 = xForTime(stop.fim);
+        const cls = stop.tipo_ocorrencia === "PARCIAL" ? "macharia-hourly-timeline-stop-partial" : "macharia-hourly-timeline-stop";
+        return `<rect x="${x1}" y="${y}" width="${Math.max(1, x2 - x1)}" height="${h}" class="${cls}"/>`;
+      }).join("");
+      return `${track}${production}${stopsMarkup}`;
+    })();
+    // Sem espaço suficiente por ponto, o rótulo "17:00" de um esbarra no do
+    // vizinho e vira uma mancha ilegível — em vez de espremer todos, mostra
+    // só 1 a cada N (sempre incluindo o primeiro e o último), do jeito que
+    // qualquer biblioteca de gráfico responsiva faz. Não tem como rolar essa
+    // tela (é projetada, sem mouse), então afinar os rótulos é a única saída
+    // quando o container fica estreito (zoom alto, tela pequena).
+    const pxPerPoint = points.length > 1 ? plotWidth / (points.length - 1) : plotWidth;
+    const minLabelPx = 46;
+    const labelStep = Math.max(1, Math.ceil(minLabelPx / Math.max(1, pxPerPoint)));
 
     const ticks = 5;
     const grid = Array.from({ length: ticks }, (_, i) => {
@@ -146,19 +200,55 @@
       return coords.length ? `M${coords.join(" L")}` : "";
     };
 
+    // Produção é diferente de outros indicadores: acima da meta é sempre
+    // bom, não existe "excesso ruim". Por isso a faixa deixou de ser um teto
+    // e virou 3 zonas de fundo (verde/amarelo/vermelho) relativas à meta de
+    // CADA hora — a meta varia hora a hora (média ponderada dos machos
+    // ativos), então os limites das zonas acompanham essa curva, não são
+    // retas fixas.
+    const metaPoints = points
+      .map((p, index) => (p.hasData && p.meta != null ? { index, meta95: p.meta * 0.95, meta80: p.meta * 0.8 } : null))
+      .filter(Boolean);
+    const areaPath = (topValueFor, bottomValueFor) => {
+      if (metaPoints.length < 2) return "";
+      const top = metaPoints.map((m) => `${xFor(m.index)},${yFor(topValueFor(m))}`);
+      const bottom = metaPoints.slice().reverse().map((m) => `${xFor(m.index)},${yFor(Math.max(0, bottomValueFor(m)))}`);
+      return `M${top.join(" L")} L${bottom.join(" L")} Z`;
+    };
+    const zoneGreen = areaPath(() => maxY, (m) => m.meta95);
+    const zoneYellow = areaPath((m) => m.meta95, (m) => m.meta80);
+    const zoneRed = areaPath((m) => m.meta80, () => 0);
+
+    // Nível de cada ponto em relação à meta daquela hora — mesmos 3 patamares
+    // do fundo, aplicados também à cor do ponto e do valor escrito acima
+    // dele, pra ficar consistente (sem meta cadastrada, fica neutro/azul).
+    const tierFor = (p) => {
+      if (p.meta == null) return null;
+      if (p.total >= p.meta * 0.95) return "good";
+      if (p.total >= p.meta * 0.8) return "warn";
+      return "bad";
+    };
+
     // Valor real do sopro escrito acima de cada ponto — precisa ser
-    // legível de longe numa tela projetada, não só em hover.
+    // legível de longe numa tela projetada, não só em hover. O círculo do
+    // ponto sempre aparece; só o número acima dele é que some quando não
+    // há espaço (mesmo critério do rótulo de hora, abaixo).
+    const lastIndex = points.length - 1;
+    const showLabelAt = (index) => index % labelStep === 0 || index === lastIndex;
     const pointsMarkup = points.map((p, index) => {
       if (!p.hasData) return "";
-      const outside = p.meta != null && (p.total < p.min || p.total > p.max);
-      const cls = outside ? "macharia-hourly-point-outside" : "macharia-hourly-point";
+      const tier = tierFor(p);
+      const cls = tier ? `macharia-hourly-point-${tier}` : "macharia-hourly-point";
       const x = xFor(index), y = yFor(p.total);
-      return `<circle cx="${x}" cy="${y}" r="6" class="${cls}"/>
-        <text x="${x}" y="${y - 16}" class="macharia-hourly-value-label ${outside ? "outside" : ""}" text-anchor="middle">${p.total}</text>`;
+      const value = showLabelAt(index)
+        ? `<text x="${x}" y="${y - 16}" class="macharia-hourly-value-label ${tier ? tier : ""}" text-anchor="middle">${p.total}</text>`
+        : "";
+      return `<circle cx="${x}" cy="${y}" r="6" class="${cls}"/>${value}`;
     }).join("");
 
-    const labels = points.map((p, index) =>
-      `<text x="${xFor(index)}" y="${height - 16}" class="macharia-hourly-axis-label" text-anchor="middle">${hourLabel(p.horaIso).split(" às ")[0]}</text>`
+    const labels = points.map((p, index) => showLabelAt(index)
+      ? `<text x="${xFor(index)}" y="${height - 16}" class="macharia-hourly-axis-label" text-anchor="middle">${hourLabel(p.horaIso).split(" às ")[0]}</text>`
+      : ""
     ).join("");
 
     // Nome da máquina bem grande, ao fundo, no meio do gráfico — dá pra
@@ -170,19 +260,25 @@
 
     container.innerHTML = `
       <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" preserveAspectRatio="none" aria-hidden="true">
+        <path d="${zoneGreen}" class="macharia-hourly-zone-good"/>
+        <path d="${zoneYellow}" class="macharia-hourly-zone-warn"/>
+        <path d="${zoneRed}" class="macharia-hourly-zone-bad"/>
         ${watermark}
         ${grid}
         <line x1="${margin.left}" y1="${margin.top + plotHeight}" x2="${width - margin.right}" y2="${margin.top + plotHeight}" class="macharia-hourly-axis"/>
-        <path d="${pathFor("min")}" class="macharia-hourly-limit-min"/>
-        <path d="${pathFor("max")}" class="macharia-hourly-limit-max"/>
         <path d="${pathFor("total")}" class="macharia-hourly-measured-line"/>
         ${pointsMarkup}
         ${labels}
+        ${timelineMarkup}
       </svg>
       <div class="macharia-hourly-legend">
         <span><i style="border-color:#1f45a8"></i>Real</span>
-        <span><i class="dashed" style="border-color:#b90e2c"></i>Meta mínima (-20%)</span>
-        <span><i class="dashed" style="border-color:#b7791f"></i>Meta máxima (+20%)</span>
+        <span><i class="swatch macharia-hourly-zone-good"></i>≥ 95% da meta</span>
+        <span><i class="swatch macharia-hourly-zone-warn"></i>80%–95% da meta</span>
+        <span><i class="swatch macharia-hourly-zone-bad"></i>&lt; 80% da meta</span>
+        <span><i class="swatch macharia-hourly-timeline-production"></i>Sopro</span>
+        <span><i class="swatch macharia-hourly-timeline-stop"></i>Parada</span>
+        <span><i class="swatch macharia-hourly-timeline-stop-partial"></i>Parada parcial</span>
       </div>
     `;
   }
@@ -219,6 +315,77 @@
       return `<tr><td>${esc(row.label)}</td><td>${row.sopros}</td><td>${produzidos}</td><td>${row.refugados}</td><td>${aproveitados}</td></tr>`;
     }).join("");
     q("#macharia-dashboard-machos-empty").hidden = rows.length > 0;
+  }
+
+  // Cada tabela (Machos produzidos / Ocorrências de parada) mostra só
+  // MACHARIA_TICKER_VISIBLE_ROWS linhas de cada vez — tela é projetada e
+  // fixa, sem mouse pra rolar. Em vez de girar feito rolo infinito, revela
+  // 1 linha nova por vez (com pausa em cada uma, inclusive a última, pra dar
+  // tempo de ler) e só troca de tabela depois que a última linha some por
+  // cima. O cabeçalho (thead) fica parado; só o <tbody> se move.
+  const MACHARIA_TICKER_VISIBLE_ROWS = 5;
+  const MACHARIA_TICKER_STEP_MS = 8000; // pausa em cada linha revelada
+  const MACHARIA_TICKER_TRANSITION_MS = 500; // duração do deslize entre linhas
+  const MACHARIA_TICKER_STATIC_MS = 8000; // tempo em tela quando cabe tudo sem rolar
+  let machariaTickerTimer = null;
+
+  // Roda o passo a passo de UMA tabela até a última linha sumir, então
+  // chama onDone (quem decide o que vem a seguir — ver applyAltPanel).
+  function runSideTableTicker(tbodySelector, onDone) {
+    clearTimeout(machariaTickerTimer);
+    const tbody = q(tbodySelector);
+    if (!tbody) { onDone(); return; }
+    const wrapper = tbody.closest(".table-wrapper");
+    const rows = [...tbody.children];
+    tbody.style.transition = "none";
+    tbody.style.transform = "translateY(0)";
+    if (!wrapper || !rows.length) {
+      if (wrapper) wrapper.style.height = "";
+      machariaTickerTimer = setTimeout(onDone, MACHARIA_TICKER_STATIC_MS);
+      return;
+    }
+    const thead = wrapper.querySelector("thead");
+    const rowHeight = rows[0].getBoundingClientRect().height || 40;
+    const headHeight = thead ? thead.getBoundingClientRect().height : 0;
+    wrapper.style.height = `${headHeight + rowHeight * Math.min(MACHARIA_TICKER_VISIBLE_ROWS, rows.length)}px`;
+    // Força o navegador a aplicar o "transform:none" acima antes de ligar a
+    // transição — senão a primeira linha animaria a partir da posição
+    // (já desligada) do ciclo anterior.
+    void tbody.offsetHeight;
+    tbody.style.transition = `transform ${MACHARIA_TICKER_TRANSITION_MS}ms ease-in-out`;
+    if (rows.length <= MACHARIA_TICKER_VISIBLE_ROWS) {
+      machariaTickerTimer = setTimeout(onDone, MACHARIA_TICKER_STATIC_MS);
+      return;
+    }
+    // Um passo por linha extra (além das que já cabem na janela) + 1 passo
+    // final, que empurra a última linha inteira pra fora por cima.
+    const lastStep = rows.length - MACHARIA_TICKER_VISIBLE_ROWS + 1;
+    let step = 0;
+    const advance = () => {
+      step++;
+      tbody.style.transform = `translateY(${-step * rowHeight}px)`;
+      if (step >= lastStep) { machariaTickerTimer = setTimeout(onDone, MACHARIA_TICKER_TRANSITION_MS + 150); return; }
+      machariaTickerTimer = setTimeout(advance, MACHARIA_TICKER_STEP_MS);
+    };
+    machariaTickerTimer = setTimeout(advance, MACHARIA_TICKER_STEP_MS);
+  }
+
+  // As duas tabelas dividem o mesmo painel no tempo, não lado a lado — a
+  // troca não é por tempo fixo, é o próprio ticker (acima) que avisa
+  // (onDone) quando a última linha da tabela atual já sumiu de tela.
+  let machariaAltShowingParadas = false;
+  function applyAltPanel() {
+    q("#macharia-alt-title").textContent = machariaAltShowingParadas ? "Ocorrências de parada" : "Machos produzidos";
+    q("#macharia-alt-machos-wrapper").hidden = machariaAltShowingParadas;
+    q("#macharia-alt-paradas-wrapper").hidden = !machariaAltShowingParadas;
+    // A mensagem de "nenhum registro" só pode aparecer se a tabela dela for
+    // a que está em tela agora, senão as duas mensagens se sobrepõem.
+    q("#macharia-dashboard-machos-empty").hidden = machariaAltShowingParadas || q("#macharia-dashboard-machos-rows").children.length > 0;
+    q("#macharia-dashboard-stops-empty").hidden = !machariaAltShowingParadas || q("#macharia-dashboard-stops-rows").children.length > 0;
+    runSideTableTicker(machariaAltShowingParadas ? "#macharia-dashboard-stops-rows" : "#macharia-dashboard-machos-rows", () => {
+      machariaAltShowingParadas = !machariaAltShowingParadas;
+      applyAltPanel();
+    });
   }
 
   function formatMinutes(minutes) {
@@ -312,10 +479,11 @@
       const hourSlots = window.LIDUTEC_TURNOS.hourlySlots(period.start, period.end, period.end);
       const points = computeHourlyPoints(records, hourSlots);
 
-      renderHourlyChart(points, maquina?.nome);
+      renderHourlyChart(points, maquina?.nome, stops, period);
       renderMachosTable(records, descartes);
       renderStopsTable(stops);
       renderGauges(records, stops, period.minutosPeriodo);
+      applyAltPanel();
     } catch (error) {
       message(error.message);
     } finally {
@@ -332,6 +500,25 @@
   q("#macharia-dashboard-maquina").addEventListener("change", () => reload().catch((error) => message(error.message)));
 
   await reload();
+
+  // Redesenha o gráfico de sopros/hora com os últimos dados já carregados
+  // sempre que o container mudar de tamanho — zoom do navegador, janela
+  // redimensionada, sidebar aberta/fechada. Sem isso o gráfico ficava preso
+  // no tamanho medido no carregamento da página e distorcia (texto esmagado
+  // numa tela com zoom, ou esparso demais sem zoom) até o próximo reload de
+  // dados (até 60s depois). Debounced com requestAnimationFrame porque
+  // ResizeObserver pode disparar várias vezes seguidas durante um resize.
+  const hourlyChartContainer = q("#macharia-hourly-chart");
+  if (hourlyChartContainer && window.ResizeObserver) {
+    let resizeFrame = null;
+    new ResizeObserver(() => {
+      if (resizeFrame) return;
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        if (state.lastHourlyPoints) renderHourlyChart(state.lastHourlyPoints, state.lastHourlyMaquinaNome, state.lastHourlyStops, state.lastHourlyPeriod);
+      });
+    }).observe(hourlyChartContainer);
+  }
 
   // Tela pensada pra ficar projetada, sem ninguém mexendo — precisa se
   // atualizar sozinha. Evita sobrepor com um reload já em andamento, e não

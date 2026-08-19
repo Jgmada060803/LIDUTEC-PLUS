@@ -15,27 +15,38 @@
   <div id="macharia-dashboard-message" class="form-message error" hidden></div>
   <div class="macharia-dashboard-layout">
     <div class="macharia-dashboard-top">
-      <section class="macharia-dashboard-gauges">
-        <article class="macharia-gauge-item"><h3>Disponibilidade</h3><div id="gauge-disponibilidade" class="production-donut-chart production-gauge"></div></article>
-        <article class="macharia-gauge-item"><h3>Eficiência</h3><div id="gauge-eficiencia" class="production-donut-chart production-gauge"></div></article>
-        <article class="macharia-gauge-item"><h3>Qualidade</h3><div id="gauge-qualidade" class="production-donut-chart production-gauge"></div></article>
-        <article class="macharia-gauge-item"><h3>OEE</h3><div id="gauge-oee" class="production-donut-chart production-gauge"></div></article>
-      </section>
-      <section class="panel macharia-hourly-panel">
-        <div class="panel-header"><h2>Sopros por hora — real x meta</h2><p>Meta por hora é a média ponderada da meta de cada macho ativo (peso = nº de estações), faixa de controle ±20%.</p></div>
-        <div id="macharia-hourly-chart" class="macharia-hourly-chart"></div>
-        <p id="macharia-hourly-chart-empty" class="production-muted" hidden>Nenhuma produção lançada nesse turno.</p>
-      </section>
-      <section class="panel macharia-machos-panel">
-        <div class="panel-header"><h2>Machos produzidos</h2></div>
-        <div class="table-wrapper"><table class="products-table"><thead><tr><th>Macho</th><th>Sopros</th><th>Machos produzidos</th><th>Machos refugados</th><th>Aproveitados</th></tr></thead><tbody id="macharia-dashboard-machos-rows"></tbody></table></div>
-        <p id="macharia-dashboard-machos-empty" class="production-muted" hidden>Nenhum macho produzido nesse turno.</p>
-      </section>
+      <div class="macharia-dashboard-left">
+        <section class="macharia-dashboard-gauges">
+          <article class="macharia-gauge-item"><h3>Disponibilidade</h3><div id="gauge-disponibilidade" class="production-donut-chart production-gauge"></div></article>
+          <article class="macharia-gauge-item"><h3>Eficiência</h3><div id="gauge-eficiencia" class="production-donut-chart production-gauge"></div></article>
+          <article class="macharia-gauge-item"><h3>Qualidade</h3><div id="gauge-qualidade" class="production-donut-chart production-gauge"></div></article>
+          <article class="macharia-gauge-item"><h3>OEE</h3><div id="gauge-oee" class="production-donut-chart production-gauge"></div></article>
+        </section>
+      </div>
+      <!-- Metade direita: um painel só, que alterna entre "Machos
+           produzidos" e "Ocorrências de parada" (troca sozinha, ver
+           setupAltPanel em dashboard-macharia.js) — as duas tabelas
+           dividem o mesmo espaço no tempo, não lado a lado. -->
+      <div class="macharia-dashboard-right">
+        <section class="panel macharia-alt-panel">
+          <div class="panel-header"><h2 id="macharia-alt-title">Machos produzidos</h2></div>
+          <div class="table-wrapper" id="macharia-alt-machos-wrapper">
+            <table class="products-table"><thead><tr><th>Macho</th><th>Sopros</th><th>Machos produzidos</th><th>Machos refugados</th><th>Aproveitados</th></tr></thead><tbody id="macharia-dashboard-machos-rows"></tbody></table>
+          </div>
+          <p id="macharia-dashboard-machos-empty" class="production-muted" hidden>Nenhum macho produzido nesse turno.</p>
+          <div class="table-wrapper" id="macharia-alt-paradas-wrapper" hidden>
+            <table class="products-table"><thead><tr><th>Início</th><th>Fim</th><th>Duração</th><th>Setor</th><th>Motivo</th><th>Observações</th></tr></thead><tbody id="macharia-dashboard-stops-rows"></tbody></table>
+          </div>
+          <p id="macharia-dashboard-stops-empty" class="production-muted" hidden>Nenhuma parada registrada nesse turno.</p>
+        </section>
+      </div>
     </div>
-    <section class="panel">
-      <div class="panel-header"><h2>Ocorrências de parada</h2></div>
-      <div class="table-wrapper"><table class="products-table"><thead><tr><th>Início</th><th>Fim</th><th>Duração</th><th>Setor</th><th>Motivo</th><th>Observações</th></tr></thead><tbody id="macharia-dashboard-stops-rows"></tbody></table></div>
-      <p id="macharia-dashboard-stops-empty" class="production-muted" hidden>Nenhuma parada registrada nesse turno.</p>
+    <!-- Fora do bloco de cima — largura inteira, ocupa o resto da altura da
+         tela. -->
+    <section class="panel macharia-hourly-panel">
+      <div class="panel-header"><h2>Sopros por hora — real x meta</h2><p>Meta por hora é a média ponderada da meta de cada macho ativo (peso = nº de estações); fundo verde ≥95% da meta, amarelo entre 80% e 95%, vermelho abaixo de 80%.</p></div>
+      <div id="macharia-hourly-chart" class="macharia-hourly-chart"></div>
+      <p id="macharia-hourly-chart-empty" class="production-muted" hidden>Nenhuma produção lançada nesse turno.</p>
     </section>
   </div>
 </main>

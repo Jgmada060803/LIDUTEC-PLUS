@@ -23,22 +23,34 @@
   padding: 8px 8px 8px;
 }
 
+/* Tela inteira cabe sem rolar, no zoom de 100% — altura limitada ao que
+   sobra da viewport depois da barra de topo. Bloco de cima (indicadores +
+   painel alternante) do tamanho do próprio conteúdo; o gráfico embaixo, em
+   largura inteira, ocupa todo o resto da altura. */
 .macharia-dashboard-layout {
-  display: grid;
-  gap: 14px;
-}
-
-/* Indicadores + gráfico precisam caber inteiros na tela, sem rolar, no
-   zoom de 100% — por isso ficam num bloco com altura limitada ao que
-   sobra da viewport depois da barra de topo, e o SVG do gráfico escala
-   por dentro (preserveAspectRatio) pra nunca estourar essa altura. */
-.macharia-dashboard-top {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 14px;
   height: calc(100vh - 105px);
   max-height: calc(100vh - 105px);
   overflow: hidden;
+}
+
+/* Duas colunas de 50%: esquerda com os indicadores redondos, direita com o
+   painel que alterna entre as duas tabelas. */
+.macharia-dashboard-top {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.macharia-dashboard-left,
+.macharia-dashboard-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* Indicadores redondos em linha, acima do gráfico, sem caixa/borda ao
@@ -66,7 +78,7 @@
 .macharia-gauge-item .production-donut > div strong { font-size: clamp(1.4rem, 2.4vw, 2.1rem); }
 
 .macharia-hourly-panel {
-  flex: 3 1 0;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -79,18 +91,45 @@
 .macharia-hourly-panel .panel-header p { margin: 2px 0 0; }
 .macharia-hourly-panel .macharia-hourly-chart { flex: 1 1 auto; min-height: 0; }
 
-/* Tabela de machos produzidos entra no mesmo bloco que precisa caber
-   inteiro na tela — se tiver mais linhas do que cabe, só ela rola por
-   dentro, sem precisar rolar a página toda. */
-.macharia-machos-panel {
-  flex: 1 1 0;
-  min-height: 0;
+/* Coluna direita: as duas tabelas dividem a altura disponível igualmente.
+   Um painel só, mostrando uma tabela de cada vez (a outra fica com
+   [hidden]) — troca sozinha por JS (setupAltPanel). A altura de cada
+   .table-wrapper é fixada em px pelo JS (setupSideTableTicker) — 5 linhas +
+   cabeçalho — recalculada no momento em que ela fica visível (não dá pra
+   medir uma tabela escondida). */
+.macharia-alt-panel {
+  flex: 0 0 auto;
+  padding: 8px 16px;
   display: flex;
   flex-direction: column;
-  padding: 8px 16px;
 }
-.macharia-machos-panel .panel-header { flex: 0 0 auto; margin-bottom: 2px; }
-.macharia-machos-panel .table-wrapper { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.macharia-alt-panel .panel-header { flex: 0 0 auto; margin-bottom: 2px; }
+.macharia-alt-panel .table-wrapper { overflow: hidden; }
+/* Cabeçalho com fundo sólido — sem isso ele fica "vazado" (fundo da página
+   por trás) e as linhas desfilando por baixo do <thead> dão a impressão de
+   embolar com o título das colunas. position+z-index é necessário além do
+   fundo: transform no <tbody> (ver runSideTableTicker, dashboard-macharia.js)
+   cria um contexto de empilhamento que, por padrão, pinta por CIMA de
+   elementos não posicionados como o thead, mesmo vindo antes no HTML — sem
+   isso o texto que desfila passa visualmente por cima do título da coluna. */
+.macharia-alt-panel thead { position: relative; z-index: 2; }
+.macharia-alt-panel thead th {
+  background: var(--color-primary);
+  color: #fff;
+}
+/* Ocorrências de parada segue a mesma cor de "parada" usada no resto do
+   sistema (ex.: tela de consulta de paradas), pra não parecer a mesma
+   tabela de produção. */
+#macharia-alt-paradas-wrapper thead th { background: var(--color-danger); }
+/* border-collapse:collapse (padrão global de table, em dashboard.css) faz o
+   navegador desenhar as bordas como uma grade única da tabela, meio à parte
+   do conteúdo — daí elas não acompanham o transform que desliza o <tbody>
+   (o texto anda, a linha divisória fica parada). Com "separate" a borda
+   passa a pertencer de fato a cada célula/linha, então se move junto. */
+.macharia-alt-panel table { border-collapse: separate; border-spacing: 0; }
+/* O deslize entre linhas (revela 1 por vez, com pausa — não é um loop
+   infinito) é controlado por JS via style.transform + style.transition
+   diretamente no <tbody>, em runSideTableTicker (dashboard-macharia.js). */
 
 .macharia-dashboard-layout .panel-header h2 { font-size: 1.4rem; }
 .macharia-dashboard-layout .panel-header p { font-size: .95rem; }
@@ -99,10 +138,10 @@
 .macharia-dashboard-layout table td,
 .macharia-dashboard-layout table th { padding: 10px 12px; }
 
-/* Gráfico de sopros/hora: linha cheia = real, tracejadas = faixa de meta
-   (mín/máx ±20%). Mesmo padrão visual do gráfico de temperatura de
-   vazamento, adaptado pra essa tela — com os valores reais escritos acima
-   de cada ponto (não só em hover), pra dar pra ler de longe. */
+/* Gráfico de sopros/hora: linha cheia = real, fundo em 3 zonas = % da meta
+   (ver macharia-hourly-zone-* abaixo). Mesmo padrão visual do gráfico de
+   temperatura de vazamento, adaptado pra essa tela — com os valores reais
+   escritos acima de cada ponto (não só em hover), pra dar pra ler de longe. */
 /* O SVG usa viewBox + preserveAspectRatio (padrão) pra caber tanto na
    largura quanto na altura disponíveis, sem nunca estourar nem precisar
    rolar (essa tela é projetada, sem mouse pra rolar). */
@@ -113,21 +152,31 @@
 .macharia-hourly-axis { stroke: #8da0a8; stroke-width: 1.2; }
 .macharia-hourly-axis-label { fill: #445; font: 700 16px system-ui, sans-serif; }
 .macharia-hourly-value-label { fill: #1f45a8; font: 900 20px system-ui, sans-serif; }
-.macharia-hourly-value-label.outside { fill: #b90e2c; }
-.macharia-hourly-measured-line,
-.macharia-hourly-limit-min,
-.macharia-hourly-limit-max {
-  fill: none;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-.macharia-hourly-measured-line { stroke: #1f45a8; stroke-width: 3; }
-.macharia-hourly-limit-min { stroke: #b90e2c; stroke-width: 2; stroke-dasharray: 8 5; }
-.macharia-hourly-limit-max { stroke: #b7791f; stroke-width: 2; stroke-dasharray: 8 5; }
+.macharia-hourly-value-label.good { fill: #218c4b; }
+.macharia-hourly-value-label.warn { fill: #b7791f; }
+.macharia-hourly-value-label.bad { fill: #b90e2c; }
+.macharia-hourly-measured-line { fill: none; stroke-linejoin: round; stroke-linecap: round; stroke: #1f45a8; stroke-width: 3; }
 .macharia-hourly-point { fill: #1f45a8; stroke: #fff; stroke-width: 2; }
-.macharia-hourly-point-outside { fill: #b90e2c; stroke: #fff; stroke-width: 2; }
+.macharia-hourly-point-good { fill: #218c4b; stroke: #fff; stroke-width: 2; }
+.macharia-hourly-point-warn { fill: #b7791f; stroke: #fff; stroke-width: 2; }
+.macharia-hourly-point-bad { fill: #b90e2c; stroke: #fff; stroke-width: 2; }
+/* Zonas de fundo — produção é diferente de outros indicadores: acima da
+   meta é sempre bom, então não existe "teto vermelho" por excesso como
+   antes (faixa ±20%). Fundo com transparência pra não competir com a linha
+   real, a grade e os rótulos por cima. */
+.macharia-hourly-zone-good { fill: #218c4b; opacity: .14; }
+.macharia-hourly-zone-warn { fill: #b7791f; opacity: .16; }
+.macharia-hourly-zone-bad { fill: #b90e2c; opacity: .14; }
 .macharia-hourly-watermark { fill: #1f45a8; opacity: .07; font: 900 90px system-ui, sans-serif; text-transform: uppercase; letter-spacing: .04em; }
+/* Linha do tempo (sopro/parada) alinhada ao mesmo eixo X do gráfico abaixo
+   — mesmas cores da linha do tempo do apontamento (lancamento.html), pra
+   manter a linguagem visual consistente entre as duas telas. */
+.macharia-hourly-timeline-track { fill: #e4ebee; }
+.macharia-hourly-timeline-production { fill: #18794b; }
+.macharia-hourly-timeline-stop { fill: #d92d20; }
+.macharia-hourly-timeline-stop-partial { fill: #8e44ad; }
 .macharia-hourly-legend { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 10px; color: var(--color-text-muted); font-size: .95rem; font-weight: 700; }
 .macharia-hourly-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.macharia-hourly-legend i.swatch { width: 16px; height: 12px; border: none; border-radius: 2px; opacity: 1; }
 .macharia-hourly-legend i { width: 20px; height: 0; border-top: 3px solid; }
 .macharia-hourly-legend i.dashed { border-top-style: dashed; }
