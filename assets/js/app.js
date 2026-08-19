@@ -205,14 +205,9 @@ function syncSidebarNavigation() {
   const isHome = pathname.endsWith("/pages/inicio.html");
   const isProcessDashboard = pathname.endsWith("/pages/dashboard-processo.html");
   const prefix = isDashboard || isHome || isProcessDashboard ? "./" : "../";
-  const isActive = (section, page = "") => {
-    if (section === "dashboard") {
-      return isDashboard;
-    }
-
-    return pathname.includes(`/pages/${section}/`) &&
-      (!page || pathname.endsWith(`/${page}`));
-  };
+  const isActive = (section, page = "") =>
+    pathname.includes(`/pages/${section}/`) &&
+    (!page || pathname.endsWith(`/${page}`));
   const activeClass = (active) =>
     `nav-link${active ? " active" : ""}`;
   const slugify = (text) =>
@@ -233,10 +228,6 @@ function syncSidebarNavigation() {
     <a href="${prefix}inicio.html"
        class="${activeClass(isHome)}">
       Início
-    </a>
-    <a href="${prefix}dashboard.html"
-       class="${activeClass(isActive("dashboard"))}">
-      Dashboard
     </a>
     <a href="${prefix}redefinir-senha.html" class="nav-link">
       Trocar minha senha
