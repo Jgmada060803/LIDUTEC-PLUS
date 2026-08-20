@@ -330,6 +330,11 @@ function syncSidebarNavigation() {
          data-permission="metas.gerenciar">
         Metas gerenciais
       </a>
+      <a href="${prefix}administracao/linha-dias-operacao.html"
+         class="${activeClass(isActive("administracao", "linha-dias-operacao.html"))}"
+         data-permission="metas.gerenciar">
+        Dias de operação por linha
+      </a>
       <a href="${prefix}administracao/codigos-parada.html"
          class="${activeClass(isActive("administracao", "codigos-parada.html"))}"
          data-permission="paradas.configurar_codigos">

@@ -1,0 +1,36 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dias de Operação por Linha | Metalsider</title><link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8"><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"><link rel="stylesheet" href="../../assets/css/paradas-programadas.css"></head>
+<body class="app-page"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+<div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Dias de Operação por Linha</h1><p>Em quais dias da semana cada linha roda, por turno</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+<main class="main-content">
+  <section class="page-heading"><div><span class="eyebrow">Administração</span><h2>Dias de operação por linha</h2><p>Define em quais dias da semana uma linha opera, por turno — útil pra folgas fixas de uma linha específica (ex.: Linha 2 sem operar toda segunda-feira), sem exigir apontamento nem penalizar disponibilidade nesses dias. Uma nova vigência encerra a anterior automaticamente; o histórico é preservado. Linha sem nenhuma regra aqui roda todos os dias normalmente.</p></div></section>
+
+  <section class="panel" data-permission="metas.gerenciar">
+    <div class="panel-header"><h3>Nova regra</h3></div>
+    <form id="linha-dias-form" class="meta-form">
+      <label>Linha/equipamento<select id="ld-linha" name="linha_maquina_id" required><option value="">Selecione</option></select></label>
+      <label>Turno<select id="ld-turno" name="turno"><option value="">Todos os turnos</option><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
+      <label>Vigente a partir de<input id="ld-vigencia" name="vigencia_inicio" type="date" required></label>
+      <fieldset class="pp-dias-semana"><legend>Dias em que a linha opera (desmarque o dia de folga)</legend>
+        <label><input type="checkbox" name="dias_semana" value="0" checked>Dom</label>
+        <label><input type="checkbox" name="dias_semana" value="1" checked>Seg</label>
+        <label><input type="checkbox" name="dias_semana" value="2" checked>Ter</label>
+        <label><input type="checkbox" name="dias_semana" value="3" checked>Qua</label>
+        <label><input type="checkbox" name="dias_semana" value="4" checked>Qui</label>
+        <label><input type="checkbox" name="dias_semana" value="5" checked>Sex</label>
+        <label><input type="checkbox" name="dias_semana" value="6" checked>Sáb</label>
+      </fieldset>
+      <div id="linha-dias-message" class="form-message" hidden></div>
+      <div class="meta-form-actions"><button class="button button-primary">Salvar regra</button></div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Regras vigentes</h3></div>
+    <p class="production-muted">Pra reverter uma linha à operação normal (todos os dias), cadastre uma nova regra pra ela com todos os dias marcados — a anterior é encerrada automaticamente.</p>
+    <div id="linha-dias-list-loading" class="loading-state">Carregando...</div>
+    <div class="table-wrapper"><table class="products-table" id="linha-dias-list-table" hidden><thead><tr><th>Linha/equipamento</th><th>Turno</th><th>Dias em que opera</th><th>Vigente desde</th></tr></thead><tbody id="linha-dias-list-rows"></tbody></table></div>
+    <p id="linha-dias-list-empty" class="production-muted" hidden>Nenhuma regra cadastrada — todas as linhas operam todos os dias normalmente.</p>
+  </section>
+
+</main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/linha-dias-operacao.js"></script></body></html>
