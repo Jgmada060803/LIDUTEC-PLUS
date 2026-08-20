@@ -345,15 +345,6 @@
     const rows = [...tbody.children];
     tbody.style.transition = "none";
     tbody.style.transform = "translateY(0)";
-    // No celular quem olha segura o aparelho e já rola a página à vontade —
-    // o desfile automático (pensado pra tela projetada, sem interação) só
-    // atrapalha ali. Mostra a tabela inteira parada e só troca de painel
-    // depois de um tempo (sem limitar altura nem animar linha por linha).
-    if (window.matchMedia("(max-width: 760px)").matches) {
-      if (wrapper) wrapper.style.height = "";
-      machariaTickerTimer = setTimeout(onDone, MACHARIA_TICKER_STATIC_MS);
-      return;
-    }
     if (!wrapper || !rows.length) {
       if (wrapper) wrapper.style.height = "";
       machariaTickerTimer = setTimeout(onDone, MACHARIA_TICKER_STATIC_MS);
@@ -385,11 +376,22 @@
     machariaTickerTimer = setTimeout(advance, MACHARIA_TICKER_STEP_MS);
   }
 
-  // As duas tabelas dividem o mesmo painel no tempo, não lado a lado — a
-  // troca não é por tempo fixo, é o próprio ticker (acima) que avisa
-  // (onDone) quando a última linha da tabela atual já sumiu de tela.
+  // Desktop/TV: as duas tabelas dividem o mesmo painel no tempo, não lado a
+  // lado — a troca não é por tempo fixo, é o próprio ticker (acima) que
+  // avisa (onDone) quando a última linha da tabela atual já sumiu de tela.
+  // Celular: sem ticker nem alternância — as duas ficam sempre visíveis,
+  // empilhadas (cada uma com seu próprio título fixo, ver
+  // .macharia-alt-mobile-title no CSS), já que ali dá pra rolar a página.
   let machariaAltShowingParadas = false;
   function applyAltPanel() {
+    if (window.matchMedia("(max-width: 760px)").matches) {
+      clearTimeout(machariaTickerTimer);
+      q("#macharia-alt-machos-wrapper").hidden = false;
+      q("#macharia-alt-paradas-wrapper").hidden = false;
+      q("#macharia-dashboard-machos-empty").hidden = q("#macharia-dashboard-machos-rows").children.length > 0;
+      q("#macharia-dashboard-stops-empty").hidden = q("#macharia-dashboard-stops-rows").children.length > 0;
+      return;
+    }
     q("#macharia-alt-title").textContent = machariaAltShowingParadas ? "Ocorrências de parada" : "Machos produzidos";
     q("#macharia-alt-machos-wrapper").hidden = machariaAltShowingParadas;
     q("#macharia-alt-paradas-wrapper").hidden = !machariaAltShowingParadas;

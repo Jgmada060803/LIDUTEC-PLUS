@@ -103,6 +103,10 @@
   display: flex;
   flex-direction: column;
 }
+/* Título fixo de cada tabela — só usado no celular, quando as duas ficam
+   visíveis ao mesmo tempo (sem alternar); no desktop/TV o título único que
+   troca (#macharia-alt-title, acima) já cobre isso. */
+.macharia-alt-mobile-title { display: none; }
 .macharia-alt-panel .panel-header { flex: 0 0 auto; margin-bottom: 2px; }
 .macharia-alt-panel .table-wrapper { overflow: hidden; }
 /* Cabeçalho com fundo sólido — sem isso ele fica "vazado" (fundo da página
@@ -193,9 +197,17 @@
     max-height: none;
     overflow: visible;
   }
+  /* display:contents "dissolve" a caixa do grid de 2 colunas — os filhos
+     (indicadores e painel de tabelas) passam a ser itens diretos do flex
+     column de .macharia-dashboard-layout, junto com o gráfico. Só assim dá
+     pra intercalar o gráfico ENTRE os indicadores e as tabelas via order
+     (os três hoje não são irmãos diretos no HTML). */
   .macharia-dashboard-top {
-    grid-template-columns: 1fr;
+    display: contents;
   }
+  .macharia-dashboard-left { order: 1; }
+  .macharia-hourly-panel { order: 2; }
+  .macharia-dashboard-right { order: 3; }
   .macharia-dashboard-gauges {
     gap: 12px;
     padding: 2px 0 6px;
@@ -217,8 +229,21 @@
   .macharia-hourly-panel { flex: 0 0 auto; height: clamp(190px, 34vh, 280px); }
   .macharia-hourly-panel .panel-header p { display: none; }
   .macharia-dashboard-layout .panel-header h2 { font-size: 1rem; }
-  .macharia-dashboard-layout table { font-size: .82rem; }
+  .macharia-dashboard-layout table { font-size: .68rem; }
   .macharia-dashboard-layout table th,
-  .macharia-dashboard-layout table td { padding: 6px 7px; }
+  .macharia-dashboard-layout table td { padding: 5px 6px; }
   .macharia-hourly-legend { gap: 10px; font-size: .72rem; }
+
+  /* As duas tabelas ficam sempre visíveis e empilhadas (applyAltPanel não
+     alterna mais no celular) — o título único que trocava não faz sentido
+     aqui, cada tabela ganha o seu próprio, fixo. */
+  .macharia-alt-panel .panel-header { display: none; }
+  .macharia-alt-mobile-title {
+    display: block;
+    margin: 4px 0;
+    font-size: .92rem;
+    font-weight: 800;
+    color: var(--color-primary);
+  }
+  .macharia-alt-mobile-title-danger { color: var(--color-danger); }
 }
