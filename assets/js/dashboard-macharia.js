@@ -345,6 +345,15 @@
     const rows = [...tbody.children];
     tbody.style.transition = "none";
     tbody.style.transform = "translateY(0)";
+    // No celular quem olha segura o aparelho e já rola a página à vontade —
+    // o desfile automático (pensado pra tela projetada, sem interação) só
+    // atrapalha ali. Mostra a tabela inteira parada e só troca de painel
+    // depois de um tempo (sem limitar altura nem animar linha por linha).
+    if (window.matchMedia("(max-width: 760px)").matches) {
+      if (wrapper) wrapper.style.height = "";
+      machariaTickerTimer = setTimeout(onDone, MACHARIA_TICKER_STATIC_MS);
+      return;
+    }
     if (!wrapper || !rows.length) {
       if (wrapper) wrapper.style.height = "";
       machariaTickerTimer = setTimeout(onDone, MACHARIA_TICKER_STATIC_MS);

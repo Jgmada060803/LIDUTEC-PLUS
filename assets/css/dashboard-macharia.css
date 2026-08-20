@@ -203,8 +203,15 @@
   .macharia-gauge-item .production-donut { width: clamp(84px, 24vw, 130px); }
   .macharia-gauge-item .production-donut > div strong { font-size: clamp(1.1rem, 5.5vw, 1.6rem); }
   .macharia-gauge-item h3 { font-size: .82rem; }
-  .macharia-hourly-panel { min-height: 300px; }
-  .macharia-hourly-chart { min-height: 260px; }
+  /* Altura FIXA (não mínima) é essencial aqui: o gráfico mede a altura do
+     seu container em JS pra desenhar o SVG (ver renderHourlyChart,
+     dashboard-macharia.js) — se essa altura for "automática" (definida
+     pelo próprio conteúdo, como no resto do layout no celular), vira um
+     ciclo sem fim: mede X, desenha SVG de altura X, o container cresce
+     (SVG + legenda) pra mais que X, o ResizeObserver detecta e manda medir
+     de novo — agora maior —, e o gráfico nunca para de crescer. Com altura
+     fixa o container nunca cresce sozinho, então o ciclo não existe. */
+  .macharia-hourly-panel { flex: 0 0 auto; height: 340px; }
   .macharia-dashboard-layout .panel-header h2 { font-size: 1.05rem; }
   .macharia-dashboard-layout .panel-header p { font-size: .78rem; }
   .macharia-dashboard-layout table { font-size: .82rem; }
