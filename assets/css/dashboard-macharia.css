@@ -180,3 +180,35 @@
 .macharia-hourly-legend i.swatch { width: 16px; height: 12px; border: none; border-radius: 2px; opacity: 1; }
 .macharia-hourly-legend i { width: 20px; height: 0; border-top: 3px solid; }
 .macharia-hourly-legend i.dashed { border-top-style: dashed; }
+
+/* Celular: diferente da tela projetada (TV, sem mouse, precisa caber tudo
+   sem rolar), aqui quem olha segura o aparelho e rola normalmente — trava
+   de altura só cortaria conteúdo. Duas colunas de 50% também não cabem
+   (indicador + tabela ficariam espremidos numa faixa de ~160px cada),
+   então empilha tudo em 1 coluna e reduz fontes/espaçamentos pensados
+   pra tela grande vista de longe. */
+@media (max-width: 760px) {
+  .macharia-dashboard-layout {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+  .macharia-dashboard-top {
+    grid-template-columns: 1fr;
+  }
+  .macharia-dashboard-gauges {
+    gap: 20px;
+    padding: 4px 0;
+  }
+  .macharia-gauge-item .production-donut { width: clamp(84px, 24vw, 130px); }
+  .macharia-gauge-item .production-donut > div strong { font-size: clamp(1.1rem, 5.5vw, 1.6rem); }
+  .macharia-gauge-item h3 { font-size: .82rem; }
+  .macharia-hourly-panel { min-height: 300px; }
+  .macharia-hourly-chart { min-height: 260px; }
+  .macharia-dashboard-layout .panel-header h2 { font-size: 1.05rem; }
+  .macharia-dashboard-layout .panel-header p { font-size: .78rem; }
+  .macharia-dashboard-layout table { font-size: .82rem; }
+  .macharia-dashboard-layout table th,
+  .macharia-dashboard-layout table td { padding: 6px 7px; }
+  .macharia-hourly-legend { gap: 10px; font-size: .72rem; }
+}

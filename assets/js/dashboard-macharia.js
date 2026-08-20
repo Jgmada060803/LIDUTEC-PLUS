@@ -253,9 +253,15 @@
 
     // Nome da máquina bem grande, ao fundo, no meio do gráfico — dá pra
     // identificar de longe qual máquina é sem competir com os dados (fica
-    // atrás das linhas, com opacidade baixa).
+    // atrás das linhas, com opacidade baixa). Fonte calculada a partir da
+    // largura real do gráfico (não um valor fixo do CSS): no celular
+    // plotWidth é bem menor que no desktop, e um texto de 90px não cabe —
+    // ficaria cortado ou vazando pra fora da área do gráfico.
     const watermark = maquinaNome
-      ? `<text x="${margin.left + plotWidth / 2}" y="${margin.top + plotHeight / 2}" class="macharia-hourly-watermark" text-anchor="middle">${esc(maquinaNome)}</text>`
+      ? (() => {
+          const fontSize = Math.max(18, Math.min(90, plotWidth / (maquinaNome.length * 0.62), plotHeight * 0.6));
+          return `<text x="${margin.left + plotWidth / 2}" y="${margin.top + plotHeight / 2}" class="macharia-hourly-watermark" style="font-size:${fontSize}px" text-anchor="middle">${esc(maquinaNome)}</text>`;
+        })()
       : "";
 
     container.innerHTML = `
