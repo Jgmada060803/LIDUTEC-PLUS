@@ -197,12 +197,12 @@
     grid-template-columns: 1fr;
   }
   .macharia-dashboard-gauges {
-    gap: 20px;
-    padding: 4px 0;
+    gap: 12px;
+    padding: 2px 0 6px;
   }
-  .macharia-gauge-item .production-donut { width: clamp(84px, 24vw, 130px); }
-  .macharia-gauge-item .production-donut > div strong { font-size: clamp(1.1rem, 5.5vw, 1.6rem); }
-  .macharia-gauge-item h3 { font-size: .82rem; }
+  .macharia-gauge-item .production-donut { width: clamp(66px, 18vw, 100px); }
+  .macharia-gauge-item .production-donut > div strong { font-size: clamp(.95rem, 4.6vw, 1.3rem); }
+  .macharia-gauge-item h3 { font-size: .72rem; }
   /* Altura FIXA (não mínima) é essencial aqui: o gráfico mede a altura do
      seu container em JS pra desenhar o SVG (ver renderHourlyChart,
      dashboard-macharia.js) — se essa altura for "automática" (definida
@@ -210,10 +210,13 @@
      ciclo sem fim: mede X, desenha SVG de altura X, o container cresce
      (SVG + legenda) pra mais que X, o ResizeObserver detecta e manda medir
      de novo — agora maior —, e o gráfico nunca para de crescer. Com altura
-     fixa o container nunca cresce sozinho, então o ciclo não existe. */
-  .macharia-hourly-panel { flex: 0 0 auto; height: 340px; }
-  .macharia-dashboard-layout .panel-header h2 { font-size: 1.05rem; }
-  .macharia-dashboard-layout .panel-header p { font-size: .78rem; }
+     fixa o container nunca cresce sozinho, então o ciclo não existe. Usa
+     vh (proporcional à tela do aparelho) em vez de um px fixo só, com teto
+     e piso — 340px direto ficava alto demais em telefones comuns, exigindo
+     rolar só pra ver o gráfico inteiro na primeira tela. */
+  .macharia-hourly-panel { flex: 0 0 auto; height: clamp(190px, 34vh, 280px); }
+  .macharia-hourly-panel .panel-header p { display: none; }
+  .macharia-dashboard-layout .panel-header h2 { font-size: 1rem; }
   .macharia-dashboard-layout table { font-size: .82rem; }
   .macharia-dashboard-layout table th,
   .macharia-dashboard-layout table td { padding: 6px 7px; }
