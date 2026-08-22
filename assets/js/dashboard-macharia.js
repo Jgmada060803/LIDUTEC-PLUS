@@ -433,7 +433,7 @@
 
   const MACHARIA_QUALIDADE_PADRAO = 0.97;
   function renderGauges(records, stops, minutosPeriodo) {
-    const minutosParada = stops.reduce((sum, item) => sum + number(item.duracao_minutos), 0);
+    const minutosParada = stops.reduce((sum, item) => sum + number(item.tempo_perdido_equivalente_minutos ?? item.duracao_minutos), 0);
     const disponibilidade = window.LIDUTEC_TURNOS.calcularTaxaEquipamento({ minutosPeriodo, minutosParada });
     const minutosDisponivel = Math.max(0, minutosPeriodo - minutosParada);
     const tempoTeoricoMinutos = records.reduce((sum, item) => {
