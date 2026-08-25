@@ -839,7 +839,7 @@ async function checkShiftStatus() {
   aq("#shift-status").textContent = closed ? "Fechado" : (updatedBy ? `Em apontamento · ${updatedBy} às ${updatedAt}` : "Em apontamento");
   aq("#close-shift-button").hidden = closed;
   aq("#close-shift-button").disabled = closed;
-  aq("#close-shift-button").textContent = "Fechar turno";
+  aq("#close-shift-button").textContent = "Gravar Informação";
   aq("#edit-shift-button").hidden = !canEdit;
   aq("#delete-shift-button").hidden = !canDelete;
   aq("#delete-shift-button").disabled = false;
