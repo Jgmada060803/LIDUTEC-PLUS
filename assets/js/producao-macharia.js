@@ -986,11 +986,15 @@ function machariaMonthMachoLabel(macho) {
   return [codigos.join("/") || null, macho.caixa, macho.macho].filter(Boolean).join(" ");
 }
 function machariaMachosDoMes() {
+  const disponibilidadePorLinha = machariaState.disponibilidadePorLinha || new Map();
   const grupos = new Map();
   for (const item of machariaState.chartsRecords) {
     const macho = item.machos_macharia;
     const key = String(item.macho_id);
-    if (!grupos.has(key)) grupos.set(key, { label: machariaMonthMachoLabel(macho), sopros: 0, machosProduzidos: 0, areiaKg: 0, horasMaquina: 0 });
+    if (!grupos.has(key)) grupos.set(key, {
+      label: machariaMonthMachoLabel(macho), sopros: 0, machosProduzidos: 0, areiaKg: 0,
+      horasMaquina: 0, horasTrabalhadas: 0, soproPorHoraPrevisto: anumber(macho?.sopro_por_hora)
+    });
     const grupo = grupos.get(key);
     const sopros = anumber(item.quantidade_sopros);
     const soproPorHora = anumber(macho?.sopro_por_hora);
@@ -998,8 +1002,22 @@ function machariaMachosDoMes() {
     grupo.machosProduzidos += sopros * anumber(macho?.machos_por_sopro);
     grupo.areiaKg += sopros * anumber(macho?.kg_areia_por_sopro);
     if (soproPorHora) grupo.horasMaquina += (sopros * (60 / soproPorHora)) / 60;
+    // Cada registro é 1 hora bruta de apontamento; a parada é registrada por
+    // máquina, não por macho/estação, então não dá pra descontar exatamente
+    // de qual macho ela tirou tempo — distribui proporcionalmente aplicando
+    // a disponibilidade da máquina naquela hora sobre todos os machos que
+    // passaram por ela no período (pedido explícito, dado o que o banco
+    // registra hoje).
+    grupo.horasTrabalhadas += disponibilidadePorLinha.get(String(item.linha_maquina_id)) ?? 1;
   }
-  return [...grupos.values()].map((grupo) => ({ ...grupo, resinaKg: grupo.areiaKg * (MACHARIA_RESINA_PARTE1_PCT + MACHARIA_RESINA_PARTE2_PCT) }));
+  return [...grupos.values()].map((grupo) => {
+    const soprosPorHoraMedia = grupo.horasTrabalhadas > 0 ? grupo.sopros / grupo.horasTrabalhadas : 0;
+    const performance = grupo.soproPorHoraPrevisto > 0 ? (soprosPorHoraMedia / grupo.soproPorHoraPrevisto) * 100 : null;
+    return {
+      ...grupo, soprosPorHoraMedia, performance,
+      resinaKg: grupo.areiaKg * (MACHARIA_RESINA_PARTE1_PCT + MACHARIA_RESINA_PARTE2_PCT)
+    };
+  });
 }
 function renderMachariaMachosMonthTable() {
   const rows = aq("#macharia-machos-month-rows");
@@ -1010,7 +1028,8 @@ function renderMachariaMachosMonthTable() {
   const dados = machariaMachosDoMes();
   const sorted = [...dados].sort((a, b) => {
     const dir = sort.direction === "asc" ? 1 : -1;
-    return sort.key === "label" ? dir * a.label.localeCompare(b.label, "pt-BR") : dir * (a[sort.key] - b[sort.key]);
+    if (sort.key === "label") return dir * a.label.localeCompare(b.label, "pt-BR");
+    return dir * ((a[sort.key] ?? -Infinity) - (b[sort.key] ?? -Infinity));
   });
   rows.innerHTML = sorted.map((row) => `<tr>
       <td>${aesc(row.label)}</td>
@@ -1019,6 +1038,8 @@ function renderMachariaMachosMonthTable() {
       <td>${Math.round(row.sopros).toLocaleString("pt-BR")}</td>
       <td>${Math.round(row.machosProduzidos).toLocaleString("pt-BR")}</td>
       <td>${row.horasMaquina.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+      <td>${row.soprosPorHoraMedia.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+      <td>${row.performance == null ? "—" : `${row.performance.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%`}</td>
     </tr>`).join("");
   if (empty) empty.hidden = sorted.length > 0;
   if (table) {
@@ -1042,6 +1063,12 @@ function renderMachariaCharts() {
   const porMaquina = machariaState.maquinas.map((maquina) => ({
     maquina, indicadores: machariaIndicadoresMaquina(maquina, minutosPeriodoMaquina)
   }));
+  // Guardado no state pra machariaMachosDoMes() usar na performance por
+  // macho (horas trabalhadas = horas apontadas × disponibilidade da
+  // máquina no período).
+  machariaState.disponibilidadePorLinha = new Map(
+    porMaquina.map(({ maquina, indicadores }) => [String(maquina.id), indicadores.disponibilidade])
+  );
 
   // "Geral" soma os totais (tempo parado, tempo período, tempo teórico,
   // tempo disponível) de todas as máquinas antes de calcular as taxas — não
