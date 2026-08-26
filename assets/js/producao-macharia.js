@@ -1050,6 +1050,27 @@ function renderMachariaMachosMonthTable() {
       th.dataset.sortArrow = isSorted ? (sort.direction === "asc" ? " ↑" : " ↓") : "";
     }
   }
+  const totals = aq("#macharia-machos-month-totals");
+  if (totals) {
+    // Sopros/hora total é a média ponderada (soma sopros / soma horas
+    // reais), não a soma das médias de cada macho — somar taxas não faz
+    // sentido. Performance não tem um "previsto" único pra comparar quando
+    // são machos diferentes, então fica sem total.
+    const somar = (chave) => dados.reduce((sum, row) => sum + row[chave], 0);
+    const totalSopros = somar("sopros");
+    const totalHorasTrabalhadas = somar("horasTrabalhadas");
+    const soprosPorHoraTotal = totalHorasTrabalhadas > 0 ? totalSopros / totalHorasTrabalhadas : 0;
+    totals.innerHTML = `
+      <td>Total</td>
+      <td>${Math.round(somar("areiaKg")).toLocaleString("pt-BR")}</td>
+      <td>${somar("resinaKg").toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+      <td>${Math.round(totalSopros).toLocaleString("pt-BR")}</td>
+      <td>${Math.round(somar("machosProduzidos")).toLocaleString("pt-BR")}</td>
+      <td>${somar("horasMaquina").toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+      <td>${totalHorasTrabalhadas.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+      <td>${soprosPorHoraTotal.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+      <td>—</td>`;
+  }
 }
 function renderMachariaCharts() {
   const mes = machariaState.chartsMonth;

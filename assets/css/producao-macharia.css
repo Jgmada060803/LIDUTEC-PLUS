@@ -130,6 +130,8 @@
 .macharia-machos-table thead th.is-sorted::after { content: attr(data-sort-arrow); }
 .macharia-machos-table tbody td { text-align: right; font-variant-numeric: tabular-nums; }
 .macharia-machos-table tbody td:first-child { text-align: left; font-variant-numeric: normal; font-weight: 700; }
+.macharia-machos-table tfoot td { padding: 11px 16px; border-top: 2px solid var(--color-border); text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; }
+.macharia-machos-table tfoot td:first-child { text-align: left; font-variant-numeric: normal; }
 
 @media (max-width: 920px) {
   .macharia-kpi-grid { grid-template-columns: repeat(2, 1fr); }
