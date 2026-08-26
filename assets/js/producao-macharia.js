@@ -94,7 +94,7 @@ function formatMinutes(value) {
 }
 function resolveShiftTime(value) {
   const form = aq("#shift-entry-form");
-  return window.LIDUTEC_TURNOS.resolveShiftTime(form?.elements.data_operacional.value, form?.elements.turno.value, value);
+  return window.LIDUTEC_TURNOS.resolveShiftTime(form?.elements.data_operacional.value, form?.elements.turno.value, value, "MACHARIA");
 }
 function applyRowValues(row, values = {}) {
   for (const control of row.querySelectorAll("input,select")) {
@@ -126,7 +126,7 @@ function renderGrid() {
   const date = form.elements.data_operacional.value, turno = form.elements.turno.value;
   if (!maquina || !date || !turno) { container.innerHTML = ""; return; }
 
-  const bounds = window.LIDUTEC_TURNOS.shiftBounds(date, turno);
+  const bounds = window.LIDUTEC_TURNOS.shiftBounds(date, turno, "MACHARIA");
   const closed = machariaState.currentShift?.status === "FECHADO";
   const canEdit = !closed || machariaState.editingClosed;
   const slots = window.LIDUTEC_TURNOS.hourlySlots(bounds.start, bounds.end, bounds.end);
@@ -496,9 +496,9 @@ function renderShiftTimeline() {
   const nameEl = aq("#timeline-maquina-name");
   if (nameEl) nameEl.textContent = maquina ? maquina.nome : "—";
   const date = form.elements.data_operacional.value, turno = form.elements.turno.value;
-  const shift = window.LIDUTEC_TURNOS.shifts[turno];
+  const shift = window.LIDUTEC_TURNOS.shiftsFor("MACHARIA", date)[turno];
   if (!date || !shift || !maquina) { productionContainer.innerHTML = ""; container.innerHTML = ""; return; }
-  const bounds = window.LIDUTEC_TURNOS.shiftBounds(date, turno);
+  const bounds = window.LIDUTEC_TURNOS.shiftBounds(date, turno, "MACHARIA");
   const start = bounds.start, end = bounds.end;
   aq("#timeline-start").textContent = shift.inicio;
   aq("#timeline-end").textContent = `${shift.fim}${end.getDate() !== start.getDate() ? " (+1 dia)" : ""}`;
@@ -750,7 +750,7 @@ function maquinaStorageKey() {
 async function initializeShiftEntry() {
   const form = aq("#shift-entry-form");
   const params = new URLSearchParams(location.search);
-  const shift = window.LIDUTEC_TURNOS.determineShift();
+  const shift = window.LIDUTEC_TURNOS.determineShift(new Date(), "MACHARIA");
   form.elements.data_operacional.value = /^\d{4}-\d{2}-\d{2}$/.test(params.get("data") || "") ? params.get("data") : shift.dataOperacional;
   form.elements.turno.value = window.LIDUTEC_TURNOS.shifts[params.get("turno")] ? params.get("turno") : shift.codigo;
   form.elements.maquina_id.innerHTML = machariaState.maquinas.map((m) => `<option value="${m.id}">${aesc(m.nome)}</option>`).join("");
@@ -904,6 +904,10 @@ function machariaMonthRange(mes) {
   const dias = new Date(ano, m, 0).getDate();
   return { from: `${mes}-01`, to: `${mes}-${String(dias).padStart(2, "0")}`, dias };
 }
+function machariaMonthDays(mes) {
+  const { dias } = machariaMonthRange(mes);
+  return Array.from({ length: dias }, (_, i) => `${mes}-${String(i + 1).padStart(2, "0")}`);
+}
 function currentMonthStr() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -912,12 +916,47 @@ async function loadMachariaCharts(mes) {
   mes = mes || machariaState.chartsMonth || currentMonthStr();
   machariaState.chartsMonth = mes;
   const { from, to } = machariaMonthRange(mes);
-  const [records, stops] = await Promise.all([
+  const linhaIds = machariaState.maquinas.map((maquina) => maquina.id);
+  const [records, stops, diasOperacaoRegras] = await Promise.all([
     window.LIDUTEC_PRODUCAO_MACHARIA_DATA.records({ from, to, limit: 5000 }),
-    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.stops({ from, to, limit: 5000 })
+    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.stops({ from, to, limit: 5000 }),
+    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.diasOperacaoLinhas(linhaIds)
   ]);
   machariaState.chartsRecords = records;
   machariaState.chartsStops = stops;
+  machariaState.diasOperacaoRegras = diasOperacaoRegras;
+}
+// Mesma lógica de linha_2_ativa_acabamento (banco) / linha2TurnoAtivo
+// (Acabamento no front) — turno específico tem prioridade sobre um geral
+// (turno null); máquina sem nenhuma regra cadastrada roda todos os dias
+// (comportamento anterior preservado até a regra ser cadastrada).
+function machariaTurnoAtivo(regras, linhaId, day, turnoCodigo) {
+  const candidatas = regras.filter((regra) =>
+    String(regra.linha_maquina_id) === String(linhaId) &&
+    (regra.turno === turnoCodigo || regra.turno == null) &&
+    regra.vigencia_inicio <= day &&
+    (regra.vigencia_fim == null || regra.vigencia_fim >= day)
+  );
+  if (!candidatas.length) return true;
+  candidatas.sort((a, b) => {
+    if ((a.turno != null) !== (b.turno != null)) return a.turno != null ? -1 : 1;
+    return b.vigencia_inicio.localeCompare(a.vigencia_inicio);
+  });
+  const dow = new Date(`${day}T12:00:00`).getDay();
+  return candidatas[0].dias_semana.includes(dow);
+}
+// Minutos que a máquina deveria operar no mês, somando só os turnos/dias
+// realmente programados pra ela — antes disso era sempre dias × 1440 (24h
+// todo dia), o que inflava o "período esperado" muito além da operação
+// real e derrubava Eficiência/OEE artificialmente.
+function machariaMinutosPeriodo(regras, linhaId, diasDoMes) {
+  let total = 0;
+  for (const day of diasDoMes) {
+    for (const [codigo, turno] of Object.entries(window.LIDUTEC_TURNOS.shiftsFor("MACHARIA", day))) {
+      if (machariaTurnoAtivo(regras, linhaId, day, codigo)) total += turno.minutos;
+    }
+  }
+  return total;
 }
 // Disponibilidade/Eficiência/Qualidade usam a faixa "padrão" (≥85% bom,
 // ≥65% atenção); OEE é multiplicativo (disp × efic × qual) e por isso
@@ -1075,16 +1114,17 @@ function renderMachariaMachosMonthTable() {
 function renderMachariaCharts() {
   const mes = machariaState.chartsMonth;
   if (!mes) return;
-  const { dias } = machariaMonthRange(mes);
   const subtitle = aq("#charts-shift-subtitle");
   if (subtitle) {
     subtitle.textContent = new Date(`${mes}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   }
 
-  const minutosPeriodoMaquina = dias * 1440;
-  const porMaquina = machariaState.maquinas.map((maquina) => ({
-    maquina, indicadores: machariaIndicadoresMaquina(maquina, minutosPeriodoMaquina)
-  }));
+  const diasDoMes = machariaMonthDays(mes);
+  const regras = machariaState.diasOperacaoRegras || [];
+  const porMaquina = machariaState.maquinas.map((maquina) => {
+    const minutosPeriodoMaquina = machariaMinutosPeriodo(regras, maquina.id, diasDoMes);
+    return { maquina, indicadores: machariaIndicadoresMaquina(maquina, minutosPeriodoMaquina) };
+  });
   // Guardado no state pra machariaMachosDoMes() usar na performance por
   // macho (horas trabalhadas = horas apontadas × disponibilidade da
   // máquina no período).

@@ -30,16 +30,14 @@ function formatDiasSemana(dias) {
 }
 
 async function loadLinhas() {
-  // Por enquanto só o Acabamento de fato usa essa regra (linha_2_ativa_acabamento);
-  // Macharia/Moldagem ficam de fora da lista até essa leitura existir nesses fluxos também.
-  const { data: area, error: areaError } = await window.supabaseClient
-    .from("areas_checklist").select("id").eq("codigo", "ACABAMENTO").single();
-  if (areaError) throw areaError;
+  // Acabamento (linha_2_ativa_acabamento) e Macharia (cálculo de
+  // disponibilidade/eficiência dos indicadores) já leem essa tabela;
+  // Moldagem ainda não, mas cadastrar aqui não tem efeito nenhum nela até
+  // essa leitura existir também.
   const { data, error } = await window.supabaseClient
     .from("linhas_maquinas_producao")
     .select("id,codigo,nome,areas_checklist(nome)")
     .eq("ativo", true)
-    .eq("area_id", area.id)
     .order("codigo");
   if (error) throw error;
   ldq("#ld-linha").insertAdjacentHTML("beforeend", (data || [])

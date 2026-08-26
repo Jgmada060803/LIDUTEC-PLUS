@@ -218,7 +218,7 @@ function applyRowValues(row, values = {}) {
 }
 function resolveShiftTime(value) {
   const form = aq("#shift-entry-form");
-  return window.LIDUTEC_TURNOS.resolveShiftTime(form?.elements.data_operacional.value, form?.elements.turno.value, value);
+  return window.LIDUTEC_TURNOS.resolveShiftTime(form?.elements.data_operacional.value, form?.elements.turno.value, value, "ACABAMENTO");
 }
 
 // ---------------------------------------------------------------------------
@@ -462,7 +462,7 @@ function serializeShift() {
       const start = resolveShiftTime(value("inicio"));
       const end = resolveShiftTime(value("fim"));
       if (!start || !end) throw new Error("Os horários da parada devem estar dentro do turno selecionado.");
-      if (!window.LIDUTEC_TURNOS.intervalWithinShift(form.elements.data_operacional.value, form.elements.turno.value, start.toISOString(), end.toISOString())) {
+      if (!window.LIDUTEC_TURNOS.intervalWithinShift(form.elements.data_operacional.value, form.elements.turno.value, start.toISOString(), end.toISOString(), "ACABAMENTO")) {
         throw new Error("A parada deve estar dentro do turno selecionado.");
       }
       const { tipo, componentesIndisponiveis } = stopConditionValue(row);
@@ -679,7 +679,7 @@ function toggleAbsenteeismStop(postoId) {
     if (activeCount >= limit) return;
     const bounds = turnoBoundsOrNull();
     const form = aq("#shift-entry-form");
-    const shiftInfo = window.LIDUTEC_TURNOS.shifts[form.elements.turno.value];
+    const shiftInfo = window.LIDUTEC_TURNOS.shiftsFor("ACABAMENTO", form.elements.data_operacional.value)[form.elements.turno.value];
     const categoriaId = absenteismoCategoriaId();
     const setorId = admSetorId();
     if (!bounds || !shiftInfo || !categoriaId || !setorId) return;
@@ -942,7 +942,7 @@ function applyCurrentShiftDefaults(form) {
     form.elements.turno.value = paramTurno;
     return;
   }
-  const shift = window.LIDUTEC_TURNOS.determineShift();
+  const shift = window.LIDUTEC_TURNOS.determineShift(new Date(), "ACABAMENTO");
   form.elements.data_operacional.value = shift.dataOperacional;
   form.elements.turno.value = shift.codigo;
 }
@@ -1219,7 +1219,7 @@ function renderAcabamentoDashboard() {
   // Enquanto "operadores presentes" não foi preenchido (null), considera a
   // linha com todos os postos ativos (presentes = planejados) em vez de 0 —
   // senão a soma mostraria 100% de absenteísmo antes de qualquer dado real.
-  const currentTurno = window.LIDUTEC_TURNOS.determineShift().codigo;
+  const currentTurno = window.LIDUTEC_TURNOS.determineShift(new Date(), "ACABAMENTO").codigo;
   const shifts = (acabamentoState.periodShifts || []).filter((s) => s.turnos_producao_acabamento?.turno === currentTurno);
   const planejados = shifts.reduce((sum, s) => sum + anumber(s.operadores_planejados), 0);
   const presentes = shifts.reduce((sum, s) => sum + (s.operadores_presentes != null ? anumber(s.operadores_presentes) : anumber(s.operadores_planejados)), 0);
@@ -1481,7 +1481,7 @@ function renderAcabamentoCharts() {
   let totalDisponibilidadePonderada = 0;
   for (const shift of shifts) {
     const turno = shift.turnos_producao_acabamento?.turno;
-    const minutosTurno = window.LIDUTEC_TURNOS.shifts[turno]?.minutos || 0;
+    const minutosTurno = window.LIDUTEC_TURNOS.shiftsFor("ACABAMENTO", shift.turnos_producao_acabamento?.data_operacional)[turno]?.minutos || 0;
     if (!minutosTurno) continue;
     const numeroPostos = postoPorLinha.get(shift.linha_maquina_id) || 1;
     const minutosParada = (stopsPorTurnoLinha.get(`${shift.turno_producao_id}|${shift.linha_maquina_id}`) || []).reduce((sum, x) => sum + anumber(x.tempo_perdido_ajustado), 0);

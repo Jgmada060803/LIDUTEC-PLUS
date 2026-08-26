@@ -8,22 +8,46 @@
     TARDE: { nome: "Tarde", inicio: "13:20", fim: "21:30", minutos: 490 },
     NOITE: { nome: "Noite", inicio: "21:30", fim: "06:00", minutos: 510 }
   };
+  // Acabamento e Macharia viram o turno ao meio-dia em vez de 13:20 (pedido
+  // explícito, 2026-08-26) — Moldagem continua com o horário de sempre.
+  // Só vale a partir de VIGENCIA_MEIO_DIA (turnos anteriores a essa data,
+  // mesmo nessas áreas, continuam calculados com o horário antigo — pedido
+  // explícito de não recalcular o que já fechou).
+  const shiftsMeioDia = {
+    MANHA: { nome: "Manhã", inicio: "06:00", fim: "12:00", minutos: 360 },
+    TARDE: { nome: "Tarde", inicio: "12:00", fim: "21:30", minutos: 570 },
+    NOITE: { nome: "Noite", inicio: "21:30", fim: "06:00", minutos: 510 }
+  };
+  const VIGENCIA_MEIO_DIA = "2026-08-27";
+  const AREAS_MEIO_DIA = new Set(["ACABAMENTO", "MACHARIA"]);
+  function shiftsFor(area, dataReferencia) {
+    if (area && AREAS_MEIO_DIA.has(area) && String(dataReferencia) >= VIGENCIA_MEIO_DIA) return shiftsMeioDia;
+    return shifts;
+  }
+  const timeToMinutes = (hhmm) => {
+    const [hours, minutes] = String(hhmm).split(":").map(Number);
+    return hours * 60 + minutes;
+  };
   const pad = (value) => String(value).padStart(2, "0");
   const localDate = (date) =>
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  function determineShift(value = new Date()) {
+  function determineShift(value = new Date(), area) {
     const date = value instanceof Date ? new Date(value) : new Date(value);
     if (Number.isNaN(date.getTime())) throw new Error("Data e hora inválidas.");
+    const activeShifts = shiftsFor(area, localDate(date));
     const minute = date.getHours() * 60 + date.getMinutes();
-    const code = minute >= 360 && minute < 800
-      ? "MANHA" : minute >= 800 && minute < 1290 ? "TARDE" : "NOITE";
+    const manhaInicio = timeToMinutes(activeShifts.MANHA.inicio);
+    const manhaFim = timeToMinutes(activeShifts.MANHA.fim);
+    const tardeFim = timeToMinutes(activeShifts.TARDE.fim);
+    const code = minute >= manhaInicio && minute < manhaFim
+      ? "MANHA" : minute >= manhaFim && minute < tardeFim ? "TARDE" : "NOITE";
     const operational = new Date(date);
-    if (code === "NOITE" && minute < 360) {
+    if (code === "NOITE" && minute < manhaInicio) {
       operational.setDate(operational.getDate() - 1);
     }
     return {
       codigo: code,
-      ...shifts[code],
+      ...activeShifts[code],
       dataOperacional: localDate(operational)
     };
   }
@@ -43,8 +67,8 @@
     if (duration < 0) throw new Error("A duração da parada não pode ser negativa.");
     return duration;
   }
-  function shiftBounds(operationalDate, shiftCode) {
-    const shift = shifts[shiftCode];
+  function shiftBounds(operationalDate, shiftCode, area) {
+    const shift = shiftsFor(area, operationalDate)[shiftCode];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(operationalDate)) || !shift) {
       throw new Error("Data operacional ou turno inválido.");
     }
@@ -53,21 +77,21 @@
     if (end <= start) end.setDate(end.getDate() + 1);
     return { start, end };
   }
-  function resolveShiftTime(operationalDate, shiftCode, timeValue) {
+  function resolveShiftTime(operationalDate, shiftCode, timeValue, area) {
     if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(timeValue || ""))) return null;
-    const bounds = shiftBounds(operationalDate, shiftCode);
+    const bounds = shiftBounds(operationalDate, shiftCode, area);
     const [hours, minutes] = timeValue.split(":").map(Number);
     const date = new Date(bounds.start);
     date.setHours(hours, minutes, 0, 0);
     if (date < bounds.start) date.setDate(date.getDate() + 1);
     return date >= bounds.start && date <= bounds.end ? date : null;
   }
-  function productionEndTime(operationalDate, shiftCode, startValue, nextStartValue, nowValue = new Date()) {
-    const bounds = shiftBounds(operationalDate, shiftCode);
-    const start = resolveShiftTime(operationalDate, shiftCode, startValue);
+  function productionEndTime(operationalDate, shiftCode, startValue, nextStartValue, nowValue = new Date(), area) {
+    const bounds = shiftBounds(operationalDate, shiftCode, area);
+    const start = resolveShiftTime(operationalDate, shiftCode, startValue, area);
     if (!start) return "";
     const nextStart = nextStartValue
-      ? resolveShiftTime(operationalDate, shiftCode, nextStartValue)
+      ? resolveShiftTime(operationalDate, shiftCode, nextStartValue, area)
       : null;
     const now = nowValue instanceof Date ? new Date(nowValue) : new Date(nowValue);
     if (Number.isNaN(now.getTime())) return "";
@@ -78,8 +102,8 @@
     if (end < start || end < bounds.start || end > bounds.end) return "";
     return `${pad(end.getHours())}:${pad(end.getMinutes())}`;
   }
-  function intervalWithinShift(operationalDate, shiftCode, startValue, endValue) {
-    const bounds = shiftBounds(operationalDate, shiftCode);
+  function intervalWithinShift(operationalDate, shiftCode, startValue, endValue, area) {
+    const bounds = shiftBounds(operationalDate, shiftCode, area);
     const start = new Date(startValue);
     const end = new Date(endValue);
     return !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) &&
@@ -265,6 +289,7 @@
 
   return {
     shifts,
+    shiftsFor,
     determineShift,
     shiftBounds,
     resolveShiftTime,

@@ -44,6 +44,10 @@
         .eq("area_id", await areaId()));
       return rows.map((row) => ({ ...row, equipamento_codigo: row.equipamentos_planejamento?.codigo ?? null }));
     },
+    diasOperacaoLinhas: (linhaIds) => result(client()
+      .from("linha_turno_dias_ativos")
+      .select("linha_maquina_id,turno,dias_semana,vigencia_inicio,vigencia_fim")
+      .in("linha_maquina_id", linhaIds)),
     fichas: (status) => result(client().from("machos_macharia")
       .select("id,caixa,macho,machos_por_sopro,peso_macho_kg,kg_areia_por_sopro,sopro_por_hora,status,ativo,substitui_id,motivo_reprovacao,criado_em,usuarios!machos_macharia_criado_por_fkey(nome),machos_macharia_produtos(produto_id,machos_por_peca,produtos(codigo,nome))")
       .eq("status", status).order("criado_em", { ascending: false }).limit(5000)),

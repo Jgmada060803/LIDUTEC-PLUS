@@ -64,13 +64,13 @@
       return { mode: "ultimas24h", start, end, minutosPeriodo: 1440, label: "Últimas 24 horas" };
     }
     if (turnoCodigo === "TODOS") {
-      const start = window.LIDUTEC_TURNOS.shiftBounds(data, "MANHA").start;
-      const end = window.LIDUTEC_TURNOS.shiftBounds(data, "NOITE").end;
-      const minutosPeriodo = Object.values(window.LIDUTEC_TURNOS.shifts).reduce((sum, s) => sum + s.minutos, 0);
+      const start = window.LIDUTEC_TURNOS.shiftBounds(data, "MANHA", "MACHARIA").start;
+      const end = window.LIDUTEC_TURNOS.shiftBounds(data, "NOITE", "MACHARIA").end;
+      const minutosPeriodo = Object.values(window.LIDUTEC_TURNOS.shiftsFor("MACHARIA", data)).reduce((sum, s) => sum + s.minutos, 0);
       return { mode: "todos", start, end, minutosPeriodo, label: "Todos os turnos" };
     }
-    const bounds = window.LIDUTEC_TURNOS.shiftBounds(data, turnoCodigo);
-    const turnoInfo = window.LIDUTEC_TURNOS.shifts[turnoCodigo];
+    const bounds = window.LIDUTEC_TURNOS.shiftBounds(data, turnoCodigo, "MACHARIA");
+    const turnoInfo = window.LIDUTEC_TURNOS.shiftsFor("MACHARIA", data)[turnoCodigo];
     return { mode: "turno", start: bounds.start, end: bounds.end, minutosPeriodo: turnoInfo.minutos, label: turnoInfo.nome };
   }
 
