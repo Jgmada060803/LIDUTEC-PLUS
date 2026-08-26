@@ -77,13 +77,65 @@
 .ficha-macho-status.status-aprovado { background: #def7e8; color: #116837; }
 .ficha-macho-status.status-reprovado { background: #ffe3e0; color: #9f1710; }
 
-/* 5 cards (um por máquina), cada um com barras de Disponibilidade,
-   Eficiência, Qualidade e OEE. */
-.macharia-oee-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-.macharia-oee-card { display: flex; flex-direction: column; gap: 12px; }
-.macharia-oee-card h3 { margin: 0; font-size: 1.02rem; font-weight: 900; }
-.macharia-oee-bar { display: grid; grid-template-columns: 96px 1fr 52px; align-items: center; gap: 8px; }
-.macharia-oee-bar span { color: var(--color-text-muted); font-size: .74rem; font-weight: 700; }
-.macharia-oee-track { height: 10px; border-radius: 999px; background: #eef1f4; overflow: hidden; }
-.macharia-oee-fill { height: 100%; border-radius: 999px; }
-.macharia-oee-bar strong { text-align: right; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.macharia-charts-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.macharia-charts-toolbar label { display: flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 800; }
+.macharia-charts-toolbar input[type="month"] { min-height: 38px; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; }
+
+/* Tela de indicadores (graficos.html): bloco "Geral" em destaque, consumo de
+   areia/resina, comparativo por máquina (pequenos gráficos de barra, um por
+   indicador) e a tabela de machos do mês — nessa ordem, resumo antes do
+   detalhe. */
+.macharia-block { margin-bottom: 28px; }
+.macharia-block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.macharia-block-head h3 { margin: 0; font-size: .96rem; font-weight: 800; }
+.macharia-block-head p { margin: 0; color: var(--color-text-muted); font-size: .78rem; }
+
+.macharia-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.macharia-kpi-card { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; }
+.macharia-kpi-card .macharia-kpi-label { font-size: .76rem; font-weight: 700; color: var(--color-text-muted); }
+.macharia-kpi-card .macharia-kpi-value { font-size: 2.05rem; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.macharia-kpi-track { height: 6px; border-radius: 999px; background: #eef1f4; overflow: hidden; }
+.macharia-kpi-fill { height: 100%; border-radius: 999px; }
+.macharia-kpi-status { display: inline-flex; align-items: center; gap: 6px; font-size: .72rem; font-weight: 700; }
+.macharia-status-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.is-good .macharia-kpi-value, .is-good .macharia-kpi-status { color: var(--color-success); }
+.is-good .macharia-kpi-fill, .is-good .macharia-status-dot { background: var(--color-success); }
+.is-warning .macharia-kpi-value, .is-warning .macharia-kpi-status { color: var(--color-warning); }
+.is-warning .macharia-kpi-fill, .is-warning .macharia-status-dot { background: var(--color-warning); }
+.is-critical .macharia-kpi-value, .is-critical .macharia-kpi-status { color: var(--color-danger); }
+.is-critical .macharia-kpi-fill, .is-critical .macharia-status-dot { background: var(--color-danger); }
+
+.macharia-consumo-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 14px; }
+.macharia-consumo-card { display: flex; align-items: center; gap: 14px; padding: 16px 20px; }
+.macharia-consumo-icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--color-primary-light); color: var(--color-primary); flex: none; font-size: 1.1rem; font-weight: 800; }
+.macharia-consumo-label { font-size: .74rem; color: var(--color-text-muted); font-weight: 700; }
+.macharia-consumo-value { font-size: 1.3rem; font-weight: 800; letter-spacing: -.01em; }
+.macharia-consumo-sub { font-size: .7rem; color: var(--color-text-muted); }
+
+.macharia-compare-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.macharia-compare-card { padding: 16px 18px 14px; }
+.macharia-compare-card h4 { margin: 0 0 12px; font-size: .86rem; font-weight: 800; }
+.macharia-compare-row { display: grid; grid-template-columns: 66px 1fr 44px; align-items: center; gap: 10px; padding: 5px 0; }
+.macharia-compare-row .m-name { font-size: .74rem; font-weight: 700; color: var(--color-text-muted); }
+.macharia-compare-track { height: 14px; border-radius: 5px; background: #eef1f4; overflow: hidden; }
+.macharia-compare-fill { height: 100%; border-radius: 5px 2px 2px 5px; }
+.macharia-compare-row .m-value { text-align: right; font-variant-numeric: tabular-nums; font-size: .78rem; font-weight: 800; }
+.macharia-legend-note { display: flex; align-items: center; gap: 16px; margin-top: 8px; padding: 0 2px; color: var(--color-text-muted); font-size: .72rem; }
+.macharia-legend-note strong { color: var(--color-text); font-weight: 800; }
+.macharia-legend-note span { display: inline-flex; align-items: center; gap: 5px; }
+
+.macharia-machos-table thead th { text-align: right; font-size: .68rem; font-weight: 800; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .05em; padding: 11px 16px; white-space: nowrap; cursor: pointer; user-select: none; }
+.macharia-machos-table thead th:first-child { text-align: left; }
+.macharia-machos-table thead th.is-sorted { color: var(--color-primary); }
+.macharia-machos-table thead th.is-sorted::after { content: attr(data-sort-arrow); }
+.macharia-machos-table tbody td { text-align: right; font-variant-numeric: tabular-nums; }
+.macharia-machos-table tbody td:first-child { text-align: left; font-variant-numeric: normal; font-weight: 700; }
+
+@media (max-width: 920px) {
+  .macharia-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .macharia-consumo-grid { grid-template-columns: 1fr; }
+  .macharia-compare-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .macharia-kpi-grid { grid-template-columns: 1fr; }
+}

@@ -52,7 +52,7 @@
     importarFichas: (linhas) => result(client().rpc("importar_machos_macharia", { p_linhas: linhas }), null),
     records: (filters = {}) => result(applyFilters(client()
       .from("registros_producao_macharia")
-      .select("*,linhas_maquinas_producao(codigo,nome),machos_macharia(caixa,macho,machos_por_sopro,sopro_por_hora,machos_macharia_produtos(produtos(codigo)))")
+      .select("*,linhas_maquinas_producao(codigo,nome),machos_macharia(caixa,macho,machos_por_sopro,sopro_por_hora,kg_areia_por_sopro,machos_macharia_produtos(produtos(codigo)))")
       .order("horario_previsto", { ascending: false }), filters)),
     stops: (filters = {}) => result(applyFilters(client()
       .from("paradas_producao_macharia")

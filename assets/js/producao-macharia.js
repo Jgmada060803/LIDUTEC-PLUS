@@ -882,69 +882,219 @@ function renderMachariaDashboard() {
 }
 
 // ---------------------------------------------------------------------------
-// Indicadores (tela "charts") — 5 cards (um por máquina) com Disponibilidade,
-// Eficiência, Qualidade e OEE do turno atual. Disponibilidade e Eficiência
-// reaproveitam as mesmas fórmulas de turnos.js usadas em Moldagem/Acabamento
+// Indicadores (tela "charts") — 1 card "Geral" + 5 cards (um por máquina) com
+// Disponibilidade, Eficiência, Qualidade e OEE do MÊS selecionado (não mais
+// só o turno atual). Disponibilidade e Eficiência reaproveitam as mesmas
+// fórmulas de turnos.js usadas em Moldagem/Acabamento
 // (calcularTaxaEquipamento/calcularEficiencia/calcularOEE); Qualidade é fixa
 // em 97%, já que a Macharia ainda não registra refugo/retrabalho por macho.
+// Cada máquina roda os 3 turnos todos os dias (sem regra de dia de operação
+// como a Linha 2 do Acabamento), então o período de cada uma no mês é
+// sempre dias-no-mês × 24h.
 // ---------------------------------------------------------------------------
 const MACHARIA_QUALIDADE_PADRAO = 0.97;
-async function loadMachariaCharts() {
-  const shift = window.LIDUTEC_TURNOS.determineShift();
-  machariaState.chartsShift = shift;
+// Consumo de resina ainda não é apontado por dia — até existir esse
+// apontamento, fica fixo em 0,5% de parte 1 + 0,5% de parte 2 sobre o peso
+// de areia consumido no período (pedido explícito, valor provisório).
+const MACHARIA_RESINA_PARTE1_PCT = 0.005;
+const MACHARIA_RESINA_PARTE2_PCT = 0.005;
+
+function machariaMonthRange(mes) {
+  const [ano, m] = mes.split("-").map(Number);
+  const dias = new Date(ano, m, 0).getDate();
+  return { from: `${mes}-01`, to: `${mes}-${String(dias).padStart(2, "0")}`, dias };
+}
+function currentMonthStr() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+async function loadMachariaCharts(mes) {
+  mes = mes || machariaState.chartsMonth || currentMonthStr();
+  machariaState.chartsMonth = mes;
+  const { from, to } = machariaMonthRange(mes);
   const [records, stops] = await Promise.all([
-    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.records({ from: shift.dataOperacional, to: shift.dataOperacional, shift: shift.codigo, limit: 5000 }),
-    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.stops({ from: shift.dataOperacional, to: shift.dataOperacional, shift: shift.codigo, limit: 5000 })
+    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.records({ from, to, limit: 5000 }),
+    window.LIDUTEC_PRODUCAO_MACHARIA_DATA.stops({ from, to, limit: 5000 })
   ]);
   machariaState.chartsRecords = records;
   machariaState.chartsStops = stops;
 }
-function renderMachariaMetricBar(label, fraction) {
+// Disponibilidade/Eficiência/Qualidade usam a faixa "padrão" (≥85% bom,
+// ≥65% atenção); OEE é multiplicativo (disp × efic × qual) e por isso
+// naturalmente mais baixo — pedido explícito de usar uma faixa própria pra
+// ele (≥65% bom, ≥50% atenção) em vez de quase sempre cair em "crítico".
+const MACHARIA_FAIXA_PADRAO = { good: 85, warning: 65 };
+const MACHARIA_FAIXA_OEE = { good: 65, warning: 50 };
+function machariaStatusClass(percent, faixa = MACHARIA_FAIXA_PADRAO) {
+  return percent >= faixa.good ? "is-good" : percent >= faixa.warning ? "is-warning" : "is-critical";
+}
+function machariaStatusColorVar(statusClass) {
+  return statusClass === "is-good" ? "var(--color-success)" : statusClass === "is-warning" ? "var(--color-warning)" : "var(--color-danger)";
+}
+function formatMachariaKg(kg) {
+  return `${Math.round(kg).toLocaleString("pt-BR")} kg`;
+}
+function formatMachariaTon(kg) {
+  return `${(kg / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} t`;
+}
+function machariaKpiCardHtml(label, fraction, faixa) {
   const percent = Math.max(0, Math.min(1, fraction || 0)) * 100;
-  const color = percent >= 85 ? "#218c4b" : percent >= 65 ? "#b7791f" : "#b90e2c";
-  return `<div class="macharia-oee-bar">
-      <span>${aesc(label)}</span>
-      <div class="macharia-oee-track"><div class="macharia-oee-fill" style="width:${percent}%;background:${color}"></div></div>
-      <strong>${percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong>
+  const statusClass = machariaStatusClass(percent, faixa);
+  const statusLabel = statusClass === "is-good" ? "Dentro da meta" : statusClass === "is-warning" ? "Atenção" : "Crítico";
+  return `<article class="panel macharia-kpi-card ${statusClass}">
+      <span class="macharia-kpi-label">${aesc(label)}</span>
+      <span class="macharia-kpi-value">${percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>
+      <div class="macharia-kpi-track"><div class="macharia-kpi-fill" style="width:${percent}%"></div></div>
+      <span class="macharia-kpi-status"><i class="macharia-status-dot"></i>${statusLabel}</span>
+    </article>`;
+}
+function machariaCompareRowHtml(nome, percent, faixa) {
+  const statusClass = machariaStatusClass(percent, faixa);
+  return `<div class="macharia-compare-row">
+      <span class="m-name">${aesc(nome)}</span>
+      <div class="macharia-compare-track" title="${percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%"><div class="macharia-compare-fill" style="width:${Math.max(0, Math.min(100, percent))}%;background:${machariaStatusColorVar(statusClass)}"></div></div>
+      <span class="m-value">${percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>
     </div>`;
 }
-function renderMachariaCharts() {
-  const shift = machariaState.chartsShift;
-  const shiftInfo = shift ? window.LIDUTEC_TURNOS.shifts[shift.codigo] : null;
-  const subtitle = aq("#charts-shift-subtitle");
-  if (subtitle && shift && shiftInfo) {
-    subtitle.textContent = `${shiftInfo.nome} · ${new Date(`${shift.dataOperacional}T12:00:00`).toLocaleDateString("pt-BR")}`;
+function machariaIndicadoresMaquina(maquina, minutosPeriodo) {
+  const records = machariaState.chartsRecords.filter((item) => String(item.linha_maquina_id) === String(maquina.id));
+  const stops = machariaState.chartsStops.filter((item) => String(item.linha_maquina_id) === String(maquina.id));
+  // Soma o tempo perdido EQUIVALENTE, não a duração real da parada — uma
+  // parada parcial (só 1 ou 2 estações indisponíveis) não derruba a
+  // disponibilidade como se a máquina tivesse parado 100% do intervalo.
+  const minutosParada = stops.reduce((sum, item) => sum + anumber(item.tempo_perdido_equivalente_minutos ?? item.duracao_minutos), 0);
+  const disponibilidade = window.LIDUTEC_TURNOS.calcularTaxaEquipamento({ minutosPeriodo, minutosParada });
+  const minutosDisponivel = Math.max(0, minutosPeriodo - minutosParada);
+  const tempoTeoricoMinutos = records.reduce((sum, item) => {
+    const soproPorHora = anumber(item.machos_macharia?.sopro_por_hora);
+    if (!soproPorHora) return sum;
+    return sum + anumber(item.quantidade_sopros) * (60 / soproPorHora);
+  }, 0);
+  const eficiencia = window.LIDUTEC_TURNOS.calcularEficiencia({ tempoTeoricoMinutos, tempoDisponivelMinutos: minutosDisponivel });
+  const qualidade = MACHARIA_QUALIDADE_PADRAO;
+  const oee = window.LIDUTEC_TURNOS.calcularOEE({ disponibilidade, eficiencia, qualidade });
+  const areiaKg = records.reduce((sum, item) => sum + anumber(item.quantidade_sopros) * anumber(item.machos_macharia?.kg_areia_por_sopro), 0);
+  return { minutosParada, minutosPeriodo, minutosDisponivel, tempoTeoricoMinutos, disponibilidade, eficiencia, qualidade, oee, areiaKg };
+}
+// Machos do mês — 1 macho pode servir mais de 1 produto (mesma regra já
+// aplicada em dashboard-macharia.js: juntar os códigos com "/" em vez de
+// esconder quando há mais de um).
+function machariaMonthMachoLabel(macho) {
+  if (!macho) return "—";
+  const produtos = macho.machos_macharia_produtos || [];
+  const codigos = [...new Set(produtos.map((item) => item?.produtos?.codigo).filter(Boolean))];
+  return [codigos.join("/") || null, macho.caixa, macho.macho].filter(Boolean).join(" ");
+}
+function machariaMachosDoMes() {
+  const grupos = new Map();
+  for (const item of machariaState.chartsRecords) {
+    const macho = item.machos_macharia;
+    const key = String(item.macho_id);
+    if (!grupos.has(key)) grupos.set(key, { label: machariaMonthMachoLabel(macho), sopros: 0, machosProduzidos: 0, areiaKg: 0, horasMaquina: 0 });
+    const grupo = grupos.get(key);
+    const sopros = anumber(item.quantidade_sopros);
+    const soproPorHora = anumber(macho?.sopro_por_hora);
+    grupo.sopros += sopros;
+    grupo.machosProduzidos += sopros * anumber(macho?.machos_por_sopro);
+    grupo.areiaKg += sopros * anumber(macho?.kg_areia_por_sopro);
+    if (soproPorHora) grupo.horasMaquina += (sopros * (60 / soproPorHora)) / 60;
   }
-  const container = aq("#macharia-oee-cards");
-  if (!container || !shiftInfo) return;
-  container.innerHTML = machariaState.maquinas.map((maquina) => {
-    const records = machariaState.chartsRecords.filter((item) => String(item.linha_maquina_id) === String(maquina.id));
-    const stops = machariaState.chartsStops.filter((item) => String(item.linha_maquina_id) === String(maquina.id));
-    // Soma o tempo perdido EQUIVALENTE, não a duração real da parada — uma
-    // parada parcial (só 1 ou 2 estações indisponíveis) não derruba a
-    // disponibilidade como se a máquina tivesse parado 100% do intervalo.
-    // Registros antigos (sem o campo) e paradas totais têm os dois valores
-    // iguais, então o comportamento anterior fica preservado.
-    const minutosParada = stops.reduce((sum, item) => sum + anumber(item.tempo_perdido_equivalente_minutos ?? item.duracao_minutos), 0);
-    const minutosPeriodo = shiftInfo.minutos;
-    const disponibilidade = window.LIDUTEC_TURNOS.calcularTaxaEquipamento({ minutosPeriodo, minutosParada });
-    const minutosDisponivel = Math.max(0, minutosPeriodo - minutosParada);
-    const tempoTeoricoMinutos = records.reduce((sum, item) => {
-      const soproPorHora = anumber(item.machos_macharia?.sopro_por_hora);
-      if (!soproPorHora) return sum;
-      return sum + anumber(item.quantidade_sopros) * (60 / soproPorHora);
-    }, 0);
-    const eficiencia = window.LIDUTEC_TURNOS.calcularEficiencia({ tempoTeoricoMinutos, tempoDisponivelMinutos: minutosDisponivel });
-    const qualidade = MACHARIA_QUALIDADE_PADRAO;
-    const oee = window.LIDUTEC_TURNOS.calcularOEE({ disponibilidade, eficiencia, qualidade });
-    return `<article class="panel macharia-oee-card">
-        <h3>${aesc(maquina.nome)}</h3>
-        ${renderMachariaMetricBar("Disponibilidade", disponibilidade)}
-        ${renderMachariaMetricBar("Eficiência", eficiencia)}
-        ${renderMachariaMetricBar("Qualidade", qualidade)}
-        ${renderMachariaMetricBar("OEE", oee)}
-      </article>`;
-  }).join("");
+  return [...grupos.values()].map((grupo) => ({ ...grupo, resinaKg: grupo.areiaKg * (MACHARIA_RESINA_PARTE1_PCT + MACHARIA_RESINA_PARTE2_PCT) }));
+}
+function renderMachariaMachosMonthTable() {
+  const rows = aq("#macharia-machos-month-rows");
+  const empty = aq("#macharia-machos-month-empty");
+  const table = aq("#macharia-machos-month-table");
+  if (!rows) return;
+  const sort = machariaState.machosMonthSort || (machariaState.machosMonthSort = { key: "areiaKg", direction: "desc" });
+  const dados = machariaMachosDoMes();
+  const sorted = [...dados].sort((a, b) => {
+    const dir = sort.direction === "asc" ? 1 : -1;
+    return sort.key === "label" ? dir * a.label.localeCompare(b.label, "pt-BR") : dir * (a[sort.key] - b[sort.key]);
+  });
+  rows.innerHTML = sorted.map((row) => `<tr>
+      <td>${aesc(row.label)}</td>
+      <td>${Math.round(row.areiaKg).toLocaleString("pt-BR")}</td>
+      <td>${row.resinaKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+      <td>${Math.round(row.sopros).toLocaleString("pt-BR")}</td>
+      <td>${Math.round(row.machosProduzidos).toLocaleString("pt-BR")}</td>
+      <td>${row.horasMaquina.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+    </tr>`).join("");
+  if (empty) empty.hidden = sorted.length > 0;
+  if (table) {
+    for (const th of table.querySelectorAll("thead th[data-sort]")) {
+      const isSorted = th.dataset.sort === sort.key;
+      th.classList.toggle("is-sorted", isSorted);
+      th.dataset.sortArrow = isSorted ? (sort.direction === "asc" ? " ↑" : " ↓") : "";
+    }
+  }
+}
+function renderMachariaCharts() {
+  const mes = machariaState.chartsMonth;
+  if (!mes) return;
+  const { dias } = machariaMonthRange(mes);
+  const subtitle = aq("#charts-shift-subtitle");
+  if (subtitle) {
+    subtitle.textContent = new Date(`${mes}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  }
+
+  const minutosPeriodoMaquina = dias * 1440;
+  const porMaquina = machariaState.maquinas.map((maquina) => ({
+    maquina, indicadores: machariaIndicadoresMaquina(maquina, minutosPeriodoMaquina)
+  }));
+
+  // "Geral" soma os totais (tempo parado, tempo período, tempo teórico,
+  // tempo disponível) de todas as máquinas antes de calcular as taxas — não
+  // é a média das porcentagens de cada máquina, senão uma máquina pequena
+  // pesaria igual a uma que produziu o mês inteiro.
+  const somaParada = porMaquina.reduce((sum, x) => sum + x.indicadores.minutosParada, 0);
+  const somaPeriodo = porMaquina.reduce((sum, x) => sum + x.indicadores.minutosPeriodo, 0);
+  const somaTeorico = porMaquina.reduce((sum, x) => sum + x.indicadores.tempoTeoricoMinutos, 0);
+  const somaDisponivel = porMaquina.reduce((sum, x) => sum + x.indicadores.minutosDisponivel, 0);
+  const areiaKgTotal = porMaquina.reduce((sum, x) => sum + x.indicadores.areiaKg, 0);
+  const disponibilidadeGeral = window.LIDUTEC_TURNOS.calcularTaxaEquipamento({ minutosPeriodo: somaPeriodo, minutosParada: somaParada });
+  const eficienciaGeral = window.LIDUTEC_TURNOS.calcularEficiencia({ tempoTeoricoMinutos: somaTeorico, tempoDisponivelMinutos: somaDisponivel });
+  const qualidadeGeral = MACHARIA_QUALIDADE_PADRAO;
+  const oeeGeral = window.LIDUTEC_TURNOS.calcularOEE({ disponibilidade: disponibilidadeGeral, eficiencia: eficienciaGeral, qualidade: qualidadeGeral });
+
+  const kpiContainer = aq("#macharia-kpi-geral");
+  if (kpiContainer) {
+    kpiContainer.innerHTML = [
+      machariaKpiCardHtml("Disponibilidade", disponibilidadeGeral),
+      machariaKpiCardHtml("Eficiência", eficienciaGeral),
+      machariaKpiCardHtml("Qualidade", qualidadeGeral),
+      machariaKpiCardHtml("OEE", oeeGeral, MACHARIA_FAIXA_OEE)
+    ].join("");
+  }
+
+  const consumoContainer = aq("#macharia-consumo");
+  if (consumoContainer) {
+    const resina1 = areiaKgTotal * MACHARIA_RESINA_PARTE1_PCT;
+    const resina2 = areiaKgTotal * MACHARIA_RESINA_PARTE2_PCT;
+    consumoContainer.innerHTML = `
+      <article class="panel macharia-consumo-card"><div class="macharia-consumo-icon">◧</div><div><div class="macharia-consumo-label">Areia consumida</div><div class="macharia-consumo-value">${formatMachariaTon(areiaKgTotal)}</div><div class="macharia-consumo-sub">${formatMachariaKg(areiaKgTotal)} no mês</div></div></article>
+      <article class="panel macharia-consumo-card"><div class="macharia-consumo-icon">①</div><div><div class="macharia-consumo-label">Resina parte 1</div><div class="macharia-consumo-value">${formatMachariaKg(resina1)}</div><div class="macharia-consumo-sub">0,5% da areia</div></div></article>
+      <article class="panel macharia-consumo-card"><div class="macharia-consumo-icon">②</div><div><div class="macharia-consumo-label">Resina parte 2</div><div class="macharia-consumo-value">${formatMachariaKg(resina2)}</div><div class="macharia-consumo-sub">0,5% da areia</div></div></article>`;
+  }
+
+  const compareContainer = aq("#macharia-compare");
+  if (compareContainer) {
+    const metricas = [
+      { chave: "disponibilidade", label: "Disponibilidade" },
+      { chave: "eficiencia", label: "Eficiência" },
+      { chave: "qualidade", label: "Qualidade" },
+      { chave: "oee", label: "OEE", faixa: MACHARIA_FAIXA_OEE }
+    ];
+    compareContainer.innerHTML = metricas.map((metrica) => {
+      const ranqueado = [...porMaquina].sort((a, b) => b.indicadores[metrica.chave] - a.indicadores[metrica.chave]);
+      const linhas = ranqueado.map(({ maquina, indicadores }) =>
+        machariaCompareRowHtml(maquina.nome, indicadores[metrica.chave] * 100, metrica.faixa)
+      ).join("");
+      return `<article class="panel macharia-compare-card"><h4>${aesc(metrica.label)}</h4>${linhas}</article>`;
+    }).join("");
+  }
+
+  renderMachariaMachosMonthTable();
 }
 
 // ---------------------------------------------------------------------------
@@ -1343,7 +1493,24 @@ async function initializeMachariaProduction() {
   await loadMachariaSupport();
   aq("#production-loading")?.setAttribute("hidden", "");
   if (machariaPage === "dashboard") { await loadMachariaDashboard(); renderMachariaDashboard(); }
-  if (machariaPage === "charts") { await loadMachariaCharts(); renderMachariaCharts(); }
+  if (machariaPage === "charts") {
+    const monthInput = aq("#charts-month");
+    if (monthInput) monthInput.value = currentMonthStr();
+    await loadMachariaCharts(monthInput?.value);
+    renderMachariaCharts();
+    monthInput?.addEventListener("change", async () => {
+      if (!monthInput.value) return;
+      await loadMachariaCharts(monthInput.value);
+      renderMachariaCharts();
+    });
+    aq("#macharia-machos-month-table thead")?.addEventListener("click", (event) => {
+      const th = event.target.closest("th[data-sort]");
+      if (!th) return;
+      const current = machariaState.machosMonthSort || { key: "areiaKg", direction: "desc" };
+      machariaState.machosMonthSort = { key: th.dataset.sort, direction: current.key === th.dataset.sort && current.direction === "desc" ? "asc" : "desc" };
+      renderMachariaMachosMonthTable();
+    });
+  }
   if (machariaPage === "stops") {
     await loadMachariaStopsData();
     renderMachariaStopsQuery();

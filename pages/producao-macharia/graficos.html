@@ -9,14 +9,57 @@
 <body class="app-page" data-production-page="charts">
   <aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
   <div class="app-shell">
-    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Indicadores de Macharia</h1><p>Disponibilidade, eficiência, qualidade e OEE por máquina</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+    <header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Indicadores de Macharia</h1><p>OEE, consumo de areia/resina e produção de machos no mês</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
     <main class="main-content">
       <div id="production-loading" class="loading-state">Carregando...</div>
       <section class="page-heading">
-        <div><span class="eyebrow">Turno atual</span><h2 id="charts-shift-subtitle">—</h2><p>A qualidade é considerada fixa em 97% por sopro — a Macharia ainda não registra refugo/retrabalho por macho.</p></div>
-        <a href="./index.html" class="button button-secondary">Voltar</a>
+        <div><span class="eyebrow">Mês selecionado</span><h2 id="charts-shift-subtitle">—</h2><p>A qualidade é considerada fixa em 97% por sopro — a Macharia ainda não registra refugo/retrabalho por macho. O consumo de resina considera 0,5% de parte 1 e 0,5% de parte 2 sobre o peso de areia (fixo até existir apontamento diário do % usado).</p></div>
+        <div class="macharia-charts-toolbar"><label>Mês<input id="charts-month" type="month"></label><a href="./index.html" class="button button-secondary">Voltar</a></div>
       </section>
-      <section class="macharia-oee-grid" id="macharia-oee-cards"></section>
+      <section class="macharia-block">
+        <div class="macharia-block-head"><h3>Geral · todas as máquinas</h3><p>Ponderado pelo tempo real de cada máquina no mês, não pela média simples dos cards por máquina</p></div>
+        <div class="macharia-kpi-grid" id="macharia-kpi-geral"></div>
+      </section>
+
+      <section class="macharia-block">
+        <div class="macharia-block-head"><h3>Consumo do mês</h3><p>Resina provisória: 0,5% parte 1 + 0,5% parte 2 sobre o peso de areia</p></div>
+        <div class="macharia-consumo-grid" id="macharia-consumo"></div>
+      </section>
+
+      <section class="macharia-block">
+        <div class="macharia-block-head"><h3>Comparativo por máquina</h3><p>Ranking dentro de cada indicador — cor mostra a faixa, não a identidade da máquina</p></div>
+        <div class="macharia-compare-grid" id="macharia-compare"></div>
+        <div class="macharia-legend-note">
+          <strong>Disponibilidade/Eficiência/Qualidade:</strong>
+          <span><i class="macharia-status-dot" style="background:var(--color-success)"></i>≥ 85%</span>
+          <span><i class="macharia-status-dot" style="background:var(--color-warning)"></i>65–84%</span>
+          <span><i class="macharia-status-dot" style="background:var(--color-danger)"></i>&lt; 65%</span>
+        </div>
+        <div class="macharia-legend-note">
+          <strong>OEE (faixa própria):</strong>
+          <span><i class="macharia-status-dot" style="background:var(--color-success)"></i>≥ 65%</span>
+          <span><i class="macharia-status-dot" style="background:var(--color-warning)"></i>50–64%</span>
+          <span><i class="macharia-status-dot" style="background:var(--color-danger)"></i>&lt; 50%</span>
+        </div>
+      </section>
+
+      <section class="macharia-block panel">
+        <div class="macharia-block-head"><h3>Machos produzidos no mês</h3><p>Clique no cabeçalho pra reordenar</p></div>
+        <div class="table-wrapper">
+          <table class="products-table macharia-machos-table" id="macharia-machos-month-table">
+            <thead><tr>
+              <th data-sort="label">Macho</th>
+              <th data-sort="areiaKg">Areia (kg)</th>
+              <th data-sort="resinaKg">Resina (kg)</th>
+              <th data-sort="sopros">Sopros</th>
+              <th data-sort="machosProduzidos">Machos produzidos</th>
+              <th data-sort="horasMaquina">Horas de máquina</th>
+            </tr></thead>
+            <tbody id="macharia-machos-month-rows"></tbody>
+          </table>
+        </div>
+        <p id="macharia-machos-month-empty" class="production-muted" hidden>Nenhum macho produzido nesse mês.</p>
+      </section>
     </main>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-macharia-data.js"></script><script src="../../assets/js/producao-macharia.js"></script>
