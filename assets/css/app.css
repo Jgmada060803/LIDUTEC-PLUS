@@ -221,4 +221,22 @@ button {
 }
 .typeahead-primary { font-weight: 600; color: var(--color-text); }
 .typeahead-secondary { font-size: 0.78rem; color: var(--color-text-muted); }
+
+/* Marca d'água discreta no canto inferior direito, em toda tela que carrega
+   app.css — via ::after em vez de elemento no HTML, pra não precisar tocar
+   em cada uma das páginas. */
+body::after {
+  content: "LIDUTEC +";
+  position: fixed;
+  right: 10px;
+  bottom: 6px;
+  z-index: 1;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted, #6b7280);
+  opacity: 0.35;
+  pointer-events: none;
+  user-select: none;
+}
 .typeahead-empty { padding: 8px 9px; color: var(--color-text-muted); font-size: 0.82rem; cursor: default; }

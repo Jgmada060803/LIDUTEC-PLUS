@@ -70,6 +70,10 @@
       if (error) throw error;
       return data;
     },
+    diasOperacaoLinha: (linhaId) => result(client()
+      .from("linha_turno_dias_ativos")
+      .select("turno,dias_semana,vigencia_inicio,vigencia_fim")
+      .eq("linha_maquina_id", linhaId)),
     scheduledStops: async (from, to) => {
       const rows = await result(client().from("paradas_programadas")
         .select("linha_maquina_id,turno,tipo_parada_codigo,horario_inicial,horario_final,dias_semana,vigencia_inicio,vigencia_fim,equipamentos_planejamento(codigo)")

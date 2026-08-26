@@ -289,14 +289,14 @@
     `;
   }
 
-  // Identificação combinada, ex.: "MS0020 CX1 M1" — código do produto (só
-  // quando o macho serve um único produto, senão fica ambíguo) + caixa +
-  // macho, do jeito que já vêm cadastrados.
+  // Identificação combinada, ex.: "MS0020 CX1 M1" — código(s) do produto
+  // (um macho pode servir mais de um produto, daí juntar todos com "/") +
+  // caixa + macho, do jeito que já vêm cadastrados.
   function machoLabel(macho) {
     if (!macho) return "—";
     const produtos = macho.machos_macharia_produtos || [];
-    const codigo = produtos.length === 1 ? produtos[0]?.produtos?.codigo : null;
-    return [codigo, macho.caixa, macho.macho].filter(Boolean).join(" ");
+    const codigos = [...new Set(produtos.map((item) => item?.produtos?.codigo).filter(Boolean))];
+    return [codigos.join("/") || null, macho.caixa, macho.macho].filter(Boolean).join(" ");
   }
 
   function renderMachosTable(records, descartes) {

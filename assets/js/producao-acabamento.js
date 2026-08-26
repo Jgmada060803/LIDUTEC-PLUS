@@ -1530,14 +1530,25 @@ const DELTA_LINHA2_TURNOS = [
   { codigo: "NOITE", label: "Noite", cor: "#82bdf2" }
 ];
 
-// Espelha a regra de linha_2_ativa_acabamento(data, turno) — a Linha 2 não
-// roda os 3 turnos todos os dias: Manhã seg-sáb, Tarde seg-sex, Noite seg-qui.
+// Mesma lógica de linha_2_ativa_acabamento(data, turno) no banco, só que
+// avaliada aqui em cima das regras já carregadas (linha2DiasAtivosRegras) —
+// evita 1 RPC por dia/turno do período do gráfico. Uma vigência específica
+// do turno pedido tem prioridade sobre uma geral (turno null); sem nenhuma
+// regra cadastrada, a linha roda todos os dias.
+let linha2DiasAtivosRegras = [];
 function linha2TurnoAtivo(day, turnoCodigo) {
+  const candidatas = linha2DiasAtivosRegras.filter((regra) =>
+    (regra.turno === turnoCodigo || regra.turno == null) &&
+    regra.vigencia_inicio <= day &&
+    (regra.vigencia_fim == null || regra.vigencia_fim >= day)
+  );
+  if (!candidatas.length) return true;
+  candidatas.sort((a, b) => {
+    if ((a.turno != null) !== (b.turno != null)) return a.turno != null ? -1 : 1;
+    return b.vigencia_inicio.localeCompare(a.vigencia_inicio);
+  });
   const dow = new Date(`${day}T12:00:00`).getDay(); // 0=Dom ... 6=Sáb
-  if (turnoCodigo === "MANHA") return dow !== 0;
-  if (turnoCodigo === "TARDE") return dow !== 0 && dow !== 6;
-  if (turnoCodigo === "NOITE") return dow !== 0 && dow !== 5 && dow !== 6;
-  return true;
+  return candidatas[0].dias_semana.includes(dow);
 }
 
 // Busca única (registros + meta por dia) reaproveitada pelos 3 gráficos de
@@ -1549,11 +1560,13 @@ async function loadLinha2IndicatorData() {
   const { from, to } = acabamentoChartPeriod();
   const days = aDateRange(from, to);
 
-  const [records, metas, materiais] = await Promise.all([
+  const [records, metas, materiais, diasAtivos] = await Promise.all([
     window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.records({ from, to, limit: 5000 }),
     Promise.all(days.map((day) => window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.metaPecasLiberadas(linhaId, day))),
-    window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.materiaisProdutos()
+    window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.materiaisProdutos(),
+    window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.diasOperacaoLinha(linhaId)
   ]);
+  linha2DiasAtivosRegras = diasAtivos;
   const metaByDay = new Map(days.map((day, index) => [day, metas[index] != null ? anumber(metas[index]) : null]));
 
   // Só entra ferro base Nodular (o resto — Cinzento etc. — fica fora dos
