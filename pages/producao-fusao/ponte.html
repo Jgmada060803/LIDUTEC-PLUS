@@ -1,0 +1,24 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ponte | Metalsider</title><link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8"><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"><link rel="stylesheet" href="../../assets/css/producao-fusao.css"></head>
+<body class="app-page" data-production-page="ponte"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+<div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Ponte</h1><p>Materiais pendentes das corridas abertas, por carro</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+<main class="main-content">
+  <div id="production-loading" class="loading-state">Carregando...</div>
+  <section class="page-heading">
+    <div><span class="eyebrow">Fusão</span><h2>Materiais pendentes</h2><p>Digite o real conforme for adicionando cada material.</p></div>
+    <a href="./index.html" class="button button-secondary">Voltar</a>
+  </section>
+
+  <div class="fusao-ponte-grid">
+    <section class="panel">
+      <div class="panel-header"><h3>Carro 1</h3></div>
+      <div id="ponte-carro-1"></div>
+      <p class="production-muted" data-empty-carro="1" hidden>Nenhuma corrida aberta nos fornos do Carro 1.</p>
+    </section>
+    <section class="panel">
+      <div class="panel-header"><h3>Carro 2</h3></div>
+      <div id="ponte-carro-2"></div>
+      <p class="production-muted" data-empty-carro="2" hidden>Nenhuma corrida aberta nos fornos do Carro 2.</p>
+    </section>
+  </div>
+</main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-fusao-data.js"></script><script src="../../assets/js/producao-fusao.js"></script></body></html>

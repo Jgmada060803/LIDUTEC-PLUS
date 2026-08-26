@@ -12,6 +12,7 @@ function getLoginPath() {
     window.location.pathname.includes("/producao-moldes/") ||
     window.location.pathname.includes("/producao-acabamento/") ||
     window.location.pathname.includes("/producao-macharia/") ||
+    window.location.pathname.includes("/producao-fusao/") ||
     window.location.pathname.includes("/qualidade/") ||
     window.location.pathname.includes("/reclamacoes/") ||
     window.location.pathname.includes("/clientes/") ||
@@ -291,6 +292,11 @@ function syncSidebarNavigation() {
          data-permission="producao_macharia.visualizar">
         Macharia
       </a>
+      <a href="${prefix}producao-fusao/index.html"
+         class="${activeClass(isActive("producao-fusao"))}"
+         data-permission="producao_fusao.visualizar">
+        Fusão
+      </a>
     `)}
 
     ${navSection("SGI", `
@@ -339,6 +345,11 @@ function syncSidebarNavigation() {
          class="${activeClass(isActive("administracao", "codigos-parada.html"))}"
          data-permission="paradas.configurar_codigos">
         Códigos de parada
+      </a>
+      <a href="${prefix}administracao/fusao-cadastros.html"
+         class="${activeClass(isActive("administracao", "fusao-cadastros.html"))}"
+         data-permission="producao_fusao.configurar">
+        Materiais e fornos (Fusão)
       </a>
       <a href="${prefix}administracao/calendario-operacional.html"
          class="${activeClass(isActive("administracao", "calendario-operacional.html"))}"

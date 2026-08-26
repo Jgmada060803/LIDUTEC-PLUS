@@ -1,0 +1,78 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Materiais e Fornos da Fusão | Metalsider</title><link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8"><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"></head>
+<body class="app-page"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+<div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Materiais e Fornos da Fusão</h1><p>Cadastros base do módulo de Fusão</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+<main class="main-content">
+  <section class="page-heading"><div><span class="eyebrow">Administração</span><h2>Materiais e fornos</h2><p>Materiais usados na carga do forno e os fornos/holdings do módulo de Fusão.</p></div></section>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Novo material</h3></div>
+    <form id="material-form" class="meta-form">
+      <input type="hidden" name="id">
+      <label>Nome<input name="nome" required maxlength="80"></label>
+      <label>Tipo<select name="tipo" required>
+        <option value="SUCATA">Sucata</option>
+        <option value="RETORNO">Retorno</option>
+        <option value="CANAL">Canal</option>
+        <option value="GUSA">Gusa</option>
+        <option value="ALTERNATIVO">Alternativo</option>
+        <option value="LIGA_CORRECAO">Elemento de liga/correção</option>
+        <option value="OUTRO">Outro</option>
+      </select></label>
+      <label>Pesagem<select name="modo_pesagem">
+        <option value="PONTE">Ponte</option>
+        <option value="MANUAL">Manual (sem ponte)</option>
+      </select></label>
+      <label><input type="checkbox" name="ativo" checked style="width:auto"> Ativo</label>
+      <fieldset class="fusao-composicao-fieldset">
+        <legend>Composição química típica (%, opcional)</legend>
+        <label>C<input name="pct_c" type="number" min="0" max="100" step="0.001"></label>
+        <label>Si<input name="pct_si" type="number" min="0" max="100" step="0.001"></label>
+        <label>Mn<input name="pct_mn" type="number" min="0" max="100" step="0.001"></label>
+        <label>P<input name="pct_p" type="number" min="0" max="100" step="0.001"></label>
+        <label>Cr<input name="pct_cr" type="number" min="0" max="100" step="0.001"></label>
+        <label>S<input name="pct_s" type="number" min="0" max="100" step="0.001"></label>
+        <label>Sn<input name="pct_sn" type="number" min="0" max="100" step="0.001"></label>
+        <label>Cu<input name="pct_cu" type="number" min="0" max="100" step="0.001"></label>
+        <label>Mo<input name="pct_mo" type="number" min="0" max="100" step="0.001"></label>
+        <label>Al<input name="pct_al" type="number" min="0" max="100" step="0.001"></label>
+        <label>Pb<input name="pct_pb" type="number" min="0" max="100" step="0.001"></label>
+      </fieldset>
+      <div id="material-message" class="form-message" hidden></div>
+      <div class="meta-form-actions"><button type="button" id="material-cancel-edit" class="button button-secondary" hidden>Cancelar edição</button><button class="button button-primary">Salvar material</button></div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Materiais cadastrados</h3></div>
+    <div class="table-wrapper"><table class="products-table"><thead><tr><th>Nome</th><th>Tipo</th><th>Pesagem</th><th>Composição (%)</th><th>Status</th><th></th></tr></thead><tbody id="materiais-rows"></tbody></table></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Novo forno</h3></div>
+    <form id="forno-form" class="meta-form">
+      <input type="hidden" name="id">
+      <label>Código<input name="codigo" required maxlength="10" placeholder="F1, H1..."></label>
+      <label>Nome<input name="nome" required maxlength="80"></label>
+      <label>Tipo<select name="tipo" required>
+        <option value="FUSAO">Fusão (elabora)</option>
+        <option value="HOLDING">Holding (recebe/mantém)</option>
+      </select></label>
+      <label>Limite atenção (corridas)<input name="limite_atencao" type="number" min="1" value="100" required></label>
+      <label>Limite crítico (corridas)<input name="limite_critico" type="number" min="1" value="150" required></label>
+      <label>Carro da ponte<select name="carro">
+        <option value="">Nenhum</option>
+        <option value="1">Carro 1</option>
+        <option value="2">Carro 2</option>
+      </select></label>
+      <label><input type="checkbox" name="ativo" checked style="width:auto"> Ativo</label>
+      <div id="forno-message" class="form-message" hidden></div>
+      <div class="meta-form-actions"><button type="button" id="forno-cancel-edit" class="button button-secondary" hidden>Cancelar edição</button><button class="button button-primary">Salvar forno</button></div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Fornos cadastrados</h3></div>
+    <div class="table-wrapper"><table class="products-table"><thead><tr><th>Código</th><th>Nome</th><th>Tipo</th><th>Carro</th><th>Atenção</th><th>Crítico</th><th>Status</th><th></th></tr></thead><tbody id="fornos-rows"></tbody></table></div>
+  </section>
+</main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/producao-fusao-data.js"></script><script src="../../assets/js/fusao-cadastros.js"></script></body></html>

@@ -245,6 +245,10 @@ http.createServer((request, response) => {
     response.writeHead(200, {
       "Content-Type":
         contentTypes[path.extname(filePath)] ?? "application/octet-stream",
+      // Servidor de dev — nunca deixa o navegador guardar JS/CSS/HTML em
+      // cache, senão um ajuste recém-salvo parece "não fazer efeito" até
+      // um hard refresh.
+      "Cache-Control": "no-store",
     });
     response.end(content);
   });

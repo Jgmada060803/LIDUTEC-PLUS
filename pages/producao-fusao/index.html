@@ -1,0 +1,24 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fusão | Metalsider</title><link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8"><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"><link rel="stylesheet" href="../../assets/css/producao-fusao.css"></head>
+<body class="app-page" data-production-page="index"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+<div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Fusão</h1><p>Planejamento e acompanhamento das corridas</p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+<main class="main-content">
+  <div id="production-loading" class="loading-state">Carregando...</div>
+  <section class="page-heading" data-permission="producao_fusao.lancar">
+    <div><span class="eyebrow">Fusão</span><h2>Data e turno</h2><p>Valem pra todas as corridas criadas nesta tela.</p></div>
+    <div class="fusao-toolbar">
+      <input id="fusao-data-global" class="fusao-header-field" type="date" required>
+      <select id="fusao-turno-global" class="fusao-header-field">
+        <option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option>
+      </select>
+      <a href="./ponte.html" class="button button-secondary">Ponte</a>
+    </div>
+  </section>
+  <section class="fusao-fornos-grid" id="fornos-grid" data-permission="producao_fusao.lancar"></section>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Corridas recentes</h3></div>
+    <div class="table-wrapper"><table class="products-table"><thead><tr><th>Código</th><th>Forno</th><th>Turno</th><th>Produto</th><th>Status</th><th>Criada em</th></tr></thead><tbody id="corridas-rows"></tbody></table></div>
+    <p id="corridas-empty" class="production-muted" hidden>Nenhuma corrida lançada ainda.</p>
+  </section>
+</main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-fusao-data.js"></script><script src="../../assets/js/producao-fusao.js"></script></body></html>

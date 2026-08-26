@@ -1,0 +1,102 @@
+.fusao-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fusao-header-field { min-height: 42px; padding: 6px 12px; border: 1px solid var(--color-border); border-radius: 8px; font-weight: 800; background: #fff; }
+
+.fusao-fornos-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 28px; }
+.fusao-forno-card h3 { margin: 0 0 12px; font-size: 1.02rem; font-weight: 900; }
+.fusao-forno-card .meta-form { grid-template-columns: 1fr 1fr; }
+.fusao-forno-card .fusao-item-row { grid-template-columns: 2fr 1fr auto; }
+.fusao-forno-card .fusao-item-row select[name="estado_fisico"] { grid-column: 1/-1; }
+.fusao-corrida-inline p { margin: 0 0 10px; font-size: .84rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fusao-editable-cell { display: inline-flex; align-items: center; gap: 6px; }
+.fusao-editable-input { width: 90px; min-height: 34px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; }
+.fusao-editable-toggle { min-height: 30px; padding: 2px 10px; font-size: .78rem; }
+.fusao-editable-locked .fusao-editable-display { color: var(--color-text-muted); }
+.fusao-editable-unlock { min-height: 30px; padding: 2px 10px; font-size: .78rem; }
+.fusao-corrida-inline .meta-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+.fusao-add-item-area { margin-top: 10px; }
+.fusao-add-item-area .fusao-item-row { margin-top: 10px; grid-template-columns: 2fr 1fr auto; }
+
+.fusao-codigo-info { grid-column: 1/-1; margin: 0 0 4px; font-size: .84rem; }
+.fusao-codigo-prefixo { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 8px; background: #eef1f4; color: var(--color-text-muted); font-weight: 800; }
+@media (max-width: 900px) {
+  .fusao-fornos-grid { grid-template-columns: 1fr; }
+}
+
+/* Vida do refratário do forno vira só a cor da borda do card — sem texto. */
+.fusao-forno-card { border-width: 6px; }
+.fusao-forno-card.is-good { border-color: #147d4f; }
+.fusao-forno-card.is-warning { border-color: #b7791f; }
+.fusao-forno-card.is-critical { border-color: #b90e2c; }
+
+.fusao-carga-itens { grid-column: 1/-1; display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; }
+.fusao-carga-itens legend { padding: 0 6px; font-size: .76rem; font-weight: 800; }
+.fusao-item-row { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 8px; align-items: center; }
+.fusao-item-row select, .fusao-item-row input { width: 100%; min-height: 38px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 6px; }
+.fusao-item-row button { min-height: 38px; padding: 0 10px; }
+
+.fusao-status-stepper { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.fusao-status-step { padding: 8px 14px; border-radius: 999px; font-size: .78rem; font-weight: 800; background: #eef1f4; color: var(--color-text-muted); }
+.fusao-status-step.is-done { background: var(--color-primary-light); color: var(--color-primary); }
+.fusao-status-step.is-current { background: var(--color-primary); color: #fff; }
+.fusao-status-step.is-cancelada { background: #fceaec; color: #b90e2c; }
+
+.fusao-saldo-negativo { color: #b90e2c; font-weight: 800; }
+.fusao-saldo-positivo { color: var(--color-text-muted); }
+
+/* Barrinha de progresso — por item (dentro da tabela) e total do forno
+   (maior, no topo do card). */
+.fusao-progress { display: inline-flex; align-items: center; gap: 8px; min-width: 90px; }
+.fusao-progress-track { flex: 1; min-width: 60px; height: 8px; border-radius: 999px; background: #eef1f4; overflow: hidden; }
+.fusao-progress-fill { display: block; height: 100%; border-radius: 999px; background: var(--color-primary); transition: width .2s ease; }
+.fusao-progress-fill.is-concluido { background: #147d4f; }
+.fusao-progress-label { font-size: .78rem; font-weight: 800; color: var(--color-text-muted); white-space: nowrap; }
+.fusao-card-total-linha { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: .84rem; font-weight: 800; }
+.fusao-card-total .fusao-progress { min-width: 140px; }
+.fusao-card-total .fusao-progress-track { height: 12px; }
+.fusao-card-total .fusao-progress-label { font-size: .92rem; }
+
+/* Produto/início/fim — texto secundário, discreto. */
+.fusao-corrida-meta { color: var(--color-text-muted); }
+
+/* Volume atual do forno — sempre visível, com/sem corrida aberta; se
+   destaca do resto do card por ser o número que importa de longe. */
+.fusao-volume-atual-linha { margin: 0 0 14px; padding: 8px 12px; border-radius: 8px; background: var(--color-primary-light); color: var(--color-primary); font-size: .88rem; font-weight: 800; }
+
+/* Sobra/entrada/saída — linha "como material", mas com fundo diferente pra
+   deixar claro que não é um material pesado, e sim metal movimentado. */
+.fusao-movimento-row td { background: #f6f8fa; font-style: italic; }
+
+@media (max-width: 700px) {
+  .fusao-item-row { grid-template-columns: 1fr; }
+}
+
+/* Tela usada num tablet pelo operador da ponte — alvos de toque maiores
+   (>=48px) e fonte maior que o resto do módulo, pra dar pra usar de longe
+   sem precisar de precisão de mouse. */
+.fusao-ponte-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.fusao-ponte-corrida { margin-bottom: 22px; }
+.fusao-ponte-corrida:last-child { margin-bottom: 0; }
+.fusao-ponte-corrida h4 { margin: 0 0 10px; font-size: 1.05rem; font-weight: 800; }
+.fusao-ponte-corrida table.products-table th,
+.fusao-ponte-corrida table.products-table td { padding: 14px 12px; font-size: 1rem; }
+.fusao-ponte-entrega { display: flex; gap: 8px; align-items: center; }
+.fusao-ponte-entrega-travada { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.fusao-ponte-desbloquear { min-height: 44px; padding: 0 14px; }
+/* Barrinha maior aqui — mesma lógica de "ver de longe" do resto da tela. */
+.fusao-ponte-progresso .fusao-progress { min-width: 110px; }
+.fusao-ponte-progresso .fusao-progress-track { height: 12px; }
+.fusao-ponte-progresso .fusao-progress-label { font-size: 1rem; }
+.fusao-ponte-entrega input { width: 110px; min-height: 52px; padding: 8px 10px; border: 2px solid var(--color-border); border-radius: 8px; font-size: 1.1rem; text-align: center; }
+.fusao-ponte-entrega input:focus { border-color: var(--color-primary); outline: none; }
+.fusao-ponte-entrega button { min-height: 52px; min-width: 64px; padding: 0 16px; font-size: 1rem; }
+.fusao-ponte-acumulado { font-variant-numeric: tabular-nums; font-size: 1.1rem; }
+.fusao-ponte-corrida tr.is-concluido { background: #e5f4ee; }
+.fusao-ponte-log-row td { padding: 4px 12px 12px !important; border-top: none !important; }
+.fusao-ponte-log { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: var(--color-text-muted); }
+.fusao-ponte-log-entry strong { color: var(--color-text); }
+.fusao-ponte-status { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 999px; font-size: .88rem; font-weight: 800; white-space: nowrap; }
+.fusao-ponte-status.is-concluido { background: #147d4f; color: #fff; }
+.fusao-ponte-status.is-pendente { background: #eef1f4; color: var(--color-text-muted); }
+@media (max-width: 1100px) {
+  .fusao-ponte-grid { grid-template-columns: 1fr; }
+}

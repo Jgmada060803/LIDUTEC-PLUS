@@ -1,0 +1,49 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Corrida | Metalsider</title><link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8"><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"><link rel="stylesheet" href="../../assets/css/producao-fusao.css"></head>
+<body class="app-page" data-production-page="corrida"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+<div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1 id="corrida-titulo">Corrida</h1><p id="corrida-subtitulo"></p></div><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+<main class="main-content">
+  <div id="production-loading" class="loading-state">Carregando...</div>
+  <section class="page-heading">
+    <div><span class="eyebrow">Corrida</span><h2 id="corrida-codigo">—</h2><p id="corrida-status-linha"></p></div>
+    <div class="fusao-toolbar">
+      <button type="button" id="corrida-refresh" class="button button-secondary">Atualizar</button>
+      <a href="./index.html" class="button button-secondary">Voltar</a>
+    </div>
+  </section>
+
+  <section class="panel" id="corrida-status-panel" data-permission="producao_fusao.lancar">
+    <div class="panel-header"><h3>Status da corrida</h3></div>
+    <div class="fusao-status-stepper" id="corrida-stepper"></div>
+    <div id="corrida-status-message" class="form-message" hidden></div>
+    <div class="meta-form-actions" id="corrida-status-actions"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Carga — planejado × realizado</h3></div>
+    <div class="table-wrapper"><table class="products-table"><thead><tr><th>Material</th><th>Planejado (kg)</th><th>Realizado (kg)</th><th>Saldo (kg)</th></tr></thead><tbody id="carga-rows"></tbody></table></div>
+  </section>
+
+  <section class="panel" data-permission="producao_fusao.lancar">
+    <div class="panel-header"><h3>Adições durante a elaboração</h3></div>
+    <form id="adicao-form" class="meta-form">
+      <label>Material<select id="ad-material" name="material_id" required></select></label>
+      <label>Quantidade (kg)<input name="quantidade_kg" type="number" min="0.01" step="0.01" required></label>
+      <div id="adicao-message" class="form-message" hidden></div>
+      <div class="meta-form-actions"><button class="button button-primary">Registrar adição</button></div>
+    </form>
+    <div class="table-wrapper"><table class="products-table"><thead><tr><th>Hora</th><th>Material</th><th>Quantidade (kg)</th></tr></thead><tbody id="adicoes-rows"></tbody></table></div>
+    <p id="adicoes-empty" class="production-muted" hidden>Nenhuma adição registrada ainda.</p>
+  </section>
+
+  <section class="panel" id="transferir-panel" data-permission="producao_fusao.lancar">
+    <div class="panel-header"><h3>Transferir metal para outro forno</h3></div>
+    <form id="transferir-form" class="meta-form">
+      <label>Forno destino<select id="tr-forno-destino" name="forno_destino_id" required></select></label>
+      <label>Quantidade (kg)<input name="quantidade_kg" type="number" min="0.01" step="0.01" required></label>
+      <div id="transferir-message" class="form-message" hidden></div>
+      <div class="meta-form-actions"><button class="button button-primary">Transferir</button></div>
+    </form>
+    <p class="production-muted">Pode ser parcial ou total; pra mandar pra mais de um forno, repita a ação.</p>
+  </section>
+</main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-fusao-data.js"></script><script src="../../assets/js/producao-fusao.js"></script></body></html>
