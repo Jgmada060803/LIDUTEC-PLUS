@@ -1038,6 +1038,7 @@ function renderMachariaMachosMonthTable() {
       <td>${Math.round(row.sopros).toLocaleString("pt-BR")}</td>
       <td>${Math.round(row.machosProduzidos).toLocaleString("pt-BR")}</td>
       <td>${row.horasMaquina.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+      <td>${row.horasTrabalhadas.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
       <td>${row.soprosPorHoraMedia.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
       <td>${row.performance == null ? "—" : `${row.performance.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%`}</td>
     </tr>`).join("");
