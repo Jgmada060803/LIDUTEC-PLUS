@@ -90,13 +90,19 @@
 .fusao-ponte-entrega input:focus { border-color: var(--color-primary); outline: none; }
 .fusao-ponte-entrega button { min-height: 52px; min-width: 64px; padding: 0 16px; font-size: 1rem; }
 .fusao-ponte-acumulado { font-variant-numeric: tabular-nums; font-size: 1.1rem; }
-.fusao-ponte-corrida tr.is-concluido { background: #e5f4ee; }
+/* Pedido explícito: na Ponte a cor chama atenção pro que ainda falta —
+   verde enquanto pendente, vermelho quando concluído (inverso do resto
+   do sistema; só vale aqui, não mexe no card do forno nem na corrida). */
+.fusao-ponte-corrida tbody tr[data-item-id]:not(.is-concluido) { background: #e5f4ee; }
+.fusao-ponte-corrida tbody tr[data-item-id].is-concluido { background: #fceaec; }
 .fusao-ponte-log-row td { padding: 4px 12px 12px !important; border-top: none !important; }
 .fusao-ponte-log { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: var(--color-text-muted); }
 .fusao-ponte-log-entry strong { color: var(--color-text); }
 .fusao-ponte-status { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 999px; font-size: .88rem; font-weight: 800; white-space: nowrap; }
 .fusao-ponte-status.is-concluido { background: #147d4f; color: #fff; }
 .fusao-ponte-status.is-pendente { background: #eef1f4; color: var(--color-text-muted); }
+.fusao-ponte-status-cell .fusao-ponte-status.is-concluido { background: #b90e2c; color: #fff; }
+.fusao-ponte-status-cell .fusao-ponte-status.is-pendente { background: #147d4f; color: #fff; }
 @media (max-width: 1100px) {
   .fusao-ponte-grid { grid-template-columns: 1fr; }
 }
