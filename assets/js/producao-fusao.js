@@ -19,6 +19,15 @@ function fusaoMontarDataHora(dataOperacional, horaHHMM) {
 function fusaoKg(valor) {
   return fNumber(valor).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 }
+// Máscara de exibição do código da corrida (ex.: F1002676 -> F1.002.676) —
+// os 6 últimos dígitos são ciclo(3)+sequência(3) (ver criar_corrida_fusao);
+// o resto é o código do forno, que fica como prefixo sem ponto.
+function fusaoCodigoCorridaMascarado(codigo) {
+  if (!codigo || codigo.length <= 6) return codigo || "";
+  const numero = codigo.slice(-6);
+  const prefixo = codigo.slice(0, -6);
+  return `${prefixo}.${numero.slice(0, 3)}.${numero.slice(3)}`;
+}
 
 async function loadFusaoSupport() {
   const [materiais, fornos, produtos, volumeRows] = await Promise.all([
@@ -51,8 +60,10 @@ function fusaoMaterialOptions() {
 function fusaoProdutoOptions() {
   return fusaoState.produtos.map((p) => `<option value="${p.id}">${fEsc(p.codigo)} — ${fEsc(p.nome)}</option>`).join("");
 }
-function fusaoProdutoLabel(produto) {
-  return produto ? `${fEsc(produto.codigo)} — ${fEsc(produto.nome)}` : "—";
+function fusaoProdutoLabel(produto, destacarCodigo = false) {
+  if (!produto) return "—";
+  const codigo = destacarCodigo ? `<span class="fusao-produto-codigo-destaque">${fEsc(produto.codigo)}</span>` : fEsc(produto.codigo);
+  return `${codigo} — ${fEsc(produto.nome)}`;
 }
 function novaCorridaItemRow() {
   const row = document.createElement("div");
@@ -87,7 +98,7 @@ function fusaoCorridaStatusBadgeClass(status) {
 async function loadCorridasList() {
   const rows = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridas({});
   fq("#corridas-rows").innerHTML = rows.map((item) => `<tr>
-      <td><a href="./corrida.html?id=${item.id}">${fEsc(item.codigo)}</a></td>
+      <td><a href="./corrida.html?id=${item.id}">${fEsc(fusaoCodigoCorridaMascarado(item.codigo))}</a></td>
       <td>${fEsc(item.fornos_fusao?.nome || "—")}</td>
       <td>${item.turno}</td>
       <td>${fusaoProdutoLabel(item.produtos)}</td>
@@ -124,7 +135,7 @@ async function bindFornoForm(form, forno) {
 
   const ciclo = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.cicloAtivo(forno.id);
   const numeroCiclo = ciclo?.numero_ciclo ?? 1;
-  form.querySelector(".fusao-codigo-prefixo").textContent = `${forno.codigo}${String(numeroCiclo).padStart(3, "0")}···`;
+  form.querySelector(".fusao-codigo-prefixo").textContent = `${forno.codigo}.${String(numeroCiclo).padStart(3, "0")}.···`;
   const card = form.closest(".fusao-forno-card");
   card.classList.remove("is-good", "is-warning", "is-critical");
   if (ciclo) {
@@ -191,8 +202,8 @@ function fusaoEditableCellHtml(kind, item) {
   const exibicao = valor != null ? fNumber(valor).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—";
   const travado = fusaoItemConcluido(item);
   const botao = travado
-    ? `<button type="button" class="button button-secondary fusao-editable-unlock">Colocar carga</button>`
-    : `<button type="button" class="button button-secondary fusao-editable-toggle">Editar</button>`;
+    ? `<button type="button" class="button button-secondary fusao-editable-unlock" title="Colocar carga">+</button>`
+    : `<button type="button" class="button button-secondary fusao-editable-toggle" title="Editar">...</button>`;
   return `<span class="fusao-editable-cell${travado ? " fusao-editable-locked" : ""}" data-kind="${kind}" data-item-id="${item.id}" data-valor="${valor ?? ""}">
       <span class="fusao-editable-display">${exibicao}</span>
       ${botao}
@@ -200,7 +211,7 @@ function fusaoEditableCellHtml(kind, item) {
 }
 function fusaoNomeItemHtml(item) {
   const estadoLabel = { SOLIDO: "Sólido", LIQUIDO: "Líquido" };
-  return `${fEsc(item.materiais_fusao?.nome || "")}${item.estado_fisico ? ` <span class="production-muted">(${estadoLabel[item.estado_fisico] || item.estado_fisico})</span>` : ""}`;
+  return `<span class="fusao-nome-material">${fEsc(item.materiais_fusao?.nome || "")}</span>${item.estado_fisico ? ` <span class="production-muted">(${estadoLabel[item.estado_fisico] || item.estado_fisico})</span>` : ""}`;
 }
 // Barrinha de progresso (% do planejado já pesado) — usada tanto por item
 // quanto pro total do forno (soma de todos os itens do card).
@@ -213,44 +224,62 @@ function fusaoProgressoHtml(realizado, planejado) {
       <span class="fusao-progress-label">${pct}%</span>
     </span>`;
 }
-function fusaoCardPonteRowHtml(item) {
+// Forma de carregamento como coluna (não como título de tabela à parte) —
+// pedido explícito, pra não abrir uma segunda tabela só por causa de um
+// material líquido/direto.
+function fusaoFormaCarregamentoHtml(item) {
+  const modo = fusaoModoCarregamento(item);
+  if (modo === "PONTE") return `<span class="fusao-forma-badge fusao-forma-ponte">Ponte</span>`;
+  if (modo === "CARRO") return `<span class="fusao-forma-badge fusao-forma-carro">Carro</span>`;
+  return `<span class="fusao-forma-badge fusao-forma-direto">Direto</span>`;
+}
+function fusaoCardRowHtml(item) {
+  const viaPonte = fusaoItemVaiParaPonte(item);
   return `<tr data-item-id="${item.id}" data-planejado="${item.quantidade_planejada_kg}" data-realizado="${item.quantidade_realizada_kg ?? ""}">
       <td>${fusaoNomeItemHtml(item)}</td>
+      <td>${fusaoFormaCarregamentoHtml(item)}</td>
       <td>${fusaoEditableCellHtml("planejado", item)}</td>
-      <td>${item.quantidade_realizada_kg != null ? fNumber(item.quantidade_realizada_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—"}</td>
+      <td>${viaPonte
+        ? (item.quantidade_realizada_kg != null ? fNumber(item.quantidade_realizada_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—")
+        : fusaoEditableCellHtml("realizado", item)}</td>
       <td>${fusaoProgressoHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}</td>
-      <td class="fusao-status-cell">${ponteStatusHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}</td>
     </tr>`;
 }
-function fusaoCardDiretoRowHtml(item) {
-  return `<tr data-item-id="${item.id}" data-planejado="${item.quantidade_planejada_kg}" data-realizado="${item.quantidade_realizada_kg ?? ""}">
-      <td>${fusaoNomeItemHtml(item)}</td>
-      <td>${fusaoEditableCellHtml("planejado", item)}</td>
-      <td>${fusaoEditableCellHtml("realizado", item)}</td>
-      <td>${fusaoProgressoHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}</td>
-      <td class="fusao-status-cell">${ponteStatusHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}</td>
+// Transferência vira linha no topo da tabela de materiais do card — mesmas
+// colunas, só a de Real preenchida. Saída mostra a corrida de destino
+// (pra onde foi); entrada mostra a corrida de origem (de onde veio).
+function fusaoTransferenciaCardRowHtml(direcao, transferencia) {
+  const rotulo = direcao === "saida" ? "Saída" : "Entrada";
+  return `<tr class="fusao-transferencia-row fusao-transferencia-${direcao}">
+      <td>TRANSFERÊNCIA (${rotulo}) ${fEsc(fusaoCodigoCorridaMascarado(transferencia.corridaCodigo) || "—")}</td>
+      <td></td>
+      <td></td>
+      <td>${fNumber(transferencia.quantidade_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
+      <td></td>
     </tr>`;
 }
-function fusaoTabelasCargaHtml(itens) {
-  // Ponte: quem passa pela ponte fica só leitura ali (lançado na tela da
-  // Ponte). Direto: material Manual (sem crane) ou carga líquida — digitado
-  // aqui mesmo, sem passar pela Ponte.
-  const itensPonte = itens.filter(fusaoItemVaiParaPonte);
-  const itensDiretos = itens.filter((item) => !fusaoItemVaiParaPonte(item));
+function fusaoTabelaTotalRowHtml(itens) {
+  const planejado = itens.reduce((soma, item) => soma + fNumber(item.quantidade_planejada_kg), 0);
+  const realizado = itens.reduce((soma, item) => soma + fNumber(item.quantidade_realizada_kg), 0);
+  return `<tr class="fusao-tabela-total-row">
+      <td><strong>Total</strong></td>
+      <td></td>
+      <td><strong class="fusao-total-planejado">${fusaoKg(planejado)}</strong></td>
+      <td><strong class="fusao-total-realizado">${fusaoKg(realizado)}</strong></td>
+      <td class="fusao-total-progresso">${fusaoProgressoHtml(realizado, planejado)}</td>
+    </tr>`;
+}
+function fusaoTabelasCargaHtml(itens, transferencias) {
   const carregamentoConcluido = itens.length > 0 && itens.every((item) =>
     fNumber(item.quantidade_realizada_kg) > 0 && fNumber(item.quantidade_realizada_kg) >= fNumber(item.quantidade_planejada_kg)
   );
-  const tabelaPonte = itensPonte.length ? `<table class="products-table"><thead><tr><th>Material (Ponte)</th><th>Planejado (kg)</th><th>Real (kg)</th><th>Progresso</th><th>Status</th></tr></thead>
-      <tbody>${itensPonte.map(fusaoCardPonteRowHtml).join("")}</tbody></table>
-      <p class="production-muted">O real desses é lançado na tela da Ponte.</p>` : "";
-  const tabelaDireta = itensDiretos.length ? `<table class="products-table"><thead><tr><th>Material (direto)</th><th>Planejado (kg)</th><th>Real (kg)</th><th>Progresso</th><th>Status</th></tr></thead>
-      <tbody>${itensDiretos.map(fusaoCardDiretoRowHtml).join("")}</tbody></table>` : "";
-  return { carregamentoConcluido, html: `${tabelaPonte}${tabelaDireta}` };
-}
-function fusaoTotalFornoHtml(itens) {
-  const planejado = itens.reduce((soma, item) => soma + fNumber(item.quantidade_planejada_kg), 0);
-  const realizado = itens.reduce((soma, item) => soma + fNumber(item.quantidade_realizada_kg), 0);
-  return `${fusaoProgressoHtml(realizado, planejado)} <span class="production-muted">(${fusaoKg(realizado)} kg)</span>`;
+  const entradaLinhas = (transferencias?.entradas || []).map((t) => fusaoTransferenciaCardRowHtml("entrada", t));
+  const saidaLinhas = (transferencias?.saidas || []).map((t) => fusaoTransferenciaCardRowHtml("saida", t));
+  if (!itens.length && !entradaLinhas.length && !saidaLinhas.length) return { carregamentoConcluido, html: "" };
+  const html = `<table class="products-table"><thead><tr><th>Material</th><th>Carregamento</th><th>Planejado (kg)</th><th>Real (kg)</th><th>Progresso</th></tr></thead>
+      <tbody>${entradaLinhas.join("")}${itens.map(fusaoCardRowHtml).join("")}${saidaLinhas.join("")}</tbody>
+      ${itens.length ? `<tfoot>${fusaoTabelaTotalRowHtml(itens)}</tfoot>` : ""}</table>`;
+  return { carregamentoConcluido, html };
 }
 // Sobra herdada + transferências viram linha na carga, igual um material —
 // só que numa mini-tabela à parte (não fazem parte da tabela Ponte/Direto).
@@ -260,13 +289,28 @@ function fusaoMovimentoRowHtml(label, quantidadeKg) {
 function fusaoMovimentosLinhas(corrida, transferencias) {
   const linhas = [];
   if (fNumber(corrida.sobra_inicial_kg) > 0) linhas.push(fusaoMovimentoRowHtml("Sobra do forno", corrida.sobra_inicial_kg));
-  (transferencias?.entradas || []).forEach((t) => linhas.push(fusaoMovimentoRowHtml(`↓ Entrada — Corrida ${fEsc(t.corridaCodigo || "—")}`, t.quantidade_kg)));
-  (transferencias?.saidas || []).forEach((t) => linhas.push(fusaoMovimentoRowHtml(`↑ Saída — Corrida ${fEsc(t.corridaCodigo || "—")}`, t.quantidade_kg)));
+  (transferencias?.entradas || []).forEach((t) => linhas.push(fusaoMovimentoRowHtml(`↓ Entrada — Corrida ${fEsc(fusaoCodigoCorridaMascarado(t.corridaCodigo) || "—")}`, t.quantidade_kg)));
+  (transferencias?.saidas || []).forEach((t) => linhas.push(fusaoMovimentoRowHtml(`↑ Saída — Corrida ${fEsc(fusaoCodigoCorridaMascarado(t.corridaCodigo) || "—")}`, t.quantidade_kg)));
   return linhas;
 }
-function fusaoMovimentosCardHtml(corrida, transferencias) {
-  const linhas = fusaoMovimentosLinhas(corrida, transferencias);
-  return linhas.length ? `<table class="products-table"><tbody>${linhas.join("")}</tbody></table>` : "";
+// Resumo compacto no topo do card — pedido explícito: peso inicial = sobra
+// da corrida anterior; entrada = volume carregado nesta corrida (pesagem
+// Ponte/direto) + recebido por transferência (pra fechar a conta certinho
+// quando é um Holding recebendo de outro forno); saída = transferido pra
+// fora; volume atual = inicial + entrada − saída.
+function fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtualKg) {
+  const pesoInicial = fNumber(corrida.sobra_inicial_kg);
+  const totalCarregado = todosItens.reduce((soma, item) => soma + fNumber(item.quantidade_realizada_kg), 0);
+  const totalRecebido = (transferencias?.entradas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0);
+  const entrada = totalCarregado + totalRecebido;
+  const saida = (transferencias?.saidas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0);
+  const kg = (valor) => `${fusaoKg(valor)}<span class="fusao-resumo-unidade">Kg</span>`;
+  return `<div class="fusao-resumo-corrida">
+      <div class="fusao-resumo-item"><span class="fusao-resumo-label">Peso Inicial</span><strong class="fusao-resumo-valor fusao-resumo-inicial">${kg(pesoInicial)}</strong></div>
+      <div class="fusao-resumo-item"><span class="fusao-resumo-label">Entrada</span><strong class="fusao-resumo-valor fusao-resumo-entrada">${kg(entrada)}</strong></div>
+      <div class="fusao-resumo-item"><span class="fusao-resumo-label">Saída</span><strong class="fusao-resumo-valor fusao-resumo-saida">${kg(saida)}</strong></div>
+      <div class="fusao-resumo-item"><span class="fusao-resumo-label">Volume atual</span><strong class="fusao-resumo-valor fusao-resumo-volume">${kg(volumeAtualKg)}</strong></div>
+    </div>`;
 }
 async function corridaCardHtml(corrida, volumeAtualKg) {
   const [todosItens, transferencias, mensagens] = await Promise.all([
@@ -274,18 +318,17 @@ async function corridaCardHtml(corrida, volumeAtualKg) {
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferenciasDaCorrida(corrida.id),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.mensagensDaCorrida(corrida.id)
   ]);
-  const { carregamentoConcluido, html: tabelasHtml } = fusaoTabelasCargaHtml(todosItens);
+  const { carregamentoConcluido, html: tabelasHtml } = fusaoTabelasCargaHtml(todosItens, transferencias);
   const produto = fusaoState.produtos.find((p) => p.id === corrida.produto_id) || corrida.produtos;
   return `<div class="fusao-corrida-inline" data-corrida-id="${corrida.id}" data-versao="${corrida.versao}" data-forno-id="${corrida.forno_id}">
       <p><span class="fusao-status-step ${fusaoCorridaStatusBadgeClass(corrida.status)}">${FUSAO_STATUS_NOMES[corrida.status] || corrida.status}</span>
-        Corrida <strong>${fEsc(corrida.codigo)}</strong> — turno ${corrida.turno}
+        <strong class="fusao-corrida-codigo-destaque">${fEsc(fusaoCodigoCorridaMascarado(corrida.codigo))}</strong> — ${corrida.turno}
         <span class="fusao-carregamento-badge">${carregamentoConcluido ? `<span class="fusao-ponte-status is-concluido">✓ Carregamento concluído</span>` : ""}</span></p>
-      <p class="fusao-corrida-meta">Produto: <strong>${fusaoProdutoLabel(produto)}</strong>
-        · Início: <strong>${corrida.inicio ? new Date(corrida.inicio).toLocaleString("pt-BR") : "—"}</strong>
-        ${corrida.fim ? ` · Fim: <strong>${new Date(corrida.fim).toLocaleString("pt-BR")}</strong>` : ""}</p>
-      <p class="fusao-card-total-linha">Total da carga <span class="fusao-card-total">${fusaoTotalFornoHtml(todosItens)}</span></p>
-      <p class="fusao-volume-atual-linha">Volume atual do forno <strong class="fusao-volume-atual-valor">${fusaoKg(volumeAtualKg)} kg</strong></p>
-      <div class="fusao-tabelas-carga">${tabelasHtml}${fusaoMovimentosCardHtml(corrida, transferencias)}</div>
+      <p class="fusao-corrida-meta"><strong>${fusaoProdutoLabel(produto, true)}</strong>
+        <span class="fusao-corrida-horarios">Início: <strong>${corrida.inicio ? new Date(corrida.inicio).toLocaleString("pt-BR") : "—"}</strong>
+        ${corrida.fim ? ` · Fim: <strong>${new Date(corrida.fim).toLocaleString("pt-BR")}</strong>` : ""}</span></p>
+      ${fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtualKg)}
+      <div class="fusao-tabelas-carga">${tabelasHtml}</div>
       <div class="fusao-add-item-area">
         <button type="button" class="button button-secondary" data-toggle-add-item>+ Incluir material</button>
         <button type="button" class="button button-secondary" data-toggle-transferir>Transferir</button>
@@ -304,21 +347,25 @@ async function corridaCardHtml(corrida, volumeAtualKg) {
 // partir do que já tá na tela (soma das linhas), sem precisar buscar tudo
 // de novo.
 function atualizarBadgeCarregamento(cardContainer) {
+  const linhas = cardContainer.querySelectorAll(".fusao-tabelas-carga tr[data-planejado]");
   const badge = cardContainer.querySelector(".fusao-carregamento-badge");
   if (badge) {
-    const statusCells = cardContainer.querySelectorAll(".fusao-status-cell");
-    const concluido = statusCells.length > 0 && cardContainer.querySelectorAll(".fusao-status-cell .is-pendente").length === 0;
+    const concluido = linhas.length > 0 && [...linhas].every((row) =>
+      fNumber(row.dataset.realizado) > 0 && fNumber(row.dataset.realizado) >= fNumber(row.dataset.planejado)
+    );
     badge.innerHTML = concluido ? `<span class="fusao-ponte-status is-concluido">✓ Carregamento concluído</span>` : "";
   }
-  const totalEl = cardContainer.querySelector(".fusao-card-total");
-  if (totalEl) {
-    let planejado = 0, realizado = 0;
-    cardContainer.querySelectorAll(".fusao-tabelas-carga tr[data-planejado]").forEach((row) => {
-      planejado += fNumber(row.dataset.planejado);
-      realizado += fNumber(row.dataset.realizado);
-    });
-    totalEl.innerHTML = fusaoProgressoHtml(realizado, planejado);
-  }
+  const totalEl = cardContainer.querySelector(".fusao-total-progresso");
+  let planejado = 0, realizado = 0;
+  linhas.forEach((row) => {
+    planejado += fNumber(row.dataset.planejado);
+    realizado += fNumber(row.dataset.realizado);
+  });
+  if (totalEl) totalEl.innerHTML = fusaoProgressoHtml(realizado, planejado);
+  const totalPlanejadoEl = cardContainer.querySelector(".fusao-total-planejado");
+  const totalRealizadoEl = cardContainer.querySelector(".fusao-total-realizado");
+  if (totalPlanejadoEl) totalPlanejadoEl.textContent = fusaoKg(planejado);
+  if (totalRealizadoEl) totalRealizadoEl.textContent = fusaoKg(realizado);
 }
 const FUSAO_EDITABLE_RPC = {
   planejado: (corridaId, itemId, valor) => window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarPlanejado(corridaId, itemId, valor),
@@ -364,7 +411,7 @@ function bindEditableCells(container, corridaId, onSaved) {
       unlock.addEventListener("click", () => {
         if (!confirm(FUSAO_UNLOCK_CONFIRM[cell.dataset.kind])) return;
         cell.classList.remove("fusao-editable-locked");
-        unlock.outerHTML = `<button type="button" class="button button-secondary fusao-editable-toggle">Editar</button>`;
+        unlock.outerHTML = `<button type="button" class="button button-secondary fusao-editable-toggle" title="Editar">...</button>`;
         bindEditableToggle(cell, corridaId, onSaved);
       });
       return;
@@ -384,8 +431,6 @@ function fusaoOnSavedCard(container) {
     const row = cell.closest("tr");
     if (!row) return;
     row.dataset[kind] = valor ?? "";
-    const statusCell = row.querySelector(".fusao-status-cell");
-    if (statusCell) statusCell.innerHTML = ponteStatusHtml(row.dataset.realizado, row.dataset.planejado);
     atualizarBadgeCarregamento(container);
   };
 }
@@ -454,8 +499,11 @@ function bindCorridaCard(container, forno) {
         const atual = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridaAbertaDoForno(forno.id);
         if (!atual) throw new Error("Esta corrida não está mais aberta — a tela foi atualizada.");
         await window.LIDUTEC_PRODUCAO_FUSAO_DATA.adicionarItemCarga(atual.id, materialId, quantidade, estadoFisico);
-        const itensAtualizados = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.cargaItens(atual.id);
-        const { html } = fusaoTabelasCargaHtml(itensAtualizados);
+        const [itensAtualizados, transferenciasAtuais] = await Promise.all([
+          window.LIDUTEC_PRODUCAO_FUSAO_DATA.cargaItens(atual.id),
+          window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferenciasDaCorrida(atual.id)
+        ]);
+        const { html } = fusaoTabelasCargaHtml(itensAtualizados, transferenciasAtuais);
         const tabelasEl = container.querySelector(".fusao-tabelas-carga");
         if (tabelasEl) tabelasEl.innerHTML = html;
         bindEditableCells(container, atual.id, fusaoOnSavedCard(container));
@@ -542,7 +590,7 @@ function patchIndexCargaItemRow(item) {
   const row = inline.querySelector(`tr[data-item-id="${item.id}"]`);
   if (!row) return; // material incluído por outro usuário — pega na próxima abertura/recarga do card
   if (row.querySelector(".fusao-editable-input")) return; // usuário está editando essa linha agora
-  row.outerHTML = fusaoItemVaiParaPonte(item) ? fusaoCardPonteRowHtml(item) : fusaoCardDiretoRowHtml(item);
+  row.outerHTML = fusaoCardRowHtml(item);
   const card = inline.closest(".fusao-forno-card");
   if (!card) return;
   bindEditableCells(inline, item.corrida_id, fusaoOnSavedCard(card));
@@ -830,9 +878,9 @@ async function loadCorridaDetail() {
   fusaoCorridaCache.transferencias = transferencias;
   fq("#mensagens-painel").innerHTML = fusaoMensagensPainelHtml(id, mensagens);
   fusaoBindMensagens(fq("#mensagens-painel .fusao-mensagens"));
-  fq("#corrida-titulo").textContent = `Corrida ${corrida.codigo}`;
+  fq("#corrida-titulo").textContent = `Corrida ${fusaoCodigoCorridaMascarado(corrida.codigo)}`;
   fq("#corrida-subtitulo").textContent = `${corrida.fornos_fusao?.nome || ""} · ${corrida.turno} · ${new Date(`${corrida.data_operacional}T12:00:00`).toLocaleDateString("pt-BR")}`;
-  fq("#corrida-codigo").textContent = corrida.codigo;
+  fq("#corrida-codigo").textContent = fusaoCodigoCorridaMascarado(corrida.codigo);
   fq("#corrida-status-linha").textContent = fusaoCorridaStatusLinhaTexto(corrida);
   renderCorridaStepper(corrida);
   renderCorridaStatusActions(corrida);
@@ -961,17 +1009,23 @@ async function initializeFusaoTrocarRefratario() {
 // bem visível, e o campo de entrada limpa sozinho depois de confirmar.
 // Concluído = já chegou pelo menos o planejado (pode passar, não trava) —
 // dá pro operador ver de longe o que ainda falta sem fazer conta de cabeça.
-// Vai pra Ponte só quem é pesado por ponte E não é carga líquida — material
-// Manual (sem crane) e carga líquida (qualquer material) são lançados
-// direto no card do forno, sem passar pela tela da Ponte.
-function fusaoItemVaiParaPonte(item) {
-  return (item.materiais_fusao?.modo_pesagem ?? "PONTE") === "PONTE" && item.estado_fisico !== "LIQUIDO";
+// Cadastro "Direto" (ex.: elementos de liga) nunca passa pela ponte.
+// Cadastro "Ponte" é só pra material que sempre vai líquido (panela).
+// Cadastro "Carro" é o material que normalmente vai sólido na cesta da
+// ponte, mas o mesmo material pode ser lançado líquido numa corrida —
+// quem decide isso é o estado físico do item, não o cadastro: líquido
+// sempre aparece como "Ponte", sólido continua "Carro".
+function fusaoModoCarregamento(item) {
+  const modo = item.materiais_fusao?.modo_pesagem ?? "CARRO";
+  if (modo === "DIRETO") return "DIRETO";
+  if (modo === "PONTE") return "PONTE";
+  return item.estado_fisico === "LIQUIDO" ? "PONTE" : "CARRO";
 }
-function ponteStatusHtml(realizado, planejado) {
-  const concluido = fNumber(realizado) > 0 && fNumber(realizado) >= fNumber(planejado);
-  return concluido
-    ? `<span class="fusao-ponte-status is-concluido">✓ Concluído</span>`
-    : `<span class="fusao-ponte-status is-pendente">Pendente</span>`;
+// Só "Carro" (cesta içada pelo operador, incremento por incremento) precisa
+// da tela da Ponte e trava o Real no card. "Ponte" (líquido, lançado numa
+// vez só pelo supervisor) e "Direto" ficam editáveis direto no card.
+function fusaoItemVaiParaPonte(item) {
+  return fusaoModoCarregamento(item) === "CARRO";
 }
 // Bipe simples quando uma carga nova chega na Ponte — sem depender de
 // arquivo de áudio, um beep curto via Web Audio API. audioContext fica
@@ -1014,7 +1068,8 @@ function ponteLogHtml(log) {
 // com quem escreveu, quando e o quê.
 function fusaoMensagemHtml(mensagem) {
   const hora = new Date(mensagem.criado_em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-  return `<p class="fusao-mensagem"><strong>${fEsc(mensagem.usuarios?.nome || "—")}</strong> <span class="production-muted">(${hora})</span>: ${fEsc(mensagem.mensagem)}</p>`;
+  const origemClasse = mensagem.origem === "PONTE" ? "fusao-mensagem-ponte" : "fusao-mensagem-supervisor";
+  return `<p class="fusao-mensagem ${origemClasse}"><strong>${fEsc(mensagem.usuarios?.nome || "—")}</strong> <span class="production-muted">(${hora})</span>: ${fEsc(mensagem.mensagem)}</p>`;
 }
 function fusaoMensagensListaHtml(mensagens) {
   if (!mensagens?.length) return `<p class="production-muted fusao-mensagens-vazio">Nenhuma mensagem ainda.</p>`;
@@ -1046,15 +1101,18 @@ function fusaoBindMensagens(painel) {
     const texto = input.value.trim();
     if (!texto) { input.focus(); return; }
     input.disabled = true; botao.disabled = true;
+    // Cor da mensagem depende de onde foi digitada — Ponte (roxo) ou
+    // Supervisor/card do forno/corrida.html (marrom), pedido explícito.
+    const origem = fusaoPage === "ponte" ? "PONTE" : "SUPERVISOR";
     try {
-      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.enviarMensagemCorrida(corridaId, texto);
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.enviarMensagemCorrida(corridaId, texto, origem);
       // Mostra na hora, sem esperar Realtime/poll — o foco continua no
       // campo depois de enviar, e a atualização automática das outras
       // telas não mexe em quem está digitando (por design).
       const lista = painel.querySelector(".fusao-mensagens-lista");
       if (lista.querySelector(".fusao-mensagens-vazio")) lista.innerHTML = "";
       lista.insertAdjacentHTML("beforeend", fusaoMensagemHtml({
-        mensagem: texto, criado_em: new Date().toISOString(), usuarios: { nome: fusaoState.userNome }
+        mensagem: texto, criado_em: new Date().toISOString(), origem, usuarios: { nome: fusaoState.userNome }
       }));
       lista.scrollTop = lista.scrollHeight;
       input.value = "";
@@ -1095,7 +1153,7 @@ function fusaoPonteEntregaDestravadaHtml(corridaId, itemId) {
 function fusaoPonteEntregaTravadaHtml(corridaId, itemId) {
   return `<span class="fusao-ponte-entrega-travada">
       <span class="production-muted">Concluído</span>
-      <button type="button" class="button button-secondary fusao-ponte-desbloquear" data-corrida-id="${corridaId}" data-item-id="${itemId}">Colocar carga</button>
+      <button type="button" class="button button-secondary fusao-ponte-desbloquear" data-corrida-id="${corridaId}" data-item-id="${itemId}" title="Colocar carga">+</button>
     </span>`;
 }
 function fusaoPonteEntregaCellHtml(corridaId, item) {
@@ -1106,17 +1164,16 @@ function pontePreencherCorrida(container, corrida) {
   const itens = (corrida.corridas_fusao_carga_itens || []).filter(fusaoItemVaiParaPonte);
   if (!itens.length) return;
   container.insertAdjacentHTML("beforeend", `<article class="fusao-ponte-corrida">
-      <h4>${fEsc(corrida.fornos_fusao?.nome || "")} — corrida ${fEsc(corrida.codigo)} (${corrida.turno})</h4>
-      <table class="products-table"><thead><tr><th>Material</th><th>Planejado (kg)</th><th>Acumulado (kg)</th><th>Progresso</th><th>Nova entrega (kg)</th><th>Status</th></tr></thead>
+      <h4>${fEsc(corrida.fornos_fusao?.nome || "")} — corrida ${fEsc(fusaoCodigoCorridaMascarado(corrida.codigo))} (${corrida.turno})</h4>
+      <table class="products-table"><thead><tr><th>Material</th><th>Planejado (kg)</th><th>Acumulado (kg)</th><th>Progresso</th><th>Nova entrega (kg)</th></tr></thead>
       <tbody>${itens.map((item) => `<tr data-item-id="${item.id}" data-planejado="${item.quantidade_planejada_kg}" class="${fNumber(item.quantidade_realizada_kg) >= fNumber(item.quantidade_planejada_kg) && fNumber(item.quantidade_realizada_kg) > 0 ? "is-concluido" : ""}">
           <td>${fEsc(item.materiais_fusao?.nome || "")}${item.estado_fisico ? ` <span class="production-muted">(${estadoLabel[item.estado_fisico] || item.estado_fisico})</span>` : ""}</td>
           <td>${fNumber(item.quantidade_planejada_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
           <td class="fusao-ponte-acumulado"><strong>${fNumber(item.quantidade_realizada_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</strong></td>
           <td class="fusao-ponte-progresso">${fusaoProgressoHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}</td>
           <td class="fusao-ponte-entrega">${fusaoPonteEntregaCellHtml(corrida.id, item)}</td>
-          <td class="fusao-ponte-status-cell">${ponteStatusHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}</td>
         </tr>
-        <tr class="fusao-ponte-log-row"><td colspan="6"><div class="fusao-ponte-log" data-log-item-id="${item.id}">${ponteLogHtml(item.corridas_fusao_pesagens_ponte_log)}</div></td></tr>`).join("")}</tbody></table>
+        <tr class="fusao-ponte-log-row"><td colspan="5"><div class="fusao-ponte-log" data-log-item-id="${item.id}">${ponteLogHtml(item.corridas_fusao_pesagens_ponte_log)}</div></td></tr>`).join("")}</tbody></table>
       ${fusaoMensagensPainelHtml(corrida.id, corrida.corridas_fusao_mensagens)}
     </article>`);
 }
@@ -1168,7 +1225,6 @@ async function loadPonteCarro(carro) {
         Number(input.dataset.corridaId), Number(input.dataset.itemId), valor
       );
       row.querySelector(".fusao-ponte-acumulado strong").textContent = fNumber(total).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
-      row.querySelector(".fusao-ponte-status-cell").innerHTML = ponteStatusHtml(total, row.dataset.planejado);
       row.querySelector(".fusao-ponte-progresso").innerHTML = fusaoProgressoHtml(total, row.dataset.planejado);
       const concluido = fNumber(total) > 0 && fNumber(total) >= fNumber(row.dataset.planejado);
       row.classList.toggle("is-concluido", concluido);

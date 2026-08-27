@@ -1,3 +1,10 @@
+/* .button-secondary não tem estilo próprio nas folhas carregadas por essas
+   páginas (só existe em produtos.css/controle-processo.css, que não são
+   linkadas aqui) — sem isso, todo botão secundário do módulo cai no
+   cinza padrão do navegador. Define um estilo leve e neutro. */
+.button-secondary { color: var(--color-text); background: #eef1f4; border: 1px solid var(--color-border); }
+.button-secondary:hover { background: #e3e7ec; }
+
 .fusao-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .fusao-header-field { min-height: 42px; padding: 6px 12px; border: 1px solid var(--color-border); border-radius: 8px; font-weight: 800; background: #fff; }
 
@@ -9,9 +16,19 @@
 .fusao-corrida-inline p { margin: 0 0 10px; font-size: .84rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .fusao-editable-cell { display: inline-flex; align-items: center; gap: 6px; }
 .fusao-editable-input { width: 90px; min-height: 34px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; }
-.fusao-editable-toggle { min-height: 30px; padding: 2px 10px; font-size: .78rem; }
+/* Sem estilo próprio de .button-secondary carregado nessas páginas, o
+   botão Editar caía no cinza padrão do navegador (chamava muita atenção
+   numa tabela cheia de linhas) — aqui fica discreto de propósito. */
+.fusao-editable-toggle, .fusao-editable-unlock {
+  min-height: 30px; padding: 2px 10px; font-size: .78rem;
+  background: transparent; border: 1px solid var(--color-border); color: var(--color-text-muted);
+}
+.fusao-editable-toggle:hover, .fusao-editable-unlock:hover { background: #f4f6f8; }
+/* Editar pedido pra reduzir ainda mais o contraste — quase invisível até
+   passar o mouse perto. */
+.fusao-editable-toggle { border-color: transparent; color: #a7b0b8; }
+.fusao-editable-toggle:hover { border-color: var(--color-border); color: var(--color-text-muted); }
 .fusao-editable-locked .fusao-editable-display { color: var(--color-text-muted); }
-.fusao-editable-unlock { min-height: 30px; padding: 2px 10px; font-size: .78rem; }
 .fusao-corrida-inline .meta-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 .fusao-add-item-area { margin-top: 10px; }
 .fusao-add-item-area .fusao-item-row { margin-top: 10px; grid-template-columns: 2fr 1fr auto; }
@@ -51,7 +68,7 @@ body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.
 }
 
 /* Vida do refratário do forno vira só a cor da borda do card — sem texto. */
-.fusao-forno-card { border-width: 6px; }
+.fusao-forno-card { border-width: 6px; position: relative; }
 .fusao-forno-card.is-good { border-color: #147d4f; }
 .fusao-forno-card.is-warning { border-color: #b7791f; }
 .fusao-forno-card.is-critical { border-color: #b90e2c; }
@@ -75,6 +92,10 @@ body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.
 .fusao-mensagens { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--color-border); }
 .fusao-mensagens-lista { max-height: 160px; overflow-y: auto; margin-bottom: 8px; }
 .fusao-mensagem { margin: 0 0 6px; font-size: .84rem; }
+/* Cor pela origem — pedido explícito: roxo quem digitou na Ponte, marrom
+   quem digitou no card do forno/corrida.html (supervisor). */
+.fusao-mensagem-ponte { color: #6a2fa6; }
+.fusao-mensagem-supervisor { color: #7a4a20; }
 .fusao-mensagem-form { display: flex; gap: 8px; }
 .fusao-mensagem-input { flex: 1; min-height: 38px; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 6px; }
 
@@ -85,21 +106,80 @@ body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.
 .fusao-progress-fill { display: block; height: 100%; border-radius: 999px; background: var(--color-primary); transition: width .2s ease; }
 .fusao-progress-fill.is-concluido { background: #147d4f; }
 .fusao-progress-label { font-size: .78rem; font-weight: 800; color: var(--color-text-muted); white-space: nowrap; }
-.fusao-card-total-linha { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: .84rem; font-weight: 800; }
-.fusao-card-total .fusao-progress { min-width: 140px; }
-.fusao-card-total .fusao-progress-track { height: 12px; }
-.fusao-card-total .fusao-progress-label { font-size: .92rem; }
+.fusao-total-progresso .fusao-progress { min-width: 140px; }
+.fusao-total-progresso .fusao-progress-track { height: 12px; }
+.fusao-total-progresso .fusao-progress-label { font-size: .92rem; }
 
-/* Produto/início/fim — texto secundário, discreto. */
-.fusao-corrida-meta { color: var(--color-text-muted); }
+/* Produto/início/fim — texto secundário, discreto. Início/fim deslocado
+   pra direita, separado do produto. */
+.fusao-corrida-meta { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; color: var(--color-text-muted); }
+
+/* Número da corrida e código do produto — destaque pedido: fonte maior e
+   bem negrito, pra identificar a corrida/produto de longe no card. */
+.fusao-corrida-codigo-destaque { font-size: 1.3em; font-weight: 900; color: var(--color-text); }
+.fusao-produto-codigo-destaque { font-size: 1.2em; font-weight: 900; color: var(--color-text); }
 
 /* Volume atual do forno — sempre visível, com/sem corrida aberta; se
    destaca do resto do card por ser o número que importa de longe. */
 .fusao-volume-atual-linha { margin: 0 0 14px; padding: 8px 12px; border-radius: 8px; background: var(--color-primary-light); color: var(--color-primary); font-size: .88rem; font-weight: 800; }
 
-/* Sobra/entrada/saída — linha "como material", mas com fundo diferente pra
-   deixar claro que não é um material pesado, e sim metal movimentado. */
+/* Sobra/entrada/saída (corrida.html) — linha "como material", mas com fundo
+   diferente pra deixar claro que não é um material pesado, e sim metal
+   movimentado. */
 .fusao-movimento-row td { background: #f6f8fa; font-style: italic; }
+
+/* Transferência na tabela do card — sem fundo pintado, só a cor da fonte
+   diferencia: vermelho saída, verde entrada. Seletor mais específico que
+   as regras de Planejado/Real logo abaixo, senão elas ganham a cor. */
+.fusao-tabelas-carga tr.fusao-transferencia-row td { font-weight: 700; }
+.fusao-tabelas-carga tr.fusao-transferencia-saida td { color: var(--color-danger); }
+.fusao-tabelas-carga tr.fusao-transferencia-entrada td { color: var(--color-success); }
+
+/* Linha de total no fim da tabela de materiais do card. */
+.fusao-tabela-total-row td { border-top: 2px solid var(--color-border); }
+
+/* Pedido explícito: planejado (azul) e real (preto), bem negrito e
+   destacado, nos cards do painel de fornos — cobre tanto a célula
+   editável quanto o texto simples (Real de quem passa pela Ponte). */
+.fusao-tabelas-carga td:nth-child(3) { color: var(--color-primary); font-weight: 900; }
+.fusao-tabelas-carga td:nth-child(4) { color: var(--color-text); font-weight: 900; }
+
+/* Linha de material mais compacta (pedido explícito). */
+.fusao-tabelas-carga table.products-table td, .fusao-tabelas-carga table.products-table th { padding: 6px 10px; }
+
+/* Cabeçalho da tabela de materiais do card — cor da paleta do sistema. */
+.fusao-tabelas-carga table.products-table thead th {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 800;
+}
+
+/* Badge "Ponte"/"Direto" — substitui a segunda tabela com título próprio. */
+.fusao-forma-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .74rem; font-weight: 700; white-space: nowrap; }
+.fusao-forma-carro { background: #eef2f8; color: #5b7290; }
+.fusao-forma-ponte { background: #f7f0e4; color: #93805e; }
+.fusao-forma-direto { background: #eef1f4; color: var(--color-text-muted); }
+
+/* Nome do material com um pouco mais de destaque que o resto da linha. */
+.fusao-nome-material { font-weight: 600; }
+
+/* Resumo compacto no topo do card — Peso Inicial/Entrada/Saída/Volume
+   atual, cada um com sua cor (pedido explícito). Substitui a linha isolada
+   de "Volume atual" e as linhas de sobra/entrada/saída dentro da tabela. */
+/* Flutua no canto superior direito do card, ao lado do nome do forno — em
+   vez de uma barra/caixa separada mais abaixo (pedido explícito). */
+.fusao-resumo-corrida { position: absolute; top: 14px; right: 16px; display: flex; gap: 28px; text-align: right; }
+.fusao-resumo-item { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; white-space: nowrap; }
+@media (max-width: 700px) {
+  .fusao-resumo-corrida { position: static; justify-content: flex-end; flex-wrap: wrap; gap: 16px 28px; margin: 0 0 14px; text-align: right; }
+}
+.fusao-resumo-label { font-size: .72rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; }
+.fusao-resumo-valor { font-size: 1rem; }
+.fusao-resumo-inicial { color: var(--color-primary); }
+.fusao-resumo-entrada { color: #147d4f; }
+.fusao-resumo-saida { color: #b90e2c; }
+.fusao-resumo-volume { color: var(--color-text); font-size: 1.15rem; }
+.fusao-resumo-unidade { margin-left: 3px; font-size: .6em; font-weight: 600; opacity: .55; }
 
 @media (max-width: 700px) {
   .fusao-item-row { grid-template-columns: 1fr; }
@@ -139,8 +219,6 @@ body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.
 .fusao-ponte-status { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 999px; font-size: .88rem; font-weight: 800; white-space: nowrap; }
 .fusao-ponte-status.is-concluido { background: #147d4f; color: #fff; }
 .fusao-ponte-status.is-pendente { background: #eef1f4; color: var(--color-text-muted); }
-.fusao-ponte-status-cell .fusao-ponte-status.is-concluido { background: #b90e2c; color: #fff; }
-.fusao-ponte-status-cell .fusao-ponte-status.is-pendente { background: #147d4f; color: #fff; }
 @media (max-width: 1100px) {
   .fusao-ponte-grid { grid-template-columns: 1fr; }
 }

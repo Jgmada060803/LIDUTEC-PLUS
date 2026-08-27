@@ -1,6 +1,7 @@
 const fcq = (selector) => document.querySelector(selector);
 const fcEsc = (value = "") => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const MATERIAL_TIPO_NOMES = { SUCATA: "Sucata", RETORNO: "Retorno", CANAL: "Canal", GUSA: "Gusa", ALTERNATIVO: "Alternativo", LIGA_CORRECAO: "Liga/correção", OUTRO: "Outro" };
+const MODO_PESAGEM_NOMES = { CARRO: "Carro", PONTE: "Ponte", DIRETO: "Direto" };
 const FORNO_TIPO_NOMES = { FUSAO: "Fusão", HOLDING: "Holding" };
 const FUSAO_ELEMENTOS = ["c", "si", "mn", "p", "cr", "s", "sn", "cu", "mo", "al", "pb"];
 const FUSAO_ELEMENTOS_LABEL = { c: "C", si: "Si", mn: "Mn", p: "P", cr: "Cr", s: "S", sn: "Sn", cu: "Cu", mo: "Mo", al: "Al", pb: "Pb" };
@@ -24,7 +25,7 @@ async function loadMateriais() {
   const rows = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.materiaisTodos();
   fcq("#materiais-rows").innerHTML = rows.map((item) => `<tr>
       <td>${fcEsc(item.nome)}</td><td>${MATERIAL_TIPO_NOMES[item.tipo] || item.tipo}</td>
-      <td>${item.modo_pesagem === "MANUAL" ? "Manual" : "Ponte"}</td>
+      <td>${MODO_PESAGEM_NOMES[item.modo_pesagem] || item.modo_pesagem}</td>
       <td>${fcEsc(formatComposicao(item))}</td>
       <td>${item.ativo ? "Ativo" : "Inativo"}</td>
       <td><button type="button" class="button button-secondary" data-edit-material="${item.id}">Editar</button></td>
@@ -37,7 +38,7 @@ async function loadMateriais() {
       form.elements.id.value = item.id;
       form.elements.nome.value = item.nome;
       form.elements.tipo.value = item.tipo;
-      form.elements.modo_pesagem.value = item.modo_pesagem || "PONTE";
+      form.elements.modo_pesagem.value = item.modo_pesagem || "CARRO";
       form.elements.ativo.checked = item.ativo;
       for (const el of FUSAO_ELEMENTOS) form.elements[`pct_${el}`].value = item[`pct_${el}`] ?? "";
       fcq("#material-cancel-edit").hidden = false;
