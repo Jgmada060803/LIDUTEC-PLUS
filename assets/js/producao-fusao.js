@@ -1032,18 +1032,36 @@ function pontePreencherCorrida(container, corrida) {
         <tr class="fusao-ponte-log-row"><td colspan="6"><div class="fusao-ponte-log" data-log-item-id="${item.id}">${ponteLogHtml(item.corridas_fusao_pesagens_ponte_log)}</div></td></tr>`).join("")}</tbody></table>
     </article>`);
 }
-const fusaoPonteCorridasConhecidas = {};
+// Bipa quando: uma corrida nova aparece nesse carro, um material novo é
+// incluído na carga de uma corrida já aberta, ou o planejado de um
+// material muda (pedido explícito) — nunca no carregamento inicial da
+// página, só em cima do que já era conhecido.
+const fusaoPonteConhecidos = {};
+function fusaoPonteDetectarNovidade(carro, corridas) {
+  const atual = { corridas: new Set(), planejados: new Map() };
+  for (const corrida of corridas) {
+    atual.corridas.add(corrida.id);
+    for (const item of (corrida.corridas_fusao_carga_itens || []).filter(fusaoItemVaiParaPonte)) {
+      atual.planejados.set(item.id, fNumber(item.quantidade_planejada_kg));
+    }
+  }
+  const anterior = fusaoPonteConhecidos[carro];
+  let novidade = false;
+  if (anterior) {
+    for (const id of atual.corridas) if (!anterior.corridas.has(id)) novidade = true;
+    for (const [itemId, planejado] of atual.planejados) {
+      if (!anterior.planejados.has(itemId) || anterior.planejados.get(itemId) !== planejado) novidade = true;
+    }
+  }
+  fusaoPonteConhecidos[carro] = atual;
+  return Boolean(anterior) && novidade;
+}
 async function loadPonteCarro(carro) {
   const container = fq(`#ponte-carro-${carro}`);
   const focusWasInside = container.contains(document.activeElement);
   if (focusWasInside) return;
   const corridas = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridasAbertasPorCarro(carro);
-  // Bipa só quando uma corrida nova aparece nesse carro (não no carregamento
-  // inicial da página, nem em atualizações de corridas já conhecidas).
-  const idsAtuais = new Set(corridas.map((corrida) => corrida.id));
-  const idsConhecidos = fusaoPonteCorridasConhecidas[carro];
-  if (idsConhecidos && [...idsAtuais].some((id) => !idsConhecidos.has(id))) fusaoBip();
-  fusaoPonteCorridasConhecidas[carro] = idsAtuais;
+  if (fusaoPonteDetectarNovidade(carro, corridas)) fusaoBip();
   container.innerHTML = "";
   for (const corrida of corridas) pontePreencherCorrida(container, corrida);
   fq(`[data-empty-carro="${carro}"]`).hidden = container.children.length > 0;
