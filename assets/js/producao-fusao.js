@@ -957,6 +957,31 @@ function ponteStatusHtml(realizado, planejado) {
     ? `<span class="fusao-ponte-status is-concluido">✓ Concluído</span>`
     : `<span class="fusao-ponte-status is-pendente">Pendente</span>`;
 }
+// Bipe simples quando uma carga nova chega na Ponte — sem depender de
+// arquivo de áudio, um beep curto via Web Audio API. audioContext fica
+// suspenso até o navegador liberar (autoplay); qualquer clique na página
+// já destrava (ver listener em initializeFusaoPonte).
+let fusaoAudioContext = null;
+function fusaoAudioContextGarantido() {
+  if (!fusaoAudioContext) fusaoAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+  return fusaoAudioContext;
+}
+function fusaoBip() {
+  try {
+    fusaoAudioContext = fusaoAudioContextGarantido();
+    if (fusaoAudioContext.state === "suspended") fusaoAudioContext.resume();
+    const oscillator = fusaoAudioContext.createOscillator();
+    const ganho = fusaoAudioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    ganho.gain.setValueAtTime(0.3, fusaoAudioContext.currentTime);
+    ganho.gain.exponentialRampToValueAtTime(0.001, fusaoAudioContext.currentTime + 0.35);
+    oscillator.connect(ganho);
+    ganho.connect(fusaoAudioContext.destination);
+    oscillator.start();
+    oscillator.stop(fusaoAudioContext.currentTime + 0.35);
+  } catch { /* navegador sem suporte a áudio — ignora */ }
+}
 function ponteLogEntradaHtml(entrada) {
   const hora = new Date(entrada.registrado_em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   const nome = fEsc(entrada.usuarios?.nome || entrada.nome || "—");
@@ -1007,11 +1032,18 @@ function pontePreencherCorrida(container, corrida) {
         <tr class="fusao-ponte-log-row"><td colspan="6"><div class="fusao-ponte-log" data-log-item-id="${item.id}">${ponteLogHtml(item.corridas_fusao_pesagens_ponte_log)}</div></td></tr>`).join("")}</tbody></table>
     </article>`);
 }
+const fusaoPonteCorridasConhecidas = {};
 async function loadPonteCarro(carro) {
   const container = fq(`#ponte-carro-${carro}`);
   const focusWasInside = container.contains(document.activeElement);
   if (focusWasInside) return;
   const corridas = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridasAbertasPorCarro(carro);
+  // Bipa só quando uma corrida nova aparece nesse carro (não no carregamento
+  // inicial da página, nem em atualizações de corridas já conhecidas).
+  const idsAtuais = new Set(corridas.map((corrida) => corrida.id));
+  const idsConhecidos = fusaoPonteCorridasConhecidas[carro];
+  if (idsConhecidos && [...idsAtuais].some((id) => !idsConhecidos.has(id))) fusaoBip();
+  fusaoPonteCorridasConhecidas[carro] = idsAtuais;
   container.innerHTML = "";
   for (const corrida of corridas) pontePreencherCorrida(container, corrida);
   fq(`[data-empty-carro="${carro}"]`).hidden = container.children.length > 0;
@@ -1077,6 +1109,11 @@ async function loadPonteCarro(carro) {
   bindEntregaControls(container);
 }
 async function initializeFusaoPonte() {
+  // Destrava o áudio do bipe assim que o operador tocar na tela pela
+  // primeira vez (navegadores só liberam som criado numa interação real).
+  document.addEventListener("click", () => {
+    try { fusaoAudioContextGarantido().resume(); } catch { /* sem suporte a áudio */ }
+  }, { once: true });
   await Promise.all([loadPonteCarro(1), loadPonteCarro(2)]);
   // Reflete entregas lançadas por outro operador/dispositivo sem precisar
   // recarregar a página — não mexe na linha se tiver campo em edição.
@@ -1091,7 +1128,12 @@ async function initializeFusaoProduction() {
     window.LIDUTEC_APP.getUserPermissions(user.id)
   ]);
   if (!profile || profile.status !== "ATIVO") { alert("Seu usuário não possui acesso ativo."); await window.LIDUTEC_APP.signOut(); return; }
-  if (!permissions.has("producao_fusao.visualizar")) { location.replace("../dashboard.html"); return; }
+  // Ponte aceita também a permissão restrita (só pesagem, sem acesso ao
+  // planejamento/corrida) — as outras páginas do módulo continuam exigindo
+  // a permissão geral de visualizar.
+  const podeVerFusao = permissions.has("producao_fusao.visualizar");
+  const podeVerPonte = podeVerFusao || permissions.has("producao_fusao.lancar_ponte");
+  if (fusaoPage === "ponte" ? !podeVerPonte : !podeVerFusao) { location.replace("../dashboard.html"); return; }
   fusaoState.user = user;
   fusaoState.userNome = profile.nome;
   fusaoState.permissions = permissions;

@@ -293,9 +293,14 @@ function syncSidebarNavigation() {
         Macharia
       </a>
       <a href="${prefix}producao-fusao/index.html"
-         class="${activeClass(isActive("producao-fusao"))}"
+         class="${activeClass(isActive("producao-fusao") && !isActive("producao-fusao", "ponte.html"))}"
          data-permission="producao_fusao.visualizar">
         Fusão
+      </a>
+      <a href="${prefix}producao-fusao/ponte.html"
+         class="${activeClass(isActive("producao-fusao", "ponte.html"))}"
+         data-permission="producao_fusao.visualizar,producao_fusao.lancar_ponte">
+        Ponte (Fusão)
       </a>
     `)}
 
