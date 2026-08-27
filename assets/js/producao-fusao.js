@@ -1037,7 +1037,12 @@ function fusaoMensagensPainelHtml(corridaId, mensagens) {
 // Liga o botão/Enter de um painel de mensagens — reaproveitado nas 3 telas
 // (Ponte, card do forno, corrida).
 function fusaoBindMensagens(painel) {
-  if (!painel || painel.dataset.bound) return;
+  if (!painel) return;
+  // Rola pro final sempre que a lista é (re)desenhada — carregamento
+  // inicial, Realtime ou poll da Ponte — pra manter as últimas visíveis.
+  const listaAtual = painel.querySelector(".fusao-mensagens-lista");
+  if (listaAtual) listaAtual.scrollTop = listaAtual.scrollHeight;
+  if (painel.dataset.bound) return;
   painel.dataset.bound = "1";
   const corridaId = Number(painel.dataset.corridaId);
   const input = painel.querySelector(".fusao-mensagem-input");
