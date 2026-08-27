@@ -972,10 +972,12 @@ function ponteLogHtml(log) {
 // supervisor: a caixa de digitar some, e quem quiser lançar mais precisa
 // confirmar "Colocar carga" antes (evita passar do planejado sem querer).
 function fusaoPonteEntregaDestravadaHtml(corridaId, itemId) {
-  // Só número inteiro na Ponte (pedido explícito) — inputmode="numeric" não
-  // mostra o ponto decimal no teclado do tablet, e a validação de verdade
-  // (recusar fração) acontece em confirmarEntrega.
-  return `<input type="number" inputmode="numeric" min="1" step="1" class="fusao-entrega-input" data-corrida-id="${corridaId}" data-item-id="${itemId}">
+  // Só número inteiro na Ponte (pedido explícito) — inputmode="numeric" +
+  // pattern="[0-9]*" garante o teclado só-números no tablet (o pattern é o
+  // que faz o Safari/iOS esconder ponto e sinal, que o inputmode sozinho
+  // às vezes não tira). A validação de verdade (recusar fração) continua
+  // acontecendo em confirmarEntrega.
+  return `<input type="number" inputmode="numeric" pattern="[0-9]*" min="1" step="1" class="fusao-entrega-input" data-corrida-id="${corridaId}" data-item-id="${itemId}">
     <button type="button" class="button button-primary" data-confirmar-entrega>OK</button>`;
 }
 function fusaoPonteEntregaTravadaHtml(corridaId, itemId) {
