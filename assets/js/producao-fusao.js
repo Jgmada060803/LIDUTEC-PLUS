@@ -586,9 +586,7 @@ function handleIndexTransferenciaChange() {
 // Mensagem nova (ex.: mandada pela Ponte) — redesenha só o card do forno
 // dessa corrida, achado pelo data-forno-id já gravado no card.
 function handleIndexMensagemInsert(payload) {
-  const inline = fq(`.fusao-corrida-inline[data-corrida-id="${payload.new?.corrida_id}"]`);
-  const forno = inline ? fusaoState.fornos.find((f) => f.id === Number(inline.dataset.fornoId)) : null;
-  if (forno) renderFornoCard(forno).catch(() => {});
+  fusaoAtualizarPainelMensagens(payload.new?.corrida_id).catch(() => {});
 }
 // Local + Realtime podem chamar isso quase ao mesmo tempo (ex.: acabou de
 // criar a corrida e o evento da própria criação chega logo em seguida) —
@@ -797,10 +795,7 @@ async function refreshMovimentosCarga() {
   renderMovimentosCarga(fusaoCorridaCache.corrida, transferencias);
 }
 async function refreshMensagensCorrida() {
-  const id = fusaoCorridaId();
-  const mensagens = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.mensagensDaCorrida(id);
-  fq("#mensagens-painel").innerHTML = fusaoMensagensPainelHtml(id, mensagens);
-  fusaoBindMensagens(fq("#mensagens-painel .fusao-mensagens"));
+  await fusaoAtualizarPainelMensagens(fusaoCorridaId());
 }
 function handleAdicaoRealtimeInsert(payload) {
   const novo = payload.new;
@@ -1073,6 +1068,18 @@ function fusaoBindMensagens(painel) {
   botao.addEventListener("click", enviar);
   input.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); enviar(); } });
 }
+// Chega mensagem nova de outra pessoa (Realtime, em qualquer tela): busca
+// só o painel dessa corrida onde quer que ele esteja na página e troca só
+// a lista — nunca redesenha o card/bloco inteiro, então não perde o que a
+// pessoa esteja digitando em outro campo (peso, planejado etc.) nem no
+// próprio campo de mensagem.
+async function fusaoAtualizarPainelMensagens(corridaId) {
+  const painel = document.querySelector(`.fusao-mensagens[data-corrida-id="${corridaId}"]`);
+  if (!painel) return;
+  const mensagens = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.mensagensDaCorrida(corridaId);
+  painel.querySelector(".fusao-mensagens-lista").innerHTML = fusaoMensagensListaHtml(mensagens);
+  fusaoBindMensagens(painel);
+}
 // Item concluído trava a célula de entrega igual acontece nas telas do
 // supervisor: a caixa de digitar some, e quem quiser lançar mais precisa
 // confirmar "Colocar carga" antes (evita passar do planejado sem querer).
@@ -1119,13 +1126,14 @@ function pontePreencherCorrida(container, corrida) {
 // inicial da página, só em cima do que já era conhecido.
 const fusaoPonteConhecidos = {};
 function fusaoPonteDetectarNovidade(carro, corridas) {
-  const atual = { corridas: new Set(), planejados: new Map(), mensagens: new Map() };
+  // Mensagem não entra aqui — tem canal Realtime próprio (instantâneo, sem
+  // esperar o poll) que já cuida do bipe dela.
+  const atual = { corridas: new Set(), planejados: new Map() };
   for (const corrida of corridas) {
     atual.corridas.add(corrida.id);
     for (const item of (corrida.corridas_fusao_carga_itens || []).filter(fusaoItemVaiParaPonte)) {
       atual.planejados.set(item.id, fNumber(item.quantidade_planejada_kg));
     }
-    atual.mensagens.set(corrida.id, (corrida.corridas_fusao_mensagens || []).length);
   }
   const anterior = fusaoPonteConhecidos[carro];
   let novidade = false;
@@ -1133,9 +1141,6 @@ function fusaoPonteDetectarNovidade(carro, corridas) {
     for (const id of atual.corridas) if (!anterior.corridas.has(id)) novidade = true;
     for (const [itemId, planejado] of atual.planejados) {
       if (!anterior.planejados.has(itemId) || anterior.planejados.get(itemId) !== planejado) novidade = true;
-    }
-    for (const [corridaId, total] of atual.mensagens) {
-      if ((anterior.mensagens.get(corridaId) ?? 0) < total) novidade = true;
     }
   }
   fusaoPonteConhecidos[carro] = atual;
@@ -1219,6 +1224,19 @@ async function initializeFusaoPonte() {
     try { fusaoAudioContextGarantido().resume(); } catch { /* sem suporte a áudio */ }
   }, { once: true });
   await Promise.all([loadPonteCarro(1), loadPonteCarro(2)]);
+  // Mensagens chegam na hora (Realtime), sem esperar o próximo poll — e
+  // sem depender de "ninguém estar digitando" (só troca a lista, não o
+  // bloco da corrida inteiro).
+  const canalPonteMensagens = window.supabaseClient
+    .channel("fusao-ponte-mensagens")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_mensagens" }, (payload) => {
+      // Não bipa a própria mensagem que acabou de mandar, só a de quem
+      // planeja a carga.
+      if (payload.new?.autor_id !== fusaoState.user?.id) fusaoBip();
+      fusaoAtualizarPainelMensagens(payload.new?.corrida_id).catch(() => {});
+    })
+    .subscribe();
+  window.addEventListener("pagehide", () => window.supabaseClient.removeChannel(canalPonteMensagens), { once: true });
   // Reflete entregas lançadas por outro operador/dispositivo sem precisar
   // recarregar a página — não mexe na linha se tiver campo em edição.
   setInterval(() => { loadPonteCarro(1).catch(() => {}); loadPonteCarro(2).catch(() => {}); }, 15000);
