@@ -269,9 +269,10 @@ function fusaoMovimentosCardHtml(corrida, transferencias) {
   return linhas.length ? `<table class="products-table"><tbody>${linhas.join("")}</tbody></table>` : "";
 }
 async function corridaCardHtml(corrida, volumeAtualKg) {
-  const [todosItens, transferencias] = await Promise.all([
+  const [todosItens, transferencias, mensagens] = await Promise.all([
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.cargaItens(corrida.id),
-    window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferenciasDaCorrida(corrida.id)
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferenciasDaCorrida(corrida.id),
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.mensagensDaCorrida(corrida.id)
   ]);
   const { carregamentoConcluido, html: tabelasHtml } = fusaoTabelasCargaHtml(todosItens);
   const produto = fusaoState.produtos.find((p) => p.id === corrida.produto_id) || corrida.produtos;
@@ -291,6 +292,7 @@ async function corridaCardHtml(corrida, volumeAtualKg) {
         <div class="fusao-itens-rows" hidden></div>
         <div class="fusao-transferir-rows" hidden></div>
       </div>
+      ${fusaoMensagensPainelHtml(corrida.id, mensagens)}
       <div class="form-message fusao-forno-message" hidden></div>
       <div class="meta-form-actions">
         <button type="button" class="button button-danger" data-acao="cancelar">Cancelar</button>
@@ -390,6 +392,7 @@ function fusaoOnSavedCard(container) {
 function bindCorridaCard(container, forno) {
   const corridaId = Number(container.querySelector(".fusao-corrida-inline")?.dataset.corridaId);
   bindEditableCells(container, corridaId, fusaoOnSavedCard(container));
+  fusaoBindMensagens(container.querySelector(".fusao-mensagens"));
   container.querySelectorAll("[data-acao]").forEach((button) => {
     button.addEventListener("click", async () => {
       const acao = button.dataset.acao;
@@ -580,6 +583,13 @@ function handleIndexTransferenciaChange() {
     .then(() => fusaoState.fornos.forEach((forno) => renderFornoCard(forno).catch(() => {})))
     .catch(() => {});
 }
+// Mensagem nova (ex.: mandada pela Ponte) — redesenha só o card do forno
+// dessa corrida, achado pelo data-forno-id já gravado no card.
+function handleIndexMensagemInsert(payload) {
+  const inline = fq(`.fusao-corrida-inline[data-corrida-id="${payload.new?.corrida_id}"]`);
+  const forno = inline ? fusaoState.fornos.find((f) => f.id === Number(inline.dataset.fornoId)) : null;
+  if (forno) renderFornoCard(forno).catch(() => {});
+}
 // Local + Realtime podem chamar isso quase ao mesmo tempo (ex.: acabou de
 // criar a corrida e o evento da própria criação chega logo em seguida) —
 // sem essa trava, as duas chamadas se intercalam (innerHTML de uma limpa
@@ -627,6 +637,7 @@ async function initializeFusaoIndex() {
     .on("postgres_changes", { event: "*", schema: "public", table: "corridas_fusao_carga_itens" }, handleIndexCargaItemChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "corridas_fusao" }, handleIndexCorridaChange)
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "transferencias_fusao" }, handleIndexTransferenciaChange)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_mensagens" }, handleIndexMensagemInsert)
     .subscribe();
   window.addEventListener("pagehide", () => window.supabaseClient.removeChannel(canalIndex), { once: true });
   // Rede de segurança: cobre só o caso raro de perder um evento (reconexão).
@@ -785,6 +796,12 @@ async function refreshMovimentosCarga() {
   fusaoCorridaCache.transferencias = transferencias;
   renderMovimentosCarga(fusaoCorridaCache.corrida, transferencias);
 }
+async function refreshMensagensCorrida() {
+  const id = fusaoCorridaId();
+  const mensagens = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.mensagensDaCorrida(id);
+  fq("#mensagens-painel").innerHTML = fusaoMensagensPainelHtml(id, mensagens);
+  fusaoBindMensagens(fq("#mensagens-painel .fusao-mensagens"));
+}
 function handleAdicaoRealtimeInsert(payload) {
   const novo = payload.new;
   const material = fusaoState.materiais.find((m) => m.id === novo.material_id);
@@ -805,16 +822,19 @@ async function renderAdicoes(adicoes) {
 }
 async function loadCorridaDetail() {
   const id = fusaoCorridaId();
-  const [corrida, itens, adicoes, transferencias] = await Promise.all([
+  const [corrida, itens, adicoes, transferencias, mensagens] = await Promise.all([
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.corrida(id),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.cargaItens(id),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.adicoes(id),
-    window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferenciasDaCorrida(id)
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferenciasDaCorrida(id),
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.mensagensDaCorrida(id)
   ]);
   if (!corrida) { fq("#corrida-titulo").textContent = "Corrida não encontrada"; return; }
   fusaoCorridaCache.corrida = corrida;
   fusaoCorridaCache.itens = itens;
   fusaoCorridaCache.transferencias = transferencias;
+  fq("#mensagens-painel").innerHTML = fusaoMensagensPainelHtml(id, mensagens);
+  fusaoBindMensagens(fq("#mensagens-painel .fusao-mensagens"));
   fq("#corrida-titulo").textContent = `Corrida ${corrida.codigo}`;
   fq("#corrida-subtitulo").textContent = `${corrida.fornos_fusao?.nome || ""} · ${corrida.turno} · ${new Date(`${corrida.data_operacional}T12:00:00`).toLocaleDateString("pt-BR")}`;
   fq("#corrida-codigo").textContent = corrida.codigo;
@@ -887,6 +907,7 @@ async function initializeFusaoCorrida() {
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_adicoes", filter: `corrida_id=eq.${corridaId}` }, handleAdicaoRealtimeInsert)
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "transferencias_fusao", filter: `corrida_origem_id=eq.${corridaId}` }, () => refreshMovimentosCarga().catch(() => {}))
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "transferencias_fusao", filter: `corrida_destino_id=eq.${corridaId}` }, () => refreshMovimentosCarga().catch(() => {}))
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_mensagens", filter: `corrida_id=eq.${corridaId}` }, () => refreshMensagensCorrida().catch(() => {}))
     .subscribe();
   window.addEventListener("pagehide", () => window.supabaseClient.removeChannel(canal), { once: true });
   // Rede de segurança: o realtime cobre o dia a dia; se algum evento se
@@ -993,6 +1014,60 @@ function ponteLogHtml(log) {
   if (!log?.length) return `<span class="production-muted">Nenhuma entrega registrada ainda.</span>`;
   return log.map(ponteLogEntradaHtml).join("");
 }
+// Quadro de recados da corrida — comunicação entre quem planeja e quem
+// pesa na Ponte. Simples de propósito: sem "lido/não lido", só a lista
+// com quem escreveu, quando e o quê.
+function fusaoMensagemHtml(mensagem) {
+  const hora = new Date(mensagem.criado_em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return `<p class="fusao-mensagem"><strong>${fEsc(mensagem.usuarios?.nome || "—")}</strong> <span class="production-muted">(${hora})</span>: ${fEsc(mensagem.mensagem)}</p>`;
+}
+function fusaoMensagensListaHtml(mensagens) {
+  if (!mensagens?.length) return `<p class="production-muted fusao-mensagens-vazio">Nenhuma mensagem ainda.</p>`;
+  return mensagens.map(fusaoMensagemHtml).join("");
+}
+function fusaoMensagensPainelHtml(corridaId, mensagens) {
+  return `<div class="fusao-mensagens" data-corrida-id="${corridaId}">
+      <div class="fusao-mensagens-lista">${fusaoMensagensListaHtml(mensagens)}</div>
+      <div class="fusao-mensagem-form">
+        <input type="text" class="fusao-mensagem-input" maxlength="500" placeholder="Falar com quem planeja/pesa esta corrida...">
+        <button type="button" class="button button-secondary" data-enviar-mensagem>Enviar</button>
+      </div>
+    </div>`;
+}
+// Liga o botão/Enter de um painel de mensagens — reaproveitado nas 3 telas
+// (Ponte, card do forno, corrida).
+function fusaoBindMensagens(painel) {
+  if (!painel || painel.dataset.bound) return;
+  painel.dataset.bound = "1";
+  const corridaId = Number(painel.dataset.corridaId);
+  const input = painel.querySelector(".fusao-mensagem-input");
+  const botao = painel.querySelector("[data-enviar-mensagem]");
+  const enviar = async () => {
+    const texto = input.value.trim();
+    if (!texto) { input.focus(); return; }
+    input.disabled = true; botao.disabled = true;
+    try {
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.enviarMensagemCorrida(corridaId, texto);
+      // Mostra na hora, sem esperar Realtime/poll — o foco continua no
+      // campo depois de enviar, e a atualização automática das outras
+      // telas não mexe em quem está digitando (por design).
+      const lista = painel.querySelector(".fusao-mensagens-lista");
+      if (lista.querySelector(".fusao-mensagens-vazio")) lista.innerHTML = "";
+      lista.insertAdjacentHTML("beforeend", fusaoMensagemHtml({
+        mensagem: texto, criado_em: new Date().toISOString(), usuarios: { nome: fusaoState.userNome }
+      }));
+      lista.scrollTop = lista.scrollHeight;
+      input.value = "";
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      input.disabled = false; botao.disabled = false;
+      input.focus();
+    }
+  };
+  botao.addEventListener("click", enviar);
+  input.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); enviar(); } });
+}
 // Item concluído trava a célula de entrega igual acontece nas telas do
 // supervisor: a caixa de digitar some, e quem quiser lançar mais precisa
 // confirmar "Colocar carga" antes (evita passar do planejado sem querer).
@@ -1030,20 +1105,22 @@ function pontePreencherCorrida(container, corrida) {
           <td class="fusao-ponte-status-cell">${ponteStatusHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}</td>
         </tr>
         <tr class="fusao-ponte-log-row"><td colspan="6"><div class="fusao-ponte-log" data-log-item-id="${item.id}">${ponteLogHtml(item.corridas_fusao_pesagens_ponte_log)}</div></td></tr>`).join("")}</tbody></table>
+      ${fusaoMensagensPainelHtml(corrida.id, corrida.corridas_fusao_mensagens)}
     </article>`);
 }
 // Bipa quando: uma corrida nova aparece nesse carro, um material novo é
-// incluído na carga de uma corrida já aberta, ou o planejado de um
-// material muda (pedido explícito) — nunca no carregamento inicial da
-// página, só em cima do que já era conhecido.
+// incluído na carga de uma corrida já aberta, o planejado de um material
+// muda, ou chega mensagem nova (pedido explícito) — nunca no carregamento
+// inicial da página, só em cima do que já era conhecido.
 const fusaoPonteConhecidos = {};
 function fusaoPonteDetectarNovidade(carro, corridas) {
-  const atual = { corridas: new Set(), planejados: new Map() };
+  const atual = { corridas: new Set(), planejados: new Map(), mensagens: new Map() };
   for (const corrida of corridas) {
     atual.corridas.add(corrida.id);
     for (const item of (corrida.corridas_fusao_carga_itens || []).filter(fusaoItemVaiParaPonte)) {
       atual.planejados.set(item.id, fNumber(item.quantidade_planejada_kg));
     }
+    atual.mensagens.set(corrida.id, (corrida.corridas_fusao_mensagens || []).length);
   }
   const anterior = fusaoPonteConhecidos[carro];
   let novidade = false;
@@ -1051,6 +1128,9 @@ function fusaoPonteDetectarNovidade(carro, corridas) {
     for (const id of atual.corridas) if (!anterior.corridas.has(id)) novidade = true;
     for (const [itemId, planejado] of atual.planejados) {
       if (!anterior.planejados.has(itemId) || anterior.planejados.get(itemId) !== planejado) novidade = true;
+    }
+    for (const [corridaId, total] of atual.mensagens) {
+      if ((anterior.mensagens.get(corridaId) ?? 0) < total) novidade = true;
     }
   }
   fusaoPonteConhecidos[carro] = atual;
@@ -1065,6 +1145,7 @@ async function loadPonteCarro(carro) {
   container.innerHTML = "";
   for (const corrida of corridas) pontePreencherCorrida(container, corrida);
   fq(`[data-empty-carro="${carro}"]`).hidden = container.children.length > 0;
+  container.querySelectorAll(".fusao-mensagens").forEach(fusaoBindMensagens);
   const confirmarEntrega = async (row) => {
     const input = row.querySelector(".fusao-entrega-input");
     const valor = Number(input.value);

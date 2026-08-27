@@ -94,16 +94,25 @@
     transferirMetal: (corridaOrigemId, fornoDestinoId, quantidade) => result(client().rpc("transferir_metal_fusao", {
       p_corrida_origem_id: corridaOrigemId, p_forno_destino_id: fornoDestinoId, p_quantidade_kg: quantidade
     }), null),
+    // Quadro de recados da corrida — comunicação entre quem planeja e quem
+    // pesa na Ponte, nos dois sentidos.
+    mensagensDaCorrida: (corridaId) => result(client().from("corridas_fusao_mensagens")
+      .select("id,mensagem,criado_em,usuarios(nome)")
+      .eq("corrida_id", corridaId).order("criado_em")),
+    enviarMensagemCorrida: (corridaId, mensagem) => result(client().rpc("enviar_mensagem_corrida_fusao", {
+      p_corrida_id: corridaId, p_mensagem: mensagem
+    }), null),
     // Ponte: corridas abertas dos fornos de um carro (1 ou 2), com a carga
     // de cada uma — a tela agrupa por forno e mostra planejado × real.
     corridasAbertasPorCarro: async (carro) => {
       const response = await client().from("corridas_fusao")
-        .select("id,codigo,forno_id,turno,fornos_fusao!inner(nome,carro),corridas_fusao_carga_itens(id,material_id,quantidade_planejada_kg,quantidade_realizada_kg,estado_fisico,materiais_fusao(nome,tipo,modo_pesagem),corridas_fusao_pesagens_ponte_log(quantidade_kg,registrado_em,usuarios(nome)))")
+        .select("id,codigo,forno_id,turno,fornos_fusao!inner(nome,carro),corridas_fusao_carga_itens(id,material_id,quantidade_planejada_kg,quantidade_realizada_kg,estado_fisico,materiais_fusao(nome,tipo,modo_pesagem),corridas_fusao_pesagens_ponte_log(quantidade_kg,registrado_em,usuarios(nome))),corridas_fusao_mensagens(id,mensagem,criado_em,usuarios(nome))")
         .eq("status", "ABERTA").eq("fornos_fusao.carro", carro)
         // Mesma ordem de inserção que o supervisor montou na carga (aço,
         // gusa, aço, gusa...) — não pode ficar mudando pro operador da ponte.
         .order("id", { foreignTable: "corridas_fusao_carga_itens" })
         .order("registrado_em", { foreignTable: "corridas_fusao_carga_itens.corridas_fusao_pesagens_ponte_log", ascending: false })
+        .order("criado_em", { foreignTable: "corridas_fusao_mensagens" })
         .order("codigo");
       if (response.error) throw response.error;
       return response.data ?? [];
