@@ -233,6 +233,12 @@ function fusaoFormaCarregamentoHtml(item) {
   if (modo === "CARRO") return `<span class="fusao-forma-badge fusao-forma-carro">Carro</span>`;
   return `<span class="fusao-forma-badge fusao-forma-direto">Direto</span>`;
 }
+// Remover só é oferecido enquanto nada foi pesado ainda — depois de
+// qualquer pesagem, o material fica preso ao histórico da corrida.
+function fusaoRemoverItemBtnHtml(item) {
+  if (fNumber(item.quantidade_realizada_kg) > 0) return "";
+  return `<button type="button" class="fusao-remover-x fusao-remover-item" data-item-id="${item.id}" title="Remover material planejado">✕</button>`;
+}
 function fusaoCardRowHtml(item) {
   const viaPonte = fusaoItemVaiParaPonte(item);
   return `<tr data-item-id="${item.id}" data-planejado="${item.quantidade_planejada_kg}" data-realizado="${item.quantidade_realizada_kg ?? ""}">
@@ -242,7 +248,7 @@ function fusaoCardRowHtml(item) {
       <td>${viaPonte
         ? (item.quantidade_realizada_kg != null ? fNumber(item.quantidade_realizada_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—")
         : fusaoEditableCellHtml("realizado", item)}</td>
-      <td>${fusaoProgressoHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}</td>
+      <td class="fusao-progresso-cell">${fusaoProgressoHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}${fusaoRemoverItemBtnHtml(item)}</td>
     </tr>`;
 }
 // Transferência vira linha no topo da tabela de materiais do card — mesmas
@@ -250,12 +256,13 @@ function fusaoCardRowHtml(item) {
 // (pra onde foi); entrada mostra a corrida de origem (de onde veio).
 function fusaoTransferenciaCardRowHtml(direcao, transferencia) {
   const rotulo = direcao === "saida" ? "Saída" : "Entrada";
-  return `<tr class="fusao-transferencia-row fusao-transferencia-${direcao}">
-      <td>TRANSFERÊNCIA (${rotulo}) ${fEsc(fusaoCodigoCorridaMascarado(transferencia.corridaCodigo) || "—")}</td>
-      <td></td>
-      <td></td>
-      <td>${fNumber(transferencia.quantidade_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
-      <td></td>
+  return `<tr class="fusao-transferencia-row fusao-transferencia-${direcao}" data-transferencia-id="${transferencia.id}" data-quantidade-kg="${fNumber(transferencia.quantidade_kg)}">
+      <td colspan="3">TRANSFERÊNCIA (${rotulo}) ${fEsc(fusaoCodigoCorridaMascarado(transferencia.corridaCodigo) || "—")}</td>
+      <td><span class="fusao-transferencia-display">${fNumber(transferencia.quantidade_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</span></td>
+      <td class="fusao-transferencia-acoes">
+        <button type="button" class="fusao-editar-transferencia" title="Editar quantidade">...</button>
+        <button type="button" class="fusao-remover-x fusao-remover-transferencia" title="Remover transferência">✕</button>
+      </td>
     </tr>`;
 }
 function fusaoTabelaTotalRowHtml(itens) {
@@ -281,18 +288,6 @@ function fusaoTabelasCargaHtml(itens, transferencias) {
       ${itens.length ? `<tfoot>${fusaoTabelaTotalRowHtml(itens)}</tfoot>` : ""}</table>`;
   return { carregamentoConcluido, html };
 }
-// Sobra herdada + transferências viram linha na carga, igual um material —
-// só que numa mini-tabela à parte (não fazem parte da tabela Ponte/Direto).
-function fusaoMovimentoRowHtml(label, quantidadeKg) {
-  return `<tr class="fusao-movimento-row"><td><strong>${fusaoKg(quantidadeKg)} kg</strong> — ${label}</td></tr>`;
-}
-function fusaoMovimentosLinhas(corrida, transferencias) {
-  const linhas = [];
-  if (fNumber(corrida.sobra_inicial_kg) > 0) linhas.push(fusaoMovimentoRowHtml("Sobra do forno", corrida.sobra_inicial_kg));
-  (transferencias?.entradas || []).forEach((t) => linhas.push(fusaoMovimentoRowHtml(`↓ Entrada — Corrida ${fEsc(fusaoCodigoCorridaMascarado(t.corridaCodigo) || "—")}`, t.quantidade_kg)));
-  (transferencias?.saidas || []).forEach((t) => linhas.push(fusaoMovimentoRowHtml(`↑ Saída — Corrida ${fEsc(fusaoCodigoCorridaMascarado(t.corridaCodigo) || "—")}`, t.quantidade_kg)));
-  return linhas;
-}
 // Resumo compacto no topo do card — pedido explícito: peso inicial = sobra
 // da corrida anterior; entrada = volume carregado nesta corrida (pesagem
 // Ponte/direto) + recebido por transferência (pra fechar a conta certinho
@@ -305,7 +300,7 @@ function fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtual
   const entrada = totalCarregado + totalRecebido;
   const saida = (transferencias?.saidas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0);
   const kg = (valor) => `${fusaoKg(valor)}<span class="fusao-resumo-unidade">Kg</span>`;
-  return `<div class="fusao-resumo-corrida">
+  return `<div class="fusao-resumo-corrida" data-peso-inicial="${pesoInicial}" data-saida-kg="${saida}">
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Peso Inicial</span><strong class="fusao-resumo-valor fusao-resumo-inicial">${kg(pesoInicial)}</strong></div>
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Entrada</span><strong class="fusao-resumo-valor fusao-resumo-entrada">${kg(entrada)}</strong></div>
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Saída</span><strong class="fusao-resumo-valor fusao-resumo-saida">${kg(saida)}</strong></div>
@@ -366,6 +361,23 @@ function atualizarBadgeCarregamento(cardContainer) {
   const totalRealizadoEl = cardContainer.querySelector(".fusao-total-realizado");
   if (totalPlanejadoEl) totalPlanejadoEl.textContent = fusaoKg(planejado);
   if (totalRealizadoEl) totalRealizadoEl.textContent = fusaoKg(realizado);
+  // Entrada/Volume atual do resumo (topo do card) dependem do realizado —
+  // sem isso só atualizavam recarregando a página (pedido explícito).
+  const resumoEl = cardContainer.querySelector(".fusao-resumo-corrida");
+  const entradaEl = cardContainer.querySelector(".fusao-resumo-entrada");
+  if (resumoEl && entradaEl) {
+    const totalRecebido = [...cardContainer.querySelectorAll(".fusao-transferencia-entrada[data-quantidade-kg]")]
+      .reduce((soma, row) => soma + fNumber(row.dataset.quantidadeKg), 0);
+    const entrada = realizado + totalRecebido;
+    const kg = (valor) => `${fusaoKg(valor)}<span class="fusao-resumo-unidade">Kg</span>`;
+    entradaEl.innerHTML = kg(entrada);
+    const volumeEl = cardContainer.querySelector(".fusao-resumo-volume");
+    if (volumeEl) {
+      const pesoInicial = fNumber(resumoEl.dataset.pesoInicial);
+      const saida = fNumber(resumoEl.dataset.saidaKg);
+      volumeEl.innerHTML = kg(pesoInicial + entrada - saida);
+    }
+  }
 }
 const FUSAO_EDITABLE_RPC = {
   planejado: (corridaId, itemId, valor) => window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarPlanejado(corridaId, itemId, valor),
@@ -376,11 +388,14 @@ const FUSAO_EDITABLE_RPC = {
 // muda sem clicar em Salvar, igual ao "OK" da tela da Ponte.
 function bindEditableToggle(cell, corridaId, onSaved) {
   const toggle = cell.querySelector(".fusao-editable-toggle");
+  toggle.dataset.mode = "editar";
   toggle.addEventListener("click", async () => {
-    if (toggle.textContent === "Editar") {
+    if (toggle.dataset.mode === "editar") {
       cell.querySelector(".fusao-editable-display").outerHTML =
         `<input type="number" min="0" step="0.01" class="fusao-editable-input" value="${cell.dataset.valor}">`;
-      toggle.textContent = "Salvar";
+      toggle.dataset.mode = "salvar";
+      toggle.textContent = "OK";
+      toggle.title = "Salvar";
       cell.querySelector(".fusao-editable-input").focus();
       return;
     }
@@ -393,7 +408,9 @@ function bindEditableToggle(cell, corridaId, onSaved) {
       await FUSAO_EDITABLE_RPC[kind](corridaId, itemId, valor);
       cell.dataset.valor = valor ?? "";
       input.outerHTML = `<span class="fusao-editable-display">${valor != null ? fNumber(valor).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—"}</span>`;
-      toggle.textContent = "Editar";
+      toggle.dataset.mode = "editar";
+      toggle.textContent = "...";
+      toggle.title = "Editar";
       onSaved?.(cell, kind, valor);
     } catch (error) {
       alert(error.message);
@@ -438,6 +455,77 @@ function bindCorridaCard(container, forno) {
   const corridaId = Number(container.querySelector(".fusao-corrida-inline")?.dataset.corridaId);
   bindEditableCells(container, corridaId, fusaoOnSavedCard(container));
   fusaoBindMensagens(container.querySelector(".fusao-mensagens"));
+  // Delegado no container (sobrevive a re-render parcial da tabela ao
+  // incluir material) — remove só o que ainda não foi pesado.
+  container.addEventListener("click", async (event) => {
+    const botao = event.target.closest(".fusao-remover-item");
+    if (!botao) return;
+    if (!confirm("Remover este material planejado? Essa ação não pode ser desfeita.")) return;
+    const mensagem = container.querySelector(".fusao-forno-message");
+    if (mensagem) mensagem.hidden = true;
+    const itemId = Number(botao.dataset.itemId);
+    botao.disabled = true;
+    try {
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.removerItemCarga(corridaId, itemId);
+      botao.closest("tr")?.remove();
+      atualizarBadgeCarregamento(container);
+    } catch (error) {
+      botao.disabled = false;
+      if (mensagem) { mensagem.textContent = error.message; mensagem.className = "form-message error"; mensagem.hidden = false; }
+      else alert(error.message);
+    }
+  });
+  // Remover/editar transferência — só funciona (a validação real é no RPC)
+  // enquanto origem e destino ainda estiverem abertas. Depois de qualquer
+  // mudança, redesenha todos os cards: a transferência mexe no resumo
+  // (Entrada/Saída/Volume atual) dos dois fornos envolvidos.
+  container.addEventListener("click", async (event) => {
+    const removerBtn = event.target.closest(".fusao-remover-transferencia");
+    const editarBtn = event.target.closest(".fusao-editar-transferencia");
+    if (!removerBtn && !editarBtn) return;
+    const linha = (removerBtn || editarBtn).closest("tr");
+    const transferenciaId = Number(linha?.dataset.transferenciaId);
+    const mensagem = container.querySelector(".fusao-forno-message");
+    const atualizarTudo = async () => {
+      if (mensagem) mensagem.hidden = true;
+      await refreshVolumeAtual();
+      await Promise.all(fusaoState.fornos.map((f) => renderFornoCard(f).catch(() => {})));
+    };
+    if (removerBtn) {
+      if (!confirm("Remover esta transferência? Só é possível enquanto as duas corridas envolvidas estiverem abertas.")) return;
+      removerBtn.disabled = true;
+      try {
+        await window.LIDUTEC_PRODUCAO_FUSAO_DATA.removerTransferencia(transferenciaId);
+        await atualizarTudo();
+      } catch (error) {
+        removerBtn.disabled = false;
+        if (mensagem) { mensagem.textContent = error.message; mensagem.className = "form-message error"; mensagem.hidden = false; }
+        else alert(error.message);
+      }
+      return;
+    }
+    if (editarBtn.dataset.mode !== "salvar") {
+      linha.querySelector(".fusao-transferencia-display").outerHTML =
+        `<input type="number" min="0.01" step="0.01" class="fusao-transferencia-input" value="${linha.dataset.quantidadeKg}">`;
+      editarBtn.dataset.mode = "salvar";
+      editarBtn.textContent = "OK";
+      editarBtn.title = "Salvar";
+      linha.querySelector(".fusao-transferencia-input").focus();
+      return;
+    }
+    const input = linha.querySelector(".fusao-transferencia-input");
+    const quantidade = Number(input.value);
+    editarBtn.disabled = true; input.disabled = true;
+    try {
+      if (!quantidade || quantidade <= 0) throw new Error("Informe uma quantidade maior que zero.");
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.editarTransferencia(transferenciaId, quantidade);
+      await atualizarTudo();
+    } catch (error) {
+      editarBtn.disabled = false; input.disabled = false;
+      if (mensagem) { mensagem.textContent = error.message; mensagem.className = "form-message error"; mensagem.hidden = false; }
+      else alert(error.message);
+    }
+  });
   container.querySelectorAll("[data-acao]").forEach((button) => {
     button.addEventListener("click", async () => {
       const acao = button.dataset.acao;
@@ -748,14 +836,38 @@ function fusaoSaldoCell(planejado, realizado) {
   const cls = saldo < 0 ? "fusao-saldo-negativo" : "fusao-saldo-positivo";
   return `<span class="${cls}">${saldo.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</span>`;
 }
+function fusaoDataHoraCurta(iso) {
+  return iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+}
+// Quem planejou (criado_por, na inclusão) e quem pesou (agrupados numa
+// linha só, abaixo do material, pra não precisar de mais 2 colunas). Pesou
+// lista TODO MUNDO que contribuiu (log da Ponte, item pode ser pesado em
+// mais de uma leva por gente diferente) — se não tem log (item Direto,
+// editado de uma vez só), cai pra "quem editou por último".
+function fusaoOperadorInfoHtml(item) {
+  const planejou = item.criado_por_usuario?.nome
+    ? `Planejado por <strong>${fEsc(item.criado_por_usuario.nome)}</strong> (${fusaoDataHoraCurta(item.criado_em)})`
+    : null;
+  const log = item.corridas_fusao_pesagens_ponte_log || [];
+  let pesou = null;
+  if (log.length) {
+    const grupos = fusaoAgruparPesagens(log).map(fusaoResumoOperadorHtml).join(", ");
+    pesou = `Pesado por ${grupos}`;
+  } else if (item.quantidade_realizada_kg != null && item.atualizado_por_usuario?.nome) {
+    pesou = `Pesado por <strong>${fEsc(item.atualizado_por_usuario.nome)}</strong> (${fusaoDataHoraCurta(item.atualizado_em)})`;
+  }
+  const partes = [planejou, pesou].filter(Boolean);
+  return partes.length ? `<span class="production-muted fusao-operador-info">${partes.join(" · ")}</span>` : "";
+}
 function cargaRowHtml(item, podeEditar) {
   const estadoLabel = { SOLIDO: "Sólido", LIQUIDO: "Líquido" };
+  const info = fusaoOperadorInfoHtml(item);
   return `<tr data-item-id="${item.id}">
       <td>${fEsc(item.materiais_fusao?.nome || "")}${item.estado_fisico ? ` <span class="production-muted">(${estadoLabel[item.estado_fisico] || item.estado_fisico})</span>` : ""}</td>
       <td>${podeEditar ? fusaoEditableCellHtml("planejado", item) : fNumber(item.quantidade_planejada_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
       <td>${podeEditar ? fusaoEditableCellHtml("realizado", item) : (item.quantidade_realizada_kg != null ? fNumber(item.quantidade_realizada_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—")}</td>
       <td class="fusao-saldo-cell">${fusaoSaldoCell(item.quantidade_planejada_kg, item.quantidade_realizada_kg)}</td>
-    </tr>`;
+    </tr>${info ? `<tr class="fusao-info-row" data-item-id="${item.id}"><td colspan="4">${info}</td></tr>` : ""}`;
 }
 function cargaOnSaved(itens) {
   return (cell, kind, valor) => {
@@ -787,13 +899,12 @@ function patchCargaItemRow(item) {
   const row = fq(`#carga-rows tr[data-item-id="${item.id}"]`);
   if (row?.querySelector(".fusao-editable-input")) return;
   if (row) {
+    // A linha de info (planejado/pesado por) vem logo depois — some junto
+    // com a principal, senão fica uma duplicada quando reinsere as duas.
+    if (row.nextElementSibling?.classList.contains("fusao-info-row")) row.nextElementSibling.remove();
     row.outerHTML = cargaRowHtml(item, podeEditar);
   } else {
-    // Item novo vai antes das linhas de sobra/entrada/saída (que ficam
-    // sempre no fim da tabela).
-    const primeiraMovimento = fq("#carga-rows .fusao-movimento-row");
-    if (primeiraMovimento) primeiraMovimento.insertAdjacentHTML("beforebegin", cargaRowHtml(item, podeEditar));
-    else fq("#carga-rows").insertAdjacentHTML("beforeend", cargaRowHtml(item, podeEditar));
+    fq("#carga-rows").insertAdjacentHTML("beforeend", cargaRowHtml(item, podeEditar));
   }
   if (podeEditar) bindEditableCells(fq("#carga-rows"), fusaoCorridaId(), cargaOnSaved(fusaoCorridaCache.itens));
 }
@@ -802,11 +913,22 @@ function handleCargaItemRealtimeChange(payload) {
   const novo = payload.new;
   const material = fusaoState.materiais.find((m) => m.id === novo.material_id);
   const idx = fusaoCorridaCache.itens.findIndex((i) => i.id === novo.id);
+  const anterior = fusaoCorridaCache.itens[idx];
+  // Realtime só traz colunas cruas (uuid), não o nome já unido via join —
+  // se foi o próprio usuário que mexeu, já sabemos o nome; senão mantém o
+  // que já estava em cache (só fica desatualizado se for outro usuário
+  // pesando, corrige sozinho na próxima recarga/"Atualizar").
+  const atualizadoPorUsuario = novo.atualizado_por === fusaoState.user?.id
+    ? { nome: fusaoState.userNome }
+    : anterior?.atualizado_por_usuario ?? null;
   const item = {
     id: novo.id, material_id: novo.material_id,
     quantidade_planejada_kg: novo.quantidade_planejada_kg, quantidade_realizada_kg: novo.quantidade_realizada_kg,
-    estado_fisico: novo.estado_fisico,
-    materiais_fusao: material ? { nome: material.nome, tipo: material.tipo, modo_pesagem: material.modo_pesagem } : fusaoCorridaCache.itens[idx]?.materiais_fusao
+    estado_fisico: novo.estado_fisico, criado_em: novo.criado_em, atualizado_em: novo.atualizado_em,
+    criado_por_usuario: anterior?.criado_por_usuario ?? null,
+    atualizado_por_usuario: atualizadoPorUsuario,
+    corridas_fusao_pesagens_ponte_log: anterior?.corridas_fusao_pesagens_ponte_log,
+    materiais_fusao: material ? { nome: material.nome, tipo: material.tipo, modo_pesagem: material.modo_pesagem } : anterior?.materiais_fusao
   };
   if (idx >= 0) fusaoCorridaCache.itens[idx] = item; else fusaoCorridaCache.itens.push(item);
   patchCargaItemRow(item);
@@ -824,26 +946,35 @@ function handleCorridaRealtimeChange(payload) {
   renderCorridaStepper(fusaoCorridaCache.corrida);
   renderCorridaStatusActions(fusaoCorridaCache.corrida);
   renderCargaTable(fusaoCorridaCache.itens, fusaoCorridaCache.corrida);
-  renderMovimentosCarga(fusaoCorridaCache.corrida, fusaoCorridaCache.transferencias);
+  renderResumoCorrida();
   const adicaoForm = fq("#adicao-form");
   if (adicaoForm) adicaoForm.hidden = fusaoCorridaCache.corrida.status !== "ABERTA";
   const transferirPanel = fq("#transferir-panel");
   if (transferirPanel) transferirPanel.hidden = fusaoCorridaCache.corrida.status !== "ABERTA";
 }
-// Sobra herdada + transferências (entrada/saída) aparecem como linha na
-// carga, igual um material — anexadas no fim de #carga-rows.
-function renderMovimentosCarga(corrida, transferencias) {
-  const linhas = fusaoMovimentosLinhas(corrida, transferencias).map((tr) => tr.replace("<td>", `<td colspan="4">`));
-  fq("#carga-rows").querySelectorAll(".fusao-movimento-row").forEach((row) => row.remove());
-  fq("#carga-rows").insertAdjacentHTML("beforeend", linhas.join(""));
+// Mesmo resumo (Peso Inicial/Entrada/Saída/Volume atual) do card do forno,
+// agora também na tela da corrida — pedido explícito.
+function renderResumoCorrida() {
+  const el = fq("#corrida-resumo");
+  if (!el || !fusaoCorridaCache.corrida) return;
+  const volumeAtualKg = fusaoState.volumeAtual[fusaoCorridaCache.corrida.forno_id] ?? 0;
+  el.innerHTML = fusaoResumoCorridaHtml(fusaoCorridaCache.corrida, fusaoCorridaCache.itens, fusaoCorridaCache.transferencias, volumeAtualKg);
 }
-async function refreshMovimentosCarga() {
+async function refreshResumoCorrida() {
   const transferencias = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferenciasDaCorrida(fusaoCorridaId());
   fusaoCorridaCache.transferencias = transferencias;
-  renderMovimentosCarga(fusaoCorridaCache.corrida, transferencias);
+  await refreshVolumeAtual();
+  renderResumoCorrida();
 }
 async function refreshMensagensCorrida() {
   await fusaoAtualizarPainelMensagens(fusaoCorridaId());
+}
+// Nova entrega na Ponte pra um material desta corrida — recarrega a carga
+// pra "Pesado por" listar o novo nome/horário junto com quem já pesou.
+async function refreshCargaItens() {
+  const itens = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.cargaItens(fusaoCorridaId());
+  fusaoCorridaCache.itens = itens;
+  await renderCargaTable(itens, fusaoCorridaCache.corrida);
 }
 function handleAdicaoRealtimeInsert(payload) {
   const novo = payload.new;
@@ -885,7 +1016,7 @@ async function loadCorridaDetail() {
   renderCorridaStepper(corrida);
   renderCorridaStatusActions(corrida);
   await renderCargaTable(itens, corrida);
-  renderMovimentosCarga(corrida, transferencias);
+  renderResumoCorrida();
   await renderAdicoes(adicoes);
   const adicaoForm = fq("#adicao-form");
   if (adicaoForm) adicaoForm.hidden = corrida.status !== "ABERTA";
@@ -948,9 +1079,10 @@ async function initializeFusaoCorrida() {
     .on("postgres_changes", { event: "*", schema: "public", table: "corridas_fusao_carga_itens", filter: `corrida_id=eq.${corridaId}` }, handleCargaItemRealtimeChange)
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "corridas_fusao", filter: `id=eq.${corridaId}` }, handleCorridaRealtimeChange)
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_adicoes", filter: `corrida_id=eq.${corridaId}` }, handleAdicaoRealtimeInsert)
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: "transferencias_fusao", filter: `corrida_origem_id=eq.${corridaId}` }, () => refreshMovimentosCarga().catch(() => {}))
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: "transferencias_fusao", filter: `corrida_destino_id=eq.${corridaId}` }, () => refreshMovimentosCarga().catch(() => {}))
+    .on("postgres_changes", { event: "*", schema: "public", table: "transferencias_fusao", filter: `corrida_origem_id=eq.${corridaId}` }, () => refreshResumoCorrida().catch(() => {}))
+    .on("postgres_changes", { event: "*", schema: "public", table: "transferencias_fusao", filter: `corrida_destino_id=eq.${corridaId}` }, () => refreshResumoCorrida().catch(() => {}))
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_mensagens", filter: `corrida_id=eq.${corridaId}` }, () => refreshMensagensCorrida().catch(() => {}))
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_pesagens_ponte_log", filter: `corrida_id=eq.${corridaId}` }, () => refreshCargaItens().catch(() => {}))
     .subscribe();
   window.addEventListener("pagehide", () => window.supabaseClient.removeChannel(canal), { once: true });
   // Rede de segurança: o realtime cobre o dia a dia; se algum evento se
@@ -1052,16 +1184,42 @@ function fusaoBip() {
     oscillator.stop(fusaoAudioContext.currentTime + 0.35);
   } catch { /* navegador sem suporte a áudio — ignora */ }
 }
-function ponteLogEntradaHtml(entrada) {
-  const hora = new Date(entrada.registrado_em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-  const nome = fEsc(entrada.usuarios?.nome || entrada.nome || "—");
-  return `<span class="fusao-ponte-log-entry">${hora} — <strong>${nome}</strong>: +${fNumber(entrada.quantidade_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg</span>`;
+// Agrupa pesagens pelo mesmo operador — pedido explícito: o nome aparece
+// uma vez só, com o total pesado e o período (primeira à última leva), em
+// vez de repetir o nome/kg pra cada leva individual.
+function fusaoAgruparPesagens(log) {
+  const grupos = [];
+  const porNome = new Map();
+  for (const entrada of [...log].sort((a, b) => new Date(a.registrado_em) - new Date(b.registrado_em))) {
+    const nome = entrada.usuarios?.nome || entrada.nome || "—";
+    let grupo = porNome.get(nome);
+    if (!grupo) { grupo = { nome, entradas: [] }; porNome.set(nome, grupo); grupos.push(grupo); }
+    grupo.entradas.push(entrada);
+  }
+  return grupos;
+}
+function fusaoDataHoraVirgula(iso) {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}, ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+}
+function fusaoResumoOperadorHtml(grupo) {
+  const total = grupo.entradas.reduce((soma, e) => soma + fNumber(e.quantidade_kg), 0);
+  const totalTxt = `${fNumber(total).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg`;
+  const nome = `<strong>${fEsc(grupo.nome)}</strong>`;
+  if (grupo.entradas.length === 1) {
+    return `${nome} ${totalTxt} (${fusaoDataHoraVirgula(grupo.entradas[0].registrado_em)})`;
+  }
+  const inicio = fusaoDataHoraVirgula(grupo.entradas[0].registrado_em);
+  const fim = fusaoDataHoraVirgula(grupo.entradas[grupo.entradas.length - 1].registrado_em);
+  return `${nome} ${totalTxt} entre ${inicio} e ${fim}`;
 }
 // Rastreabilidade pedida explicitamente: precisa dar pra ver quem lançou
 // cada entrega, quanto e a que horas — não só o total acumulado.
 function ponteLogHtml(log) {
   if (!log?.length) return `<span class="production-muted">Nenhuma entrega registrada ainda.</span>`;
-  return log.map(ponteLogEntradaHtml).join("");
+  return fusaoAgruparPesagens(log).map((grupo) =>
+    `<span class="fusao-ponte-log-entry">${fusaoResumoOperadorHtml(grupo)}</span>`
+  ).join("");
 }
 // Quadro de recados da corrida — comunicação entre quem planeja e quem
 // pesa na Ponte. Simples de propósito: sem "lido/não lido", só a lista

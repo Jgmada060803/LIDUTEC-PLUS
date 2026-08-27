@@ -64,7 +64,7 @@
       };
     },
     cargaItens: (corridaId) => result(client().from("corridas_fusao_carga_itens")
-      .select("id,material_id,quantidade_planejada_kg,quantidade_realizada_kg,estado_fisico,materiais_fusao(nome,tipo,modo_pesagem)")
+      .select("id,material_id,quantidade_planejada_kg,quantidade_realizada_kg,estado_fisico,criado_em,atualizado_em,materiais_fusao(nome,tipo,modo_pesagem),criado_por_usuario:usuarios!criado_por(nome),atualizado_por_usuario:usuarios!atualizado_por(nome),corridas_fusao_pesagens_ponte_log(quantidade_kg,registrado_em,usuarios(nome))")
       .eq("corrida_id", corridaId).order("id")),
     adicoes: (corridaId) => result(client().from("corridas_fusao_adicoes")
       .select("id,material_id,quantidade_kg,adicionado_em,materiais_fusao(nome)")
@@ -72,6 +72,9 @@
     criarCorrida: (payload) => result(client().rpc("criar_corrida_fusao", payload), null),
     adicionarItemCarga: (corridaId, materialId, quantidade, estadoFisico) => result(client().rpc("adicionar_item_carga_fusao", {
       p_corrida_id: corridaId, p_material_id: materialId, p_quantidade_planejada_kg: quantidade, p_estado_fisico: estadoFisico
+    }), null),
+    removerItemCarga: (corridaId, itemId) => result(client().rpc("remover_item_carga_fusao", {
+      p_corrida_id: corridaId, p_item_id: itemId
     }), null),
     atualizarPesagem: (corridaId, itemId, quantidade) => result(client().rpc("atualizar_pesagem_carga_fusao", {
       p_corrida_id: corridaId, p_material_id: itemId, p_quantidade_realizada_kg: quantidade
@@ -93,6 +96,12 @@
     }), null),
     transferirMetal: (corridaOrigemId, fornoDestinoId, quantidade) => result(client().rpc("transferir_metal_fusao", {
       p_corrida_origem_id: corridaOrigemId, p_forno_destino_id: fornoDestinoId, p_quantidade_kg: quantidade
+    }), null),
+    editarTransferencia: (transferenciaId, quantidade) => result(client().rpc("editar_transferencia_fusao", {
+      p_transferencia_id: transferenciaId, p_quantidade_kg: quantidade
+    }), null),
+    removerTransferencia: (transferenciaId) => result(client().rpc("remover_transferencia_fusao", {
+      p_transferencia_id: transferenciaId
     }), null),
     // Quadro de recados da corrida — comunicação entre quem planeja e quem
     // pesa na Ponte, nos dois sentidos.

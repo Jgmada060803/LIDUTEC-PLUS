@@ -28,6 +28,9 @@
    passar o mouse perto. */
 .fusao-editable-toggle { border-color: transparent; color: #a7b0b8; }
 .fusao-editable-toggle:hover { border-color: var(--color-border); color: var(--color-text-muted); }
+/* "+" (colocar carga) sem contorno — pedido explícito. */
+.fusao-editable-unlock { border-color: transparent; }
+.fusao-editable-unlock:hover { border-color: var(--color-border); }
 .fusao-editable-locked .fusao-editable-display { color: var(--color-text-muted); }
 .fusao-corrida-inline .meta-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 .fusao-add-item-area { margin-top: 10px; }
@@ -36,22 +39,29 @@
 .fusao-codigo-info { grid-column: 1/-1; margin: 0 0 4px; font-size: .84rem; }
 .fusao-codigo-prefixo { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 8px; background: #eef1f4; color: var(--color-text-muted); font-weight: 800; }
 
-/* Tela da corrida: usa a largura toda (monitor/tablet de chão de fábrica),
-   sem o menu lateral — já tem "Voltar" no topo pra sair. */
+/* Tela de planejamento (index), corrida e ponte: usam a largura toda
+   (monitor/tablet de chão de fábrica), sem o menu lateral. */
+body[data-production-page="index"] .sidebar,
+body[data-production-page="index"] .menu-button { display: none; }
+body[data-production-page="index"] .app-shell { width: 100%; margin-left: 0; }
+
 body[data-production-page="corrida"] .sidebar,
 body[data-production-page="corrida"] .menu-button { display: none; }
 body[data-production-page="corrida"] .app-shell { width: 100%; margin-left: 0; }
 
-/* Pedido explícito: planejado/real/adicionado bem maiores (era 3x, depois
-   ajustado 30% menor = 2.1x), só o valor — os botões de Editar/Salvar
-   continuam no tamanho normal (têm font-size próprio, não herdam daqui) e
-   o campo de edição é resetado abaixo pra não estourar a largura fixa dele. */
-body[data-production-page="corrida"] #carga-rows td:nth-child(2),
-body[data-production-page="corrida"] #carga-rows td:nth-child(3),
-body[data-production-page="corrida"] #adicoes-rows td:nth-child(3) {
-  font-size: 2.1em;
-}
-body[data-production-page="corrida"] .fusao-editable-input { font-size: 1.2rem; }
+/* Tabela da corrida reformulada: planejado/real no mesmo tamanho da
+   descrição do material — nada mais em destaque que o resto (pedido
+   explícito, sem o 2.1x/1.4x de antes). */
+body[data-production-page="corrida"] #carga-rows td:nth-child(1) { font-weight: 600; }
+
+/* Resumo (Peso Inicial/Entrada/Saída/Volume atual) no topo da tabela da
+   corrida — mesmo componente do card, só que sem flutuar num canto. */
+#corrida-resumo .fusao-resumo-corrida { position: static; justify-content: flex-end; flex-wrap: wrap; gap: 16px 28px; margin: 0 0 14px; text-align: right; }
+
+/* Quem planejou/pesou cada material — linha pequena e discreta, agrupada
+   embaixo do material (pedido explícito, em vez de mais colunas). */
+.fusao-info-row td { padding-top: 0; padding-bottom: 8px; border-top: none; }
+.fusao-operador-info { font-size: .74rem; }
 
 /* Mesma coisa na Ponte: tela cheia sem menu lateral, e planejado/acumulado
    (o "real" de lá) 2.1x maiores — "Nova entrega" e os botões já têm
@@ -110,6 +120,25 @@ body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.
 .fusao-total-progresso .fusao-progress-track { height: 12px; }
 .fusao-total-progresso .fusao-progress-label { font-size: .92rem; }
 
+/* Botão "x" padrão — remover material planejado ou transferência, mesmo
+   tamanho/cor nos dois lugares, deslocado pro canto direito da linha. */
+.fusao-remover-x {
+  border: none; background: transparent; color: var(--color-text-muted);
+  cursor: pointer; font-size: .85rem; line-height: 1; width: 20px; height: 20px; padding: 0;
+}
+.fusao-remover-x:hover { color: var(--color-danger); }
+.fusao-progresso-cell { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* Editar transferência — mesmo padrão discreto, "..." fica à esquerda do
+   "x" no canto direito da linha. */
+.fusao-transferencia-acoes { display: flex; align-items: center; justify-content: space-between; white-space: nowrap; }
+.fusao-editar-transferencia {
+  border: none; background: transparent; color: var(--color-text-muted);
+  cursor: pointer; font-size: .85rem; line-height: 1; padding: 0 3px;
+}
+.fusao-editar-transferencia:hover { color: var(--color-text); }
+.fusao-transferencia-input { width: 90px; min-height: 26px; padding: 2px 6px; border: 1px solid var(--color-border); border-radius: 6px; }
+
 /* Produto/início/fim — texto secundário, discreto. Início/fim deslocado
    pra direita, separado do produto. */
 .fusao-corrida-meta { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; color: var(--color-text-muted); }
@@ -122,11 +151,6 @@ body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.
 /* Volume atual do forno — sempre visível, com/sem corrida aberta; se
    destaca do resto do card por ser o número que importa de longe. */
 .fusao-volume-atual-linha { margin: 0 0 14px; padding: 8px 12px; border-radius: 8px; background: var(--color-primary-light); color: var(--color-primary); font-size: .88rem; font-weight: 800; }
-
-/* Sobra/entrada/saída (corrida.html) — linha "como material", mas com fundo
-   diferente pra deixar claro que não é um material pesado, e sim metal
-   movimentado. */
-.fusao-movimento-row td { background: #f6f8fa; font-style: italic; }
 
 /* Transferência na tabela do card — sem fundo pintado, só a cor da fonte
    diferencia: vermelho saída, verde entrada. Seletor mais específico que
@@ -144,8 +168,21 @@ body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.
 .fusao-tabelas-carga td:nth-child(3) { color: var(--color-primary); font-weight: 900; }
 .fusao-tabelas-carga td:nth-child(4) { color: var(--color-text); font-weight: 900; }
 
-/* Linha de material mais compacta (pedido explícito). */
-.fusao-tabelas-carga table.products-table td, .fusao-tabelas-carga table.products-table th { padding: 6px 10px; }
+/* Linha de material tipo planilha — compacta, mas com um respiro pra não
+   embolar (calibrado depois do primeiro corte ter ficado apertado demais). */
+.fusao-tabelas-carga table.products-table td, .fusao-tabelas-carga table.products-table th { padding: 5px 8px; line-height: 1.3; }
+
+/* Transferência aproveita o espaço das 3 primeiras colunas (mescladas) e
+   não quebra linha — pedido explícito. */
+.fusao-tabelas-carga tr.fusao-transferencia-row td[colspan] { white-space: nowrap; }
+
+/* Botões/input da célula editável também encolhem no card, senão a altura
+   deles força a linha a ficar mais alta que o resto da planilha. */
+.fusao-tabelas-carga .fusao-editable-toggle,
+.fusao-tabelas-carga .fusao-editable-unlock { min-height: 24px; padding: 1px 8px; }
+.fusao-tabelas-carga .fusao-editable-input { min-height: 26px; padding: 2px 6px; }
+.fusao-tabelas-carga .fusao-progress-track { height: 7px; }
+.fusao-tabelas-carga .fusao-forma-badge { padding: 2px 8px; }
 
 /* Cabeçalho da tabela de materiais do card — cor da paleta do sistema. */
 .fusao-tabelas-carga table.products-table thead th {
