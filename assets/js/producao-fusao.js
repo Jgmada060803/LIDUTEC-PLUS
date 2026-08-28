@@ -30,17 +30,28 @@ function fusaoCodigoCorridaMascarado(codigo) {
 }
 
 async function loadFusaoSupport() {
-  const [materiais, fornos, produtos, volumeRows] = await Promise.all([
+  const [materiais, fornos, produtos, volumeRows, tiposMaterial] = await Promise.all([
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.materiais(true),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.fornos(),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.produtos(),
-    window.LIDUTEC_PRODUCAO_FUSAO_DATA.volumeAtualFornos()
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.volumeAtualFornos(),
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.tiposMaterialProdutos()
   ]);
   fusaoState.materiais = materiais;
   fusaoState.produtos = produtos;
   fusaoState.volumeAtual = Object.fromEntries(volumeRows.map((row) => [row.forno_id, row.volume_atual_kg]));
+  // "Ferro base" no cabeçalho do card da Ponte — Tipo de material da ficha
+  // técnica vigente do produto (Cinzento/Nodular).
+  fusaoState.tipoMaterialPorProduto = Object.fromEntries(tiposMaterial.map((row) => [row.produto_id, row.tipo_material]));
   // Fusão em cima, Holding embaixo — os dois elaboram corrida própria.
   fusaoState.fornos = [...fornos].sort((a, b) => a.tipo === b.tipo ? a.codigo.localeCompare(b.codigo) : a.tipo === "FUSAO" ? -1 : 1);
+}
+// A ficha técnica às vezes traz o "Tipo de material" com prefixo tipo
+// "F°F° Cinzento" — pedido explícito: mostrar só "Cinzento"/"Nodular",
+// sem essa marcação (maiúsculo vem via CSS, não aqui).
+function fusaoLimparFerroBase(texto) {
+  if (!texto) return "—";
+  return texto.replace(/^f\s*[°ºo.]\s*f\s*[°ºo.]\s*/i, "").trim() || "—";
 }
 // Volume atual muda com pesagens, fechamento e transferências — recarregado
 // só depois de ações que mexem nele (não fica reconsultando à toa).
@@ -57,26 +68,161 @@ async function refreshVolumeAtual() {
 function fusaoMaterialOptions() {
   return fusaoState.materiais.map((m) => `<option value="${m.id}">${fEsc(m.nome)}</option>`).join("");
 }
-function fusaoProdutoOptions() {
-  return fusaoState.produtos.map((p) => `<option value="${p.id}">${fEsc(p.codigo)} — ${fEsc(p.nome)}</option>`).join("");
+// Caixa de produto: campo de texto com lista de sugestões filtrada em JS —
+// pedido explícito (digitar e aparecer as opções). <datalist> nativo foi
+// testado antes, mas o filtro por navegador é inconsistente (alguns só
+// mostram a lista inteira, igual um select); esse combobox próprio garante
+// o comportamento certo em qualquer navegador.
+// Combobox genérico (input de texto + sugestões filtradas em JS) — usado
+// tanto pro produto quanto pro material agora ("igual o produto", pedido
+// explícito). Cada uso passa sua própria lista/texto/callback de seleção.
+function fusaoComboboxHtml(inputClass, valorInicial, inputAttrs, placeholder) {
+  return `<span class="fusao-combobox">
+      <input type="text" class="fusao-combobox-input ${inputClass}" autocomplete="off" placeholder="${placeholder}" value="${fEsc(valorInicial)}" ${inputAttrs}>
+      <ul class="fusao-combobox-sugestoes" hidden></ul>
+    </span>`;
+}
+function bindCombobox(wrapper, { itens, textoFn, onSelecionado }) {
+  if (!wrapper || wrapper.dataset.bound) return;
+  wrapper.dataset.bound = "1";
+  const input = wrapper.querySelector(".fusao-combobox-input");
+  const lista = wrapper.querySelector(".fusao-combobox-sugestoes");
+  let encontrados = [];
+  const atualizarSugestoes = () => {
+    const termo = input.value.trim().toLowerCase();
+    encontrados = (termo ? itens().filter((it) => textoFn(it).toLowerCase().includes(termo)) : itens()).slice(0, 8);
+    if (!encontrados.length) { lista.hidden = true; lista.innerHTML = ""; return; }
+    lista.innerHTML = encontrados.map((it, indice) => `<li data-indice="${indice}">${fEsc(textoFn(it))}</li>`).join("");
+    lista.hidden = false;
+  };
+  input.addEventListener("input", () => { delete input.dataset.selecionadoId; atualizarSugestoes(); onSelecionado?.(null); });
+  input.addEventListener("focus", atualizarSugestoes);
+  // mousedown (não click) dispara antes do blur do input, senão a lista
+  // some antes do clique ser processado.
+  lista.addEventListener("mousedown", (event) => {
+    const li = event.target.closest("li");
+    if (!li) return;
+    event.preventDefault();
+    const item = encontrados[Number(li.dataset.indice)];
+    if (!item) return;
+    input.value = textoFn(item);
+    input.dataset.selecionadoId = String(item.id);
+    lista.hidden = true;
+    onSelecionado?.(item);
+  });
+  // Sai do campo sem escolher nada da lista (nem digitar o texto exato de
+  // um item existente) -> limpa, não deixa um valor "meio digitado" parecendo
+  // válido. O timeout dá tempo do mousedown da sugestão rodar antes do blur.
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      lista.hidden = true;
+      const idValido = input.dataset.selecionadoId && itens().some((it) => String(it.id) === input.dataset.selecionadoId);
+      if (idValido) return;
+      const alvo = input.value.trim();
+      const encontrado = itens().find((it) => textoFn(it) === alvo);
+      if (encontrado) {
+        input.dataset.selecionadoId = String(encontrado.id);
+        return;
+      }
+      input.value = "";
+      delete input.dataset.selecionadoId;
+      onSelecionado?.(null);
+    }, 150);
+  });
+}
+// Item escolhido pra esse campo — prioriza o clique na sugestão (id gravado
+// no input); se digitou o texto certinho sem clicar, também aceita.
+function fusaoItemDoInput(input, itens, textoFn) {
+  if (input.dataset.selecionadoId) {
+    const item = itens().find((it) => String(it.id) === input.dataset.selecionadoId);
+    if (item) return item;
+  }
+  const alvo = input.value.trim();
+  return itens().find((it) => textoFn(it) === alvo) || null;
+}
+function fusaoProdutoTexto(produto) {
+  return produto ? `${produto.codigo} — ${produto.nome}` : "";
+}
+function fusaoProdutoComboboxHtml(valorInicial, inputAttrs) {
+  return fusaoComboboxHtml("fusao-produto-input", valorInicial, inputAttrs, "Digite o código ou nome");
+}
+function bindProdutoCombobox(wrapper) {
+  bindCombobox(wrapper, { itens: () => fusaoState.produtos, textoFn: fusaoProdutoTexto });
+}
+function fusaoProdutoDoInput(input) {
+  return fusaoItemDoInput(input, () => fusaoState.produtos, fusaoProdutoTexto);
+}
+function fusaoMaterialTexto(material) {
+  return material ? material.nome : "";
+}
+function fusaoMaterialComboboxHtml(valorInicial, inputAttrs) {
+  return fusaoComboboxHtml("fusao-material-input", valorInicial, inputAttrs, "Digite o nome do material");
+}
+function bindMaterialCombobox(wrapper, onSelecionado) {
+  bindCombobox(wrapper, { itens: () => fusaoState.materiais, textoFn: fusaoMaterialTexto, onSelecionado });
+}
+function fusaoMaterialDoInput(input) {
+  return fusaoItemDoInput(input, () => fusaoState.materiais, fusaoMaterialTexto);
 }
 function fusaoProdutoLabel(produto, destacarCodigo = false) {
   if (!produto) return "—";
   const codigo = destacarCodigo ? `<span class="fusao-produto-codigo-destaque">${fEsc(produto.codigo)}</span>` : fEsc(produto.codigo);
   return `${codigo} — ${fEsc(produto.nome)}`;
 }
+// Produto editável no card — pedido explícito: pode trocar mesmo depois da
+// corrida já ter começado (o RPC só exige que ela continue aberta).
+function fusaoProdutoEditavelHtml(corrida, produto) {
+  return `<span class="fusao-produto-editavel" data-corrida-id="${corrida.id}">
+      <strong class="fusao-produto-display">${fusaoProdutoLabel(produto, true)}</strong>
+      <button type="button" class="fusao-editable-toggle" data-produto-atual="${corrida.produto_id ?? ""}" title="Trocar produto">...</button>
+    </span>`;
+}
+function bindProdutoEditavel(container, corridaId) {
+  const el = container.querySelector(".fusao-produto-editavel");
+  if (!el || el.dataset.bound) return;
+  el.dataset.bound = "1";
+  const toggle = el.querySelector(".fusao-editable-toggle");
+  toggle.dataset.mode = "editar";
+  toggle.addEventListener("click", async () => {
+    if (toggle.dataset.mode !== "salvar") {
+      const produtoAtual = fusaoState.produtos.find((p) => p.id === Number(toggle.dataset.produtoAtual));
+      el.querySelector(".fusao-produto-display").outerHTML = fusaoProdutoComboboxHtml(fusaoProdutoTexto(produtoAtual), "");
+      bindProdutoCombobox(el.querySelector(".fusao-combobox"));
+      toggle.dataset.mode = "salvar";
+      toggle.textContent = "OK";
+      toggle.title = "Salvar";
+      return;
+    }
+    const input = el.querySelector(".fusao-produto-input");
+    const produto = fusaoProdutoDoInput(input);
+    if (!produto) { alert("Selecione um produto válido da lista."); return; }
+    toggle.disabled = true; input.disabled = true;
+    try {
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarProduto(corridaId, produto.id);
+      el.querySelector(".fusao-combobox").outerHTML = `<strong class="fusao-produto-display">${fusaoProdutoLabel(produto, true)}</strong>`;
+      toggle.dataset.mode = "editar";
+      toggle.dataset.produtoAtual = String(produto.id);
+      toggle.textContent = "...";
+      toggle.title = "Trocar produto";
+    } catch (error) {
+      input.disabled = false;
+      alert(error.message);
+    } finally {
+      toggle.disabled = false;
+    }
+  });
+}
 function novaCorridaItemRow() {
   const row = document.createElement("div");
   row.className = "fusao-item-row";
-  row.innerHTML = `<select name="material_id" required><option value="">Selecione</option>${fusaoMaterialOptions()}</select>
+  row.innerHTML = `<label class="fusao-item-material-label">${fusaoMaterialComboboxHtml("", 'name="material_texto" required')}</label>
     <input name="quantidade_planejada_kg" type="number" min="0" step="0.01" placeholder="Qtd (kg)" required>
     <select name="estado_fisico" hidden><option value="">Sólido ou líquido?</option><option value="SOLIDO">Sólido</option><option value="LIQUIDO">Líquido</option></select>
     <button type="button" class="button button-secondary" data-remove-item>Remover</button>`;
   row.querySelector("[data-remove-item]").addEventListener("click", () => row.remove());
   // Sólido/líquido só existe pro Gusa — não é propriedade fixa do material,
   // é escolhido item a item na hora de montar a carga.
-  row.querySelector('[name="material_id"]').addEventListener("change", (event) => {
-    const material = fusaoState.materiais.find((m) => String(m.id) === event.target.value);
+  bindMaterialCombobox(row.querySelector(".fusao-combobox"), (material) => {
     const estadoField = row.querySelector('[name="estado_fisico"]');
     const isGusa = material?.tipo === "GUSA";
     estadoField.hidden = !isGusa;
@@ -112,7 +258,7 @@ function fornoFormHtml(forno, volumeAtualKg) {
   return `<p class="fusao-volume-atual-linha">Volume atual do forno <strong>${fusaoKg(volumeAtualKg)} kg</strong></p>
     <form class="meta-form fusao-forno-form" data-forno-id="${forno.id}">
     <p class="fusao-codigo-info">Próxima corrida: <strong class="fusao-codigo-prefixo">…</strong> <span class="production-muted">(número gerado automaticamente)</span></p>
-    <label>Produto<select name="produto_id" required><option value="">Selecione</option>${fusaoProdutoOptions()}</select></label>
+    <label>Produto${fusaoProdutoComboboxHtml("", 'name="produto_texto" required')}</label>
     <label>Início<input name="inicio" type="time" value="${fusaoHoraAgora()}" required></label>
     <fieldset class="fusao-carga-itens">
       <legend>Carga planejada</legend>
@@ -132,6 +278,7 @@ async function bindFornoForm(form, forno) {
   // pra incluir depois já com a corrida aberta.
   const rows = form.querySelector(".fusao-itens-rows");
   form.querySelector("[data-add-item]").addEventListener("click", () => rows.appendChild(novaCorridaItemRow()));
+  bindProdutoCombobox(form.querySelector(".fusao-combobox"));
 
   const ciclo = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.cicloAtivo(forno.id);
   const numeroCiclo = ciclo?.numero_ciclo ?? 1;
@@ -151,13 +298,18 @@ async function bindFornoForm(form, forno) {
     const button = event.submitter;
     button.disabled = true;
     try {
-      const itens = [...rows.querySelectorAll(".fusao-item-row")].map((row) => ({
-        material_id: Number(row.querySelector('[name="material_id"]').value),
-        quantidade_planejada_kg: Number(row.querySelector('[name="quantidade_planejada_kg"]').value),
-        estado_fisico: row.querySelector('[name="estado_fisico"]').value || null
-      }));
-      const produtoId = Number(form.elements.produto_id.value);
-      if (!produtoId) throw new Error("Selecione o produto.");
+      const itens = [...rows.querySelectorAll(".fusao-item-row")].map((row) => {
+        const material = fusaoMaterialDoInput(row.querySelector('[name="material_texto"]'));
+        if (!material) throw new Error("Selecione um material válido da lista.");
+        return {
+          material_id: material.id,
+          quantidade_planejada_kg: Number(row.querySelector('[name="quantidade_planejada_kg"]').value),
+          estado_fisico: row.querySelector('[name="estado_fisico"]').value || null
+        };
+      });
+      const produtoSelecionado = fusaoProdutoDoInput(form.elements.produto_texto);
+      if (!produtoSelecionado) throw new Error("Selecione um produto válido da lista.");
+      const produtoId = produtoSelecionado.id;
       const horaInicio = form.elements.inicio.value;
       if (!horaInicio) throw new Error("Informe o horário de início.");
       const dataOperacional = fq("#fusao-data-global").value;
@@ -248,7 +400,7 @@ function fusaoCardRowHtml(item) {
       <td>${viaPonte
         ? (item.quantidade_realizada_kg != null ? fNumber(item.quantidade_realizada_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—")
         : fusaoEditableCellHtml("realizado", item)}</td>
-      <td class="fusao-progresso-cell">${fusaoProgressoHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}${fusaoRemoverItemBtnHtml(item)}</td>
+      <td><span class="fusao-progresso-cell">${fusaoProgressoHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}${fusaoRemoverItemBtnHtml(item)}</span></td>
     </tr>`;
 }
 // Transferência vira linha no topo da tabela de materiais do card — mesmas
@@ -259,10 +411,10 @@ function fusaoTransferenciaCardRowHtml(direcao, transferencia) {
   return `<tr class="fusao-transferencia-row fusao-transferencia-${direcao}" data-transferencia-id="${transferencia.id}" data-quantidade-kg="${fNumber(transferencia.quantidade_kg)}">
       <td colspan="3">TRANSFERÊNCIA (${rotulo}) ${fEsc(fusaoCodigoCorridaMascarado(transferencia.corridaCodigo) || "—")}</td>
       <td><span class="fusao-transferencia-display">${fNumber(transferencia.quantidade_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</span></td>
-      <td class="fusao-transferencia-acoes">
+      <td><span class="fusao-transferencia-acoes">
         <button type="button" class="fusao-editar-transferencia" title="Editar quantidade">...</button>
         <button type="button" class="fusao-remover-x fusao-remover-transferencia" title="Remover transferência">✕</button>
-      </td>
+      </span></td>
     </tr>`;
 }
 function fusaoTabelaTotalRowHtml(itens) {
@@ -298,7 +450,8 @@ function fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtual
   const totalCarregado = todosItens.reduce((soma, item) => soma + fNumber(item.quantidade_realizada_kg), 0);
   const totalRecebido = (transferencias?.entradas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0);
   const entrada = totalCarregado + totalRecebido;
-  const saida = (transferencias?.saidas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0);
+  const saida = (transferencias?.saidas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0)
+    + fNumber(corrida.escoria_kg) + fNumber(corrida.lingote_kg);
   const kg = (valor) => `${fusaoKg(valor)}<span class="fusao-resumo-unidade">Kg</span>`;
   return `<div class="fusao-resumo-corrida" data-peso-inicial="${pesoInicial}" data-saida-kg="${saida}">
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Peso Inicial</span><strong class="fusao-resumo-valor fusao-resumo-inicial">${kg(pesoInicial)}</strong></div>
@@ -307,19 +460,22 @@ function fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtual
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Volume atual</span><strong class="fusao-resumo-valor fusao-resumo-volume">${kg(volumeAtualKg)}</strong></div>
     </div>`;
 }
-async function corridaCardHtml(corrida, volumeAtualKg) {
-  const [todosItens, transferencias, mensagens] = await Promise.all([
-    window.LIDUTEC_PRODUCAO_FUSAO_DATA.cargaItens(corrida.id),
-    window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferenciasDaCorrida(corrida.id),
-    window.LIDUTEC_PRODUCAO_FUSAO_DATA.mensagensDaCorrida(corrida.id)
-  ]);
+// Já recebe tudo embutido numa consulta só (corridaAbertaCompletaDoForno) —
+// antes fazia mais 3 idas ao banco aqui dentro; agora só monta o HTML.
+function corridaCardHtml(corrida, volumeAtualKg) {
+  const todosItens = corrida.corridas_fusao_carga_itens || [];
+  const transferencias = {
+    saidas: (corrida.saidas || []).map((t) => ({ id: t.id, quantidade_kg: t.quantidade_kg, corridaCodigo: t.corridas_fusao?.codigo })),
+    entradas: (corrida.entradas || []).map((t) => ({ id: t.id, quantidade_kg: t.quantidade_kg, corridaCodigo: t.corridas_fusao?.codigo }))
+  };
+  const mensagens = corrida.corridas_fusao_mensagens || [];
   const { carregamentoConcluido, html: tabelasHtml } = fusaoTabelasCargaHtml(todosItens, transferencias);
   const produto = fusaoState.produtos.find((p) => p.id === corrida.produto_id) || corrida.produtos;
   return `<div class="fusao-corrida-inline" data-corrida-id="${corrida.id}" data-versao="${corrida.versao}" data-forno-id="${corrida.forno_id}">
       <p><span class="fusao-status-step ${fusaoCorridaStatusBadgeClass(corrida.status)}">${FUSAO_STATUS_NOMES[corrida.status] || corrida.status}</span>
         <strong class="fusao-corrida-codigo-destaque">${fEsc(fusaoCodigoCorridaMascarado(corrida.codigo))}</strong> — ${corrida.turno}
         <span class="fusao-carregamento-badge">${carregamentoConcluido ? `<span class="fusao-ponte-status is-concluido">✓ Carregamento concluído</span>` : ""}</span></p>
-      <p class="fusao-corrida-meta"><strong>${fusaoProdutoLabel(produto, true)}</strong>
+      <p class="fusao-corrida-meta">${fusaoProdutoEditavelHtml(corrida, produto)}
         <span class="fusao-corrida-horarios">Início: <strong>${corrida.inicio ? new Date(corrida.inicio).toLocaleString("pt-BR") : "—"}</strong>
         ${corrida.fim ? ` · Fim: <strong>${new Date(corrida.fim).toLocaleString("pt-BR")}</strong>` : ""}</span></p>
       ${fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtualKg)}
@@ -332,7 +488,10 @@ async function corridaCardHtml(corrida, volumeAtualKg) {
       </div>
       ${fusaoMensagensPainelHtml(corrida.id, mensagens)}
       <div class="form-message fusao-forno-message" hidden></div>
-      <div class="meta-form-actions">
+      <div class="meta-form-actions fusao-saidas-diversas">
+        <label>Escória (kg)<input type="number" min="0" step="0.01" class="fusao-saida-escoria" value="${corrida.escoria_kg ?? ""}"></label>
+        <label>Lingote (kg)<input type="number" min="0" step="0.01" class="fusao-saida-lingote" value="${corrida.lingote_kg ?? ""}"></label>
+        <label>Energia (kWh)<input type="number" min="0" step="0.01" class="fusao-saida-energia" value="${corrida.energia_kwh ?? ""}"></label>
         <button type="button" class="button button-danger" data-acao="cancelar">Cancelar</button>
         <button type="button" class="button button-primary" data-acao="fechar">Fechar corrida</button>
       </div>
@@ -454,6 +613,7 @@ function fusaoOnSavedCard(container) {
 function bindCorridaCard(container, forno) {
   const corridaId = Number(container.querySelector(".fusao-corrida-inline")?.dataset.corridaId);
   bindEditableCells(container, corridaId, fusaoOnSavedCard(container));
+  bindProdutoEditavel(container, corridaId);
   fusaoBindMensagens(container.querySelector(".fusao-mensagens"));
   // Delegado no container (sobrevive a re-render parcial da tabela ao
   // incluir material) — remove só o que ainda não foi pesado.
@@ -540,6 +700,14 @@ function bindCorridaCard(container, forno) {
           const hora = prompt("Horário de fim da corrida (HH:MM):", fusaoHoraAgora());
           if (hora === null) { button.disabled = false; return; }
           if (!/^\d{2}:\d{2}$/.test(hora)) throw new Error("Horário inválido. Use HH:MM.");
+          // Escória/lingote/energia são salvos junto do fechamento, não têm
+          // botão próprio — lidas da caixa na hora de fechar (pedido explícito).
+          const escoria = container.querySelector(".fusao-saida-escoria")?.value;
+          const lingote = container.querySelector(".fusao-saida-lingote")?.value;
+          const energia = container.querySelector(".fusao-saida-energia")?.value;
+          await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarSaidasDiversas(
+            atual.id, escoria ? Number(escoria) : null, lingote ? Number(lingote) : null, energia ? Number(energia) : null
+          );
           await window.LIDUTEC_PRODUCAO_FUSAO_DATA.fecharCorrida(atual.id, atual.versao, fusaoMontarDataHora(atual.data_operacional, hora));
         }
         if (acao === "cancelar") await window.LIDUTEC_PRODUCAO_FUSAO_DATA.cancelarCorrida(atual.id, atual.versao);
@@ -576,17 +744,17 @@ function bindCorridaCard(container, forno) {
       // sem mostrar nenhum erro).
       const el = container.querySelector(".fusao-forno-message");
       if (el) el.hidden = true;
-      const materialSelect = row.querySelector('[name="material_id"]');
+      const materialInput = row.querySelector('[name="material_texto"]');
       const quantidadeInput = row.querySelector('[name="quantidade_planejada_kg"]');
       try {
-        const materialId = Number(materialSelect.value);
+        const material = fusaoMaterialDoInput(materialInput);
         const quantidade = Number(quantidadeInput.value);
         const estadoFisico = row.querySelector('[name="estado_fisico"]').value || null;
-        if (!materialId || !quantidade) throw new Error("Selecione o material e informe a quantidade.");
+        if (!material || !quantidade) throw new Error("Selecione o material e informe a quantidade.");
         confirmar.disabled = true;
         const atual = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridaAbertaDoForno(forno.id);
         if (!atual) throw new Error("Esta corrida não está mais aberta — a tela foi atualizada.");
-        await window.LIDUTEC_PRODUCAO_FUSAO_DATA.adicionarItemCarga(atual.id, materialId, quantidade, estadoFisico);
+        await window.LIDUTEC_PRODUCAO_FUSAO_DATA.adicionarItemCarga(atual.id, material.id, quantidade, estadoFisico);
         const [itensAtualizados, transferenciasAtuais] = await Promise.all([
           window.LIDUTEC_PRODUCAO_FUSAO_DATA.cargaItens(atual.id),
           window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferenciasDaCorrida(atual.id)
@@ -596,10 +764,11 @@ function bindCorridaCard(container, forno) {
         if (tabelasEl) tabelasEl.innerHTML = html;
         bindEditableCells(container, atual.id, fusaoOnSavedCard(container));
         atualizarBadgeCarregamento(container);
-        materialSelect.value = "";
+        materialInput.value = "";
+        delete materialInput.dataset.selecionadoId;
         quantidadeInput.value = "";
         row.querySelector('[name="estado_fisico"]').hidden = true;
-        materialSelect.focus();
+        materialInput.focus();
       } catch (error) {
         if (el) { el.textContent = error.message; el.className = "form-message error"; el.hidden = false; }
         else alert(error.message);
@@ -736,9 +905,9 @@ async function renderFornoCard(forno) {
   const focusWasInside = card.contains(document.activeElement);
   if (focusWasInside) return; // não pisa em cima de quem está digitando
   const token = (fusaoRenderTokenPorForno[forno.id] = (fusaoRenderTokenPorForno[forno.id] || 0) + 1);
-  const corridaAberta = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridaAbertaDoForno(forno.id);
+  const corridaAberta = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridaAbertaCompletaDoForno(forno.id);
   const volumeAtualKg = fusaoState.volumeAtual[forno.id] ?? 0;
-  const corridaHtml = corridaAberta ? await corridaCardHtml(corridaAberta, volumeAtualKg) : null;
+  const corridaHtml = corridaAberta ? corridaCardHtml(corridaAberta, volumeAtualKg) : null;
   if (fusaoRenderTokenPorForno[forno.id] !== token) return; // uma chamada mais nova já assumiu
   card.innerHTML = `<h3>${fEsc(forno.nome)}</h3>`;
   if (corridaAberta) {
@@ -760,8 +929,13 @@ async function initializeFusaoIndex() {
   }
   const grid = fq("#fornos-grid");
   grid.innerHTML = fusaoState.fornos.map((forno) => `<article class="panel fusao-forno-card" data-forno-card="${forno.id}"></article>`).join("");
-  await Promise.all(fusaoState.fornos.map((forno) => renderFornoCard(forno).catch((error) => alert(error.message))));
-  await loadCorridasList();
+  // "Corridas recentes" carrega junto com os cards, não depois — não
+  // depende deles, então não precisa esperar (era uma viagem a mais em
+  // série no carregamento da tela).
+  await Promise.all([
+    ...fusaoState.fornos.map((forno) => renderFornoCard(forno).catch((error) => alert(error.message))),
+    loadCorridasList()
+  ]);
   // Corrida aberta atualiza sozinha (reflete o que a Ponte for registrando,
   // ou outro supervisor editando) via Realtime — só a linha/card que mudou
   // de fato é redesenhado, sem consultar todos os fornos de tempos em
@@ -969,6 +1143,14 @@ async function refreshResumoCorrida() {
 async function refreshMensagensCorrida() {
   await fusaoAtualizarPainelMensagens(fusaoCorridaId());
 }
+// Alteração da carga chegou via Realtime — recarrega a lista (o payload cru
+// não traz o nome do autor já unido, mais simples reconsultar do que
+// resolver o uuid na mão).
+async function refreshAlteracoesCorrida() {
+  const alteracoes = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.alteracoesDaCorrida(fusaoCorridaId());
+  const el = fq("#alteracoes-painel");
+  if (el) el.innerHTML = fusaoAlteracoesPainelHtml(fusaoCorridaId(), alteracoes);
+}
 // Nova entrega na Ponte pra um material desta corrida — recarrega a carga
 // pra "Pesado por" listar o novo nome/horário junto com quem já pesou.
 async function refreshCargaItens() {
@@ -996,12 +1178,13 @@ async function renderAdicoes(adicoes) {
 }
 async function loadCorridaDetail() {
   const id = fusaoCorridaId();
-  const [corrida, itens, adicoes, transferencias, mensagens] = await Promise.all([
+  const [corrida, itens, adicoes, transferencias, mensagens, alteracoes] = await Promise.all([
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.corrida(id),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.cargaItens(id),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.adicoes(id),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferenciasDaCorrida(id),
-    window.LIDUTEC_PRODUCAO_FUSAO_DATA.mensagensDaCorrida(id)
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.mensagensDaCorrida(id),
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.alteracoesDaCorrida(id)
   ]);
   if (!corrida) { fq("#corrida-titulo").textContent = "Corrida não encontrada"; return; }
   fusaoCorridaCache.corrida = corrida;
@@ -1009,6 +1192,8 @@ async function loadCorridaDetail() {
   fusaoCorridaCache.transferencias = transferencias;
   fq("#mensagens-painel").innerHTML = fusaoMensagensPainelHtml(id, mensagens);
   fusaoBindMensagens(fq("#mensagens-painel .fusao-mensagens"));
+  const alteracoesEl = fq("#alteracoes-painel");
+  if (alteracoesEl) alteracoesEl.innerHTML = fusaoAlteracoesPainelHtml(id, alteracoes);
   fq("#corrida-titulo").textContent = `Corrida ${fusaoCodigoCorridaMascarado(corrida.codigo)}`;
   fq("#corrida-subtitulo").textContent = `${corrida.fornos_fusao?.nome || ""} · ${corrida.turno} · ${new Date(`${corrida.data_operacional}T12:00:00`).toLocaleDateString("pt-BR")}`;
   fq("#corrida-codigo").textContent = fusaoCodigoCorridaMascarado(corrida.codigo);
@@ -1083,6 +1268,7 @@ async function initializeFusaoCorrida() {
     .on("postgres_changes", { event: "*", schema: "public", table: "transferencias_fusao", filter: `corrida_destino_id=eq.${corridaId}` }, () => refreshResumoCorrida().catch(() => {}))
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_mensagens", filter: `corrida_id=eq.${corridaId}` }, () => refreshMensagensCorrida().catch(() => {}))
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_pesagens_ponte_log", filter: `corrida_id=eq.${corridaId}` }, () => refreshCargaItens().catch(() => {}))
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_alteracoes", filter: `corrida_id=eq.${corridaId}` }, () => refreshAlteracoesCorrida().catch(() => {}))
     .subscribe();
   window.addEventListener("pagehide", () => window.supabaseClient.removeChannel(canal), { once: true });
   // Rede de segurança: o realtime cobre o dia a dia; se algum evento se
@@ -1213,13 +1399,63 @@ function fusaoResumoOperadorHtml(grupo) {
   const fim = fusaoDataHoraVirgula(grupo.entradas[grupo.entradas.length - 1].registrado_em);
   return `${nome} ${totalTxt} entre ${inicio} e ${fim}`;
 }
-// Rastreabilidade pedida explicitamente: precisa dar pra ver quem lançou
-// cada entrega, quanto e a que horas — não só o total acumulado.
+// Rastreabilidade pedida explicitamente: precisa dar pra ver cada entrega
+// individual (quem, quando, quanto) — não um total. Nome só repete quando
+// troca de operador; data só repete quando muda o dia — economiza releitura
+// numa lista com várias pesagens seguidas da mesma pessoa no mesmo dia.
 function ponteLogHtml(log) {
   if (!log?.length) return `<span class="production-muted">Nenhuma entrega registrada ainda.</span>`;
-  return fusaoAgruparPesagens(log).map((grupo) =>
-    `<span class="fusao-ponte-log-entry">${fusaoResumoOperadorHtml(grupo)}</span>`
-  ).join("");
+  let nomeAnterior = null;
+  let dataAnterior = null;
+  return log.map((entrada) => {
+    const nome = entrada.usuarios?.nome || entrada.nome || "—";
+    const d = new Date(entrada.registrado_em);
+    const dataTxt = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    const horaTxt = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const partes = [];
+    if (nome !== nomeAnterior) partes.push(`<strong>${fEsc(nome)}</strong>`);
+    if (dataTxt !== dataAnterior) partes.push(dataTxt);
+    partes.push(horaTxt);
+    nomeAnterior = nome; dataAnterior = dataTxt;
+    const peso = fNumber(entrada.quantidade_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+    return `<span class="fusao-ponte-log-entry">${partes.join(", ")} <span class="fusao-log-peso">${peso}</span> kg</span>`;
+  }).join("");
+}
+// Inserção otimista (sem round-trip) na hora de confirmar uma entrega —
+// mostra nome/data completos por segurança; o próximo poll/realtime
+// redesenha a lista toda com a deduplicação certa.
+function fusaoPesagemEntradaCompletaHtml(entrada) {
+  const d = new Date(entrada.registrado_em);
+  const dataTxt = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const horaTxt = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const nome = fEsc(entrada.usuarios?.nome || entrada.nome || "—");
+  const peso = fNumber(entrada.quantidade_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  return `<span class="fusao-ponte-log-entry"><strong>${nome}</strong>, ${dataTxt}, ${horaTxt} <span class="fusao-log-peso">${peso}</span> kg</span>`;
+}
+// Histórico de alterações da carga — log automático (incluir/editar/
+// excluir material), separado do quadro de recados que é conversa livre.
+// Deixa o operador da Ponte ciente do que o supervisor mexeu.
+function fusaoAlteracaoLinhaHtml(alteracao) {
+  return `<p class="fusao-alteracao"><strong>${fEsc(alteracao.usuarios?.nome || "—")}</strong> ${fEsc(alteracao.descricao)} <span class="production-muted">(${fusaoDataHoraCurta(alteracao.criado_em)})</span></p>`;
+}
+function fusaoAlteracoesListaHtml(alteracoes) {
+  if (!alteracoes?.length) return `<p class="production-muted fusao-alteracoes-vazio">Nenhuma alteração registrada ainda.</p>`;
+  return alteracoes.map(fusaoAlteracaoLinhaHtml).join("");
+}
+// Painel completo (corrida.html) — mais recente no topo.
+function fusaoAlteracoesPainelHtml(corridaId, alteracoes) {
+  return `<div class="fusao-alteracoes" data-corrida-id="${corridaId}">${fusaoAlteracoesListaHtml(alteracoes)}</div>`;
+}
+// Resumo compacto (Ponte) — só as 2 mais recentes visíveis, resto atrás de
+// um "+N alterações" nativo (<details>, sem JS de abrir/fechar).
+function fusaoAlteracoesResumoHtml(alteracoes) {
+  if (!alteracoes?.length) return "";
+  const visiveis = alteracoes.slice(0, 2);
+  const resto = alteracoes.slice(2);
+  const restoHtml = resto.length
+    ? `<details class="fusao-alteracoes-mais"><summary>+ ${resto.length} alteraç${resto.length > 1 ? "ões" : "ão"}</summary>${resto.map(fusaoAlteracaoLinhaHtml).join("")}</details>`
+    : "";
+  return `<div class="fusao-alteracoes-resumo"><h5>Alterações</h5>${visiveis.map(fusaoAlteracaoLinhaHtml).join("")}${restoHtml}</div>`;
 }
 // Quadro de recados da corrida — comunicação entre quem planeja e quem
 // pesa na Ponte. Simples de propósito: sem "lido/não lido", só a lista
@@ -1305,8 +1541,10 @@ function fusaoPonteEntregaDestravadaHtml(corridaId, itemId) {
   // que faz o Safari/iOS esconder ponto e sinal, que o inputmode sozinho
   // às vezes não tira). A validação de verdade (recusar fração) continua
   // acontecendo em confirmarEntrega.
-  return `<input type="number" inputmode="numeric" pattern="[0-9]*" min="1" step="1" class="fusao-entrega-input" data-corrida-id="${corridaId}" data-item-id="${itemId}">
-    <button type="button" class="button button-primary" data-confirmar-entrega>OK</button>`;
+  return `<span class="fusao-ponte-entrega-flex">
+      <input type="number" inputmode="numeric" pattern="[0-9]*" min="1" step="1" class="fusao-entrega-input" data-corrida-id="${corridaId}" data-item-id="${itemId}">
+      <button type="button" class="button button-primary" data-confirmar-entrega>OK</button>
+    </span>`;
 }
 function fusaoPonteEntregaTravadaHtml(corridaId, itemId) {
   return `<span class="fusao-ponte-entrega-travada">
@@ -1317,46 +1555,67 @@ function fusaoPonteEntregaTravadaHtml(corridaId, itemId) {
 function fusaoPonteEntregaCellHtml(corridaId, item) {
   return fusaoItemConcluido(item) ? fusaoPonteEntregaTravadaHtml(corridaId, item.id) : fusaoPonteEntregaDestravadaHtml(corridaId, item.id);
 }
-function pontePreencherCorrida(container, corrida) {
+// Uma célula só de "Saldo": planejado/acumulado empilhados à esquerda, o
+// que falta em destaque no meio, barra de progresso à direita — condensa
+// 3 colunas antigas (Planejado/Acumulado/Progresso) numa só, pedido
+// explícito (mockup enviado pelo usuário).
+function fusaoPonteSaldoCelHtml(item) {
+  const planejado = fNumber(item.quantidade_planejada_kg);
+  const acumulado = fNumber(item.quantidade_realizada_kg);
+  const saldo = Math.max(0, planejado - acumulado);
+  const kg = (v) => v.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  return `<span class="fusao-ponte-saldo-flex">
+      <span class="fusao-ponte-saldo-labels">
+        <span>Planejado <strong>${kg(planejado)}</strong></span>
+        <span>Acumulado <strong class="fusao-ponte-acumulado">${kg(acumulado)}</strong></span>
+      </span>
+      <strong class="fusao-ponte-saldo-numero">${kg(saldo)}</strong>
+      <span class="fusao-ponte-progresso">${fusaoProgressoHtml(acumulado, planejado)}</span>
+    </span>`;
+}
+// Zebra entre materiais (não status verde/vermelho, pedido explícito) — a
+// mesma classe vai na linha do material E na linha de log logo abaixo,
+// senão a faixinha do log fica branca destoando da cor do material.
+function fusaoPonteMaterialRowHtml(corridaId, item, indice) {
   const estadoLabel = { SOLIDO: "Sólido", LIQUIDO: "Líquido" };
+  const zebra = indice % 2 === 0 ? "fusao-ponte-linha-par" : "fusao-ponte-linha-impar";
+  const concluido = fNumber(item.quantidade_realizada_kg) >= fNumber(item.quantidade_planejada_kg) && fNumber(item.quantidade_realizada_kg) > 0;
+  return `<tr data-item-id="${item.id}" data-planejado="${item.quantidade_planejada_kg}" class="${zebra}${concluido ? " is-concluido" : ""}">
+      <td class="fusao-ponte-material-cel">${fEsc(item.materiais_fusao?.nome || "")}${item.estado_fisico ? ` <span class="production-muted">(${estadoLabel[item.estado_fisico] || item.estado_fisico})</span>` : ""}</td>
+      <td class="fusao-ponte-saldo-cel">${fusaoPonteSaldoCelHtml(item)}</td>
+      <td class="fusao-ponte-entrega">${fusaoPonteEntregaCellHtml(corridaId, item)}</td>
+    </tr>
+    <tr class="fusao-ponte-log-row ${zebra}"><td colspan="3"><div class="fusao-ponte-log" data-log-item-id="${item.id}">${ponteLogHtml(item.corridas_fusao_pesagens_ponte_log)}</div></td></tr>`;
+}
+function pontePreencherCorrida(container, corrida) {
   const itens = (corrida.corridas_fusao_carga_itens || []).filter(fusaoItemVaiParaPonte);
   if (!itens.length) return;
+  const ferroBase = fusaoLimparFerroBase(fusaoState.tipoMaterialPorProduto[corrida.produto_id]);
   container.insertAdjacentHTML("beforeend", `<article class="fusao-ponte-corrida">
-      <h4>${fEsc(corrida.fornos_fusao?.nome || "")} — corrida ${fEsc(fusaoCodigoCorridaMascarado(corrida.codigo))} (${corrida.turno})</h4>
-      <table class="products-table"><thead><tr><th>Material</th><th>Planejado (kg)</th><th>Acumulado (kg)</th><th>Progresso</th><th>Nova entrega (kg)</th></tr></thead>
-      <tbody>${itens.map((item) => `<tr data-item-id="${item.id}" data-planejado="${item.quantidade_planejada_kg}" class="${fNumber(item.quantidade_realizada_kg) >= fNumber(item.quantidade_planejada_kg) && fNumber(item.quantidade_realizada_kg) > 0 ? "is-concluido" : ""}">
-          <td>${fEsc(item.materiais_fusao?.nome || "")}${item.estado_fisico ? ` <span class="production-muted">(${estadoLabel[item.estado_fisico] || item.estado_fisico})</span>` : ""}</td>
-          <td>${fNumber(item.quantidade_planejada_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
-          <td class="fusao-ponte-acumulado"><strong>${fNumber(item.quantidade_realizada_kg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</strong></td>
-          <td class="fusao-ponte-progresso">${fusaoProgressoHtml(item.quantidade_realizada_kg, item.quantidade_planejada_kg)}</td>
-          <td class="fusao-ponte-entrega">${fusaoPonteEntregaCellHtml(corrida.id, item)}</td>
-        </tr>
-        <tr class="fusao-ponte-log-row"><td colspan="5"><div class="fusao-ponte-log" data-log-item-id="${item.id}">${ponteLogHtml(item.corridas_fusao_pesagens_ponte_log)}</div></td></tr>`).join("")}</tbody></table>
-      ${fusaoMensagensPainelHtml(corrida.id, corrida.corridas_fusao_mensagens)}
+      <h4 class="fusao-ponte-carro-titulo">Carro ${fEsc(corrida.fornos_fusao?.carro ?? "—")}</h4>
+      <p class="fusao-ponte-corrida-linha2">
+        <span class="fusao-ponte-cod-corrida">${fEsc(fusaoCodigoCorridaMascarado(corrida.codigo))}</span>
+        <span class="fusao-ponte-ferro-base">${fEsc(ferroBase)}</span>
+        <span class="fusao-ponte-cod-produto">${fEsc(corrida.produtos?.codigo || "—")}</span>
+      </p>
+      <table class="products-table"><thead><tr><th>Material</th><th>Saldo</th><th>Nova entrega (kg)</th></tr></thead>
+      <tbody>${itens.map((item, indice) => fusaoPonteMaterialRowHtml(corrida.id, item, indice)).join("")}</tbody></table>
+      ${fusaoAlteracoesResumoHtml(corrida.corridas_fusao_alteracoes)}
+      ${fusaoMensagensPainelHtml(corrida.id, [...(corrida.corridas_fusao_mensagens || [])].reverse())}
     </article>`);
 }
-// Bipa quando: uma corrida nova aparece nesse carro, um material novo é
-// incluído na carga de uma corrida já aberta, o planejado de um material
-// muda, ou chega mensagem nova (pedido explícito) — nunca no carregamento
-// inicial da página, só em cima do que já era conhecido.
+// Bipa quando uma corrida nova aparece nesse carro — nunca no carregamento
+// inicial da página, só em cima do que já era conhecido. Material incluído/
+// planejado alterado/excluído tem canal Realtime próprio (corridas_fusao_
+// alteracoes, instantâneo) que já cuida do bipe deles; mensagem idem.
 const fusaoPonteConhecidos = {};
 function fusaoPonteDetectarNovidade(carro, corridas) {
-  // Mensagem não entra aqui — tem canal Realtime próprio (instantâneo, sem
-  // esperar o poll) que já cuida do bipe dela.
-  const atual = { corridas: new Set(), planejados: new Map() };
-  for (const corrida of corridas) {
-    atual.corridas.add(corrida.id);
-    for (const item of (corrida.corridas_fusao_carga_itens || []).filter(fusaoItemVaiParaPonte)) {
-      atual.planejados.set(item.id, fNumber(item.quantidade_planejada_kg));
-    }
-  }
+  const atual = { corridas: new Set() };
+  for (const corrida of corridas) atual.corridas.add(corrida.id);
   const anterior = fusaoPonteConhecidos[carro];
   let novidade = false;
   if (anterior) {
     for (const id of atual.corridas) if (!anterior.corridas.has(id)) novidade = true;
-    for (const [itemId, planejado] of atual.planejados) {
-      if (!anterior.planejados.has(itemId) || anterior.planejados.get(itemId) !== planejado) novidade = true;
-    }
   }
   fusaoPonteConhecidos[carro] = atual;
   return Boolean(anterior) && novidade;
@@ -1382,14 +1641,15 @@ async function loadPonteCarro(carro) {
       const total = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.adicionarPesagem(
         Number(input.dataset.corridaId), Number(input.dataset.itemId), valor
       );
-      row.querySelector(".fusao-ponte-acumulado strong").textContent = fNumber(total).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+      row.querySelector(".fusao-ponte-acumulado").textContent = fNumber(total).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+      row.querySelector(".fusao-ponte-saldo-numero").textContent = Math.max(0, fNumber(row.dataset.planejado) - fNumber(total)).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
       row.querySelector(".fusao-ponte-progresso").innerHTML = fusaoProgressoHtml(total, row.dataset.planejado);
       const concluido = fNumber(total) > 0 && fNumber(total) >= fNumber(row.dataset.planejado);
       row.classList.toggle("is-concluido", concluido);
       const logEl = row.nextElementSibling?.querySelector(`[data-log-item-id="${input.dataset.itemId}"]`);
       if (logEl) {
         if (logEl.querySelector(".production-muted")) logEl.innerHTML = "";
-        logEl.insertAdjacentHTML("afterbegin", ponteLogEntradaHtml({ quantidade_kg: valor, registrado_em: new Date().toISOString(), nome: fusaoState.userNome }));
+        logEl.insertAdjacentHTML("afterbegin", fusaoPesagemEntradaCompletaHtml({ quantidade_kg: valor, registrado_em: new Date().toISOString(), nome: fusaoState.userNome }));
       }
       if (concluido) {
         // Concluiu agora — a caixa de digitar some e vira o aviso "Colocar
@@ -1451,6 +1711,18 @@ async function initializeFusaoPonte() {
     })
     .subscribe();
   window.addEventListener("pagehide", () => window.supabaseClient.removeChannel(canalPonteMensagens), { once: true });
+  // Alteração da carga (incluir/editar/excluir material) também é
+  // instantânea — bipa e recarrega os dois carros (não dá pra saber de qual
+  // sem mais uma consulta, e é raro o bastante pra não pesar).
+  const canalPonteAlteracoes = window.supabaseClient
+    .channel("fusao-ponte-alteracoes")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "corridas_fusao_alteracoes" }, (payload) => {
+      if (payload.new?.autor_id !== fusaoState.user?.id) fusaoBip();
+      loadPonteCarro(1).catch(() => {});
+      loadPonteCarro(2).catch(() => {});
+    })
+    .subscribe();
+  window.addEventListener("pagehide", () => window.supabaseClient.removeChannel(canalPonteAlteracoes), { once: true });
   // Reflete entregas lançadas por outro operador/dispositivo sem precisar
   // recarregar a página — não mexe na linha se tiver campo em edição.
   setInterval(() => { loadPonteCarro(1).catch(() => {}); loadPonteCarro(2).catch(() => {}); }, 15000);

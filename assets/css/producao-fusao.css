@@ -34,6 +34,10 @@
 .fusao-editable-locked .fusao-editable-display { color: var(--color-text-muted); }
 .fusao-corrida-inline .meta-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 .fusao-add-item-area { margin-top: 10px; }
+/* Escória/Lingote/Energia — três caixas na mesma linha, no rodapé do card. */
+.fusao-saidas-diversas { flex-wrap: wrap; }
+.fusao-saidas-diversas label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; font-weight: 700; color: var(--color-text-muted); }
+.fusao-saidas-diversas input { width: 110px; min-height: 38px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; font-size: 1.2rem; font-weight: 700; }
 .fusao-add-item-area .fusao-item-row { margin-top: 10px; grid-template-columns: 2fr 1fr auto; }
 
 .fusao-codigo-info { grid-column: 1/-1; margin: 0 0 4px; font-size: .84rem; }
@@ -63,16 +67,10 @@ body[data-production-page="corrida"] #carga-rows td:nth-child(1) { font-weight: 
 .fusao-info-row td { padding-top: 0; padding-bottom: 8px; border-top: none; }
 .fusao-operador-info { font-size: .74rem; }
 
-/* Mesma coisa na Ponte: tela cheia sem menu lateral, e planejado/acumulado
-   (o "real" de lá) 2.1x maiores — "Nova entrega" e os botões já têm
-   font-size próprio, não herdam o aumento. */
+/* Tela cheia sem menu lateral na Ponte. */
 body[data-production-page="ponte"] .sidebar,
 body[data-production-page="ponte"] .menu-button { display: none; }
 body[data-production-page="ponte"] .app-shell { width: 100%; margin-left: 0; }
-body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td:nth-child(2),
-body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.fusao-ponte-acumulado {
-  font-size: 2.1em;
-}
 @media (max-width: 900px) {
   .fusao-fornos-grid { grid-template-columns: 1fr; }
 }
@@ -109,6 +107,15 @@ body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.
 .fusao-mensagem-form { display: flex; gap: 8px; }
 .fusao-mensagem-input { flex: 1; min-height: 38px; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 6px; }
 
+/* Histórico de alterações — log automático, separado do quadro de recados. */
+.fusao-alteracoes { max-height: 220px; overflow-y: auto; }
+.fusao-alteracao { margin: 0 0 6px; font-size: .84rem; }
+/* Resumo compacto na Ponte — só 2 visíveis, resto num <details> nativo. */
+.fusao-alteracoes-resumo { margin: 10px 0; padding-top: 8px; border-top: 1px solid var(--color-border); }
+.fusao-alteracoes-resumo h5 { margin: 0 0 6px; font-size: .74rem; font-weight: 800; text-transform: uppercase; color: var(--color-text-muted); }
+.fusao-alteracoes-resumo .fusao-alteracao { font-size: .8rem; }
+.fusao-alteracoes-mais summary { cursor: pointer; font-size: .78rem; color: var(--color-primary); font-weight: 700; margin: 4px 0; }
+
 /* Barrinha de progresso — por item (dentro da tabela) e total do forno
    (maior, no topo do card). */
 .fusao-progress { display: inline-flex; align-items: center; gap: 8px; min-width: 90px; }
@@ -138,6 +145,22 @@ body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.
 }
 .fusao-editar-transferencia:hover { color: var(--color-text); }
 .fusao-transferencia-input { width: 90px; min-height: 26px; padding: 2px 6px; border: 1px solid var(--color-border); border-radius: 6px; }
+/* Campo com sugestões (digita e aparecem as opções filtradas) — usado
+   tanto pro produto quanto pro material da carga. */
+.fusao-combobox { position: relative; display: inline-block; }
+.fusao-combobox-input { width: 260px; max-width: 100%; min-height: 30px; padding: 2px 8px; border: 1px solid var(--color-border); border-radius: 6px; }
+.fusao-combobox-sugestoes {
+  position: absolute; z-index: 20; top: 100%; left: 0; right: 0; margin: 2px 0 0; padding: 4px 0;
+  list-style: none; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.12); max-height: 220px; overflow-y: auto;
+}
+.fusao-combobox-sugestoes li { padding: 6px 12px; font-size: .86rem; cursor: pointer; }
+.fusao-combobox-sugestoes li:hover { background: var(--color-primary-light); color: var(--color-primary); }
+/* Material da carga (dentro da grade fusao-item-row) precisa ocupar toda
+   a coluna, diferente do produto que fica solto num <label> normal. */
+.fusao-item-material-label { display: block; width: 100%; }
+.fusao-item-row .fusao-combobox { display: block; width: 100%; }
+.fusao-item-row .fusao-combobox-input { width: 100%; }
 
 /* Produto/início/fim — texto secundário, discreto. Início/fim deslocado
    pra direita, separado do produto. */
@@ -229,30 +252,63 @@ body[data-production-page="ponte"] .fusao-ponte-corrida table.products-table td.
 .fusao-ponte-corrida { margin-bottom: 22px; }
 .fusao-ponte-corrida:last-child { margin-bottom: 0; }
 .fusao-ponte-corrida h4 { margin: 0 0 10px; font-size: 1.05rem; font-weight: 800; }
+/* Cabeçalho do card: "Carro N" centralizado e 50% maior, com código da
+   corrida/ferro base/código do produto numa linha logo abaixo (esquerda,
+   centro, direita) — pedido explícito. */
+.fusao-ponte-corrida h4.fusao-ponte-carro-titulo { margin: 0 0 6px; text-align: center; font-size: 2.3625rem; font-weight: 900; text-transform: uppercase; }
+.fusao-ponte-corrida-linha2 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 12px; font-weight: 700; font-size: 1.5em; }
+.fusao-ponte-ferro-base { color: var(--color-primary); text-transform: uppercase; }
 .fusao-ponte-corrida table.products-table th,
 .fusao-ponte-corrida table.products-table td { padding: 14px 12px; font-size: 1rem; }
-.fusao-ponte-entrega { display: flex; gap: 8px; align-items: center; }
+/* Larguras fixas — sem isso a linha do histórico (colspan="3") distorcia o
+   cálculo automático das colunas e "Nova entrega" saía fora do lugar. */
+.fusao-ponte-corrida table.products-table { table-layout: fixed; width: 100%; }
+.fusao-ponte-corrida table.products-table th:nth-child(1), .fusao-ponte-corrida table.products-table td:nth-child(1) { width: 26%; }
+.fusao-ponte-corrida table.products-table th:nth-child(2), .fusao-ponte-corrida table.products-table td:nth-child(2) { width: 48%; }
+.fusao-ponte-corrida table.products-table th:nth-child(3), .fusao-ponte-corrida table.products-table td:nth-child(3) { width: 26%; }
+/* Cabeçalho da tabela de materiais a pesar — cor da paleta do sistema,
+   mesmo padrão já usado no card do forno. */
+.fusao-ponte-corrida table.products-table thead th { background: var(--color-primary); color: #fff; font-weight: 800; }
+/* "Saldo" alinhado em cima do número que falta carregar (não do centro da
+   coluna toda, que cai em cima de Planejado/Acumulado) — desloca pra
+   direita na medida do bloco de rótulos, que tem largura fixa agora. */
+.fusao-ponte-corrida table.products-table thead th:nth-child(2) { text-align: left; padding-left: 180px; }
+/* Botão OK embaixo da caixa (não do lado) — economiza espaço horizontal
+   com os 2 carros lado a lado de novo. */
+.fusao-ponte-entrega-flex { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
 .fusao-ponte-entrega-travada { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .fusao-ponte-desbloquear { min-height: 44px; padding: 0 14px; }
-/* Barrinha maior aqui — mesma lógica de "ver de longe" do resto da tela. */
-.fusao-ponte-progresso .fusao-progress { min-width: 110px; }
-.fusao-ponte-progresso .fusao-progress-track { height: 12px; }
-.fusao-ponte-progresso .fusao-progress-label { font-size: 1rem; }
-.fusao-ponte-entrega input { width: 140px; min-height: 64px; padding: 8px 10px; border: 2px solid var(--color-border); border-radius: 8px; font-size: 2rem; font-weight: 800; text-align: center; }
+.fusao-ponte-entrega input { width: 100%; min-height: 64px; padding: 8px 10px; border: 2px solid var(--color-border); border-radius: 8px; font-size: 2rem; font-weight: 800; text-align: center; }
 .fusao-ponte-entrega input:focus { border-color: var(--color-primary); outline: none; }
 .fusao-ponte-entrega button { min-height: 52px; min-width: 64px; padding: 0 16px; font-size: 1rem; }
 .fusao-ponte-corrida .fusao-mensagem-input { min-height: 52px; font-size: 1.1rem; }
 .fusao-ponte-corrida .fusao-mensagens button { min-height: 52px; }
 .fusao-ponte-corrida .fusao-mensagem { font-size: 1rem; }
-.fusao-ponte-acumulado { font-variant-numeric: tabular-nums; font-size: 1.1rem; }
-/* Pedido explícito: na Ponte a cor chama atenção pro que ainda falta —
-   verde enquanto pendente, vermelho quando concluído (inverso do resto
-   do sistema; só vale aqui, não mexe no card do forno nem na corrida). */
-.fusao-ponte-corrida tbody tr[data-item-id]:not(.is-concluido) { background: #e5f4ee; }
-.fusao-ponte-corrida tbody tr[data-item-id].is-concluido { background: #fceaec; }
+/* Nome do material em destaque (coluna única agora, sem Planejado/
+   Acumulado/Progresso separados). */
+.fusao-ponte-material-cel { font-size: 1.3em; font-weight: 800; }
+/* Célula "Saldo": planejado/acumulado empilhados, o que falta em grande no
+   meio, barra de progresso à direita — condensa 3 colunas antigas numa só
+   (mockup enviado pelo usuário). */
+.fusao-ponte-saldo-flex { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.fusao-ponte-saldo-labels { display: flex; flex-direction: column; gap: 2px; min-width: 144px; font-size: .82rem; font-weight: 700; color: var(--color-text-muted); white-space: nowrap; }
+.fusao-ponte-saldo-labels strong { color: var(--color-text); font-size: 1.05rem; }
+.fusao-ponte-saldo-numero { font-size: 2.6rem; font-weight: 900; color: var(--color-text); }
+.fusao-ponte-acumulado { font-variant-numeric: tabular-nums; }
+.fusao-ponte-progresso .fusao-progress { min-width: 110px; }
+.fusao-ponte-progresso .fusao-progress-track { height: 12px; }
+.fusao-ponte-progresso .fusao-progress-label { font-size: 1rem; }
+/* Zebra entre materiais — pedido explícito, sem fundo por status (verde/
+   vermelho) nem branco/cinza alternando à toa. A linha de log embaixo
+   segue a mesma cor do material (mesma classe nas duas linhas). */
+.fusao-ponte-linha-par td { background: #f3f4f6; }
+.fusao-ponte-linha-impar td { background: #ffffff; }
 .fusao-ponte-log-row td { padding: 4px 12px 12px !important; border-top: none !important; }
 .fusao-ponte-log { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: var(--color-text-muted); }
 .fusao-ponte-log-entry strong { color: var(--color-text); }
+/* Hora e "kg" já herdam o cinza desbotado da linha; só o peso fica escuro,
+   pedido explícito, pra destacar o número. */
+.fusao-log-peso { color: var(--color-text); font-weight: 700; }
 .fusao-ponte-status { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 999px; font-size: .88rem; font-weight: 800; white-space: nowrap; }
 .fusao-ponte-status.is-concluido { background: #147d4f; color: #fff; }
 .fusao-ponte-status.is-pendente { background: #eef1f4; color: var(--color-text-muted); }
