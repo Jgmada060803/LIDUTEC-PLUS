@@ -451,7 +451,7 @@ function fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtual
   const totalRecebido = (transferencias?.entradas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0);
   const entrada = totalCarregado + totalRecebido;
   const saida = (transferencias?.saidas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0)
-    + fNumber(corrida.escoria_kg) + fNumber(corrida.lingote_kg);
+    + fNumber(corrida.escoria_kg) + fNumber(corrida.lingote_kg) + fNumber(corrida.ajuste_kg);
   const kg = (valor) => `${fusaoKg(valor)}<span class="fusao-resumo-unidade">Kg</span>`;
   return `<div class="fusao-resumo-corrida" data-peso-inicial="${pesoInicial}" data-saida-kg="${saida}">
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Peso Inicial</span><strong class="fusao-resumo-valor fusao-resumo-inicial">${kg(pesoInicial)}</strong></div>
@@ -490,6 +490,8 @@ function corridaCardHtml(corrida, volumeAtualKg) {
       <div class="form-message fusao-forno-message" hidden></div>
       <div class="meta-form-actions fusao-saidas-diversas">
         <label>Escória (kg)<input type="number" min="0" step="0.01" class="fusao-saida-escoria" value="${corrida.escoria_kg ?? ""}"></label>
+        <label>Ajuste (saída)<input type="number" min="0" step="0.01" class="fusao-saida-ajuste" value="${corrida.ajuste_kg ?? ""}"></label>
+        <button type="button" class="button button-primary fusao-salvar-saidas" data-salvar-saidas hidden>OK</button>
         <label>Lingote (kg)<input type="number" min="0" step="0.01" class="fusao-saida-lingote" value="${corrida.lingote_kg ?? ""}"></label>
         <label>Energia (kWh)<input type="number" min="0" step="0.01" class="fusao-saida-energia" value="${corrida.energia_kwh ?? ""}"></label>
         <button type="button" class="button button-danger" data-acao="cancelar">Cancelar</button>
@@ -705,8 +707,9 @@ function bindCorridaCard(container, forno) {
           const escoria = container.querySelector(".fusao-saida-escoria")?.value;
           const lingote = container.querySelector(".fusao-saida-lingote")?.value;
           const energia = container.querySelector(".fusao-saida-energia")?.value;
+          const ajuste = container.querySelector(".fusao-saida-ajuste")?.value;
           await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarSaidasDiversas(
-            atual.id, escoria ? Number(escoria) : null, lingote ? Number(lingote) : null, energia ? Number(energia) : null
+            atual.id, escoria ? Number(escoria) : null, lingote ? Number(lingote) : null, energia ? Number(energia) : null, ajuste ? Number(ajuste) : null
           );
           await window.LIDUTEC_PRODUCAO_FUSAO_DATA.fecharCorrida(atual.id, atual.versao, fusaoMontarDataHora(atual.data_operacional, hora));
         }
@@ -722,6 +725,46 @@ function bindCorridaCard(container, forno) {
       }
     });
   });
+  // "Ajuste (saída)" tem botão OK próprio — não espera o fechamento da
+  // corrida como escória/lingote/energia; ao salvar, atualiza os quatro
+  // campos vizinhos juntos e recalcula o saldo do forno na hora.
+  const ajusteInput = container.querySelector(".fusao-saida-ajuste");
+  const salvarSaidasBtn = container.querySelector("[data-salvar-saidas]");
+  if (ajusteInput && salvarSaidasBtn) {
+    ajusteInput.addEventListener("focus", () => { salvarSaidasBtn.hidden = false; });
+    ajusteInput.addEventListener("input", () => { salvarSaidasBtn.hidden = false; });
+    salvarSaidasBtn.addEventListener("click", async () => {
+      const mensagem = container.querySelector(".fusao-forno-message");
+      if (mensagem) mensagem.hidden = true;
+      salvarSaidasBtn.disabled = true;
+      try {
+        const escoria = container.querySelector(".fusao-saida-escoria")?.value;
+        const lingote = container.querySelector(".fusao-saida-lingote")?.value;
+        const energia = container.querySelector(".fusao-saida-energia")?.value;
+        const ajuste = ajusteInput.value;
+        await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarSaidasDiversas(
+          corridaId, escoria ? Number(escoria) : null, lingote ? Number(lingote) : null, energia ? Number(energia) : null, ajuste ? Number(ajuste) : null
+        );
+        await refreshVolumeAtual();
+        const resumoEl = container.querySelector(".fusao-resumo-corrida");
+        if (resumoEl) {
+          const transferenciaSaidaTotal = [...container.querySelectorAll(".fusao-transferencia-saida[data-quantidade-kg]")]
+            .reduce((soma, row) => soma + fNumber(row.dataset.quantidadeKg), 0);
+          const novaSaida = transferenciaSaidaTotal + fNumber(escoria) + fNumber(lingote) + fNumber(ajuste);
+          resumoEl.dataset.saidaKg = novaSaida;
+          const saidaEl = container.querySelector(".fusao-resumo-saida");
+          if (saidaEl) saidaEl.innerHTML = `${fusaoKg(novaSaida)}<span class="fusao-resumo-unidade">Kg</span>`;
+          atualizarBadgeCarregamento(container);
+        }
+        salvarSaidasBtn.hidden = true;
+      } catch (error) {
+        if (mensagem) { mensagem.textContent = error.message; mensagem.className = "form-message error"; mensagem.hidden = false; }
+        else alert(error.message);
+      } finally {
+        salvarSaidasBtn.disabled = false;
+      }
+    });
+  }
   // Incluir material numa corrida já aberta — o formulário fica aberto
   // depois de adicionar (só limpa os campos), pra dar pra incluir vários
   // materiais em sequência sem reabrir nada; as tabelas de cima atualizam

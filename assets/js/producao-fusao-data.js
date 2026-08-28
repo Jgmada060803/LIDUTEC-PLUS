@@ -53,7 +53,7 @@
     // banco por card (1 pra achar a corrida + 3 em paralelo depois de
     // saber o id); agora é 1 só, feita direto pelo forno_id.
     corridaAbertaCompletaDoForno: (fornoId) => result(client().from("corridas_fusao")
-      .select("id,codigo,forno_id,turno,status,versao,data_operacional,produto_id,inicio,fim,sobra_inicial_kg,escoria_kg,lingote_kg,energia_kwh,produtos(codigo,nome)," +
+      .select("id,codigo,forno_id,turno,status,versao,data_operacional,produto_id,inicio,fim,sobra_inicial_kg,escoria_kg,lingote_kg,energia_kwh,ajuste_kg,produtos(codigo,nome)," +
         "corridas_fusao_carga_itens(id,material_id,quantidade_planejada_kg,quantidade_realizada_kg,estado_fisico,materiais_fusao(nome,tipo,modo_pesagem))," +
         "corridas_fusao_mensagens(id,mensagem,criado_em,origem,usuarios(nome))," +
         "saidas:transferencias_fusao!corrida_origem_id(id,quantidade_kg,corridas_fusao!corrida_destino_id(codigo))," +
@@ -111,8 +111,8 @@
     }), null),
     // Escória/lingote (saídas, abatem no saldo do forno) e energia (só
     // acompanha a corrida) — valor único, atualizável quantas vezes precisar.
-    atualizarSaidasDiversas: (corridaId, escoriaKg, lingoteKg, energiaKwh) => result(client().rpc("atualizar_saidas_diversas_corrida_fusao", {
-      p_corrida_id: corridaId, p_escoria_kg: escoriaKg, p_lingote_kg: lingoteKg, p_energia_kwh: energiaKwh
+    atualizarSaidasDiversas: (corridaId, escoriaKg, lingoteKg, energiaKwh, ajusteKg) => result(client().rpc("atualizar_saidas_diversas_corrida_fusao", {
+      p_corrida_id: corridaId, p_escoria_kg: escoriaKg, p_lingote_kg: lingoteKg, p_energia_kwh: energiaKwh, p_ajuste_kg: ajusteKg
     }), null),
     transferirMetal: (corridaOrigemId, fornoDestinoId, quantidade) => result(client().rpc("transferir_metal_fusao", {
       p_corrida_origem_id: corridaOrigemId, p_forno_destino_id: fornoDestinoId, p_quantidade_kg: quantidade
