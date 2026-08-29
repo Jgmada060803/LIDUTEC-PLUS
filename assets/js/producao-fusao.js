@@ -5,7 +5,7 @@ const fusaoPage = document.body.dataset.productionPage;
 const fusaoState = { user: null, permissions: null, materiais: [], fornos: [], produtos: [], volumeAtual: {} };
 const fusaoCorridaCache = { corrida: null, itens: [], transferencias: { entradas: [], saidas: [] } };
 
-const FUSAO_STATUS_NOMES = { ABERTA: "Aberta", FECHADA: "Fechada", CANCELADA: "Cancelada" };
+const FUSAO_STATUS_NOMES = { ABERTA: "Aberta", FECHADA: "Fechada" };
 
 // Hora digitada pelo operador (não a hora do clique) — mesmo padrão de
 // inicio/fim já usado nas paradas de produção dos outros módulos.
@@ -237,7 +237,6 @@ function fusaoRefratarioClass(count, forno) {
   return "is-good";
 }
 function fusaoCorridaStatusBadgeClass(status) {
-  if (status === "CANCELADA") return "is-cancelada";
   if (status === "FECHADA") return "is-done";
   return "is-current";
 }
@@ -452,12 +451,16 @@ function fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtual
   const entrada = totalCarregado + totalRecebido;
   const saida = (transferencias?.saidas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0)
     + fNumber(corrida.escoria_kg) + fNumber(corrida.lingote_kg) + fNumber(corrida.ajuste_kg);
+  // Corrida fechada não deve mais "andar" na tela conforme o forno segue
+  // sendo usado depois — mostra o saldo congelado no instante do fechamento,
+  // não o saldo ao vivo do forno (só a corrida ABERTA mostra o saldo ao vivo).
+  const volume = corrida.status === "ABERTA" ? volumeAtualKg : fNumber(corrida.saldo_forno_no_fechamento_kg);
   const kg = (valor) => `${fusaoKg(valor)}<span class="fusao-resumo-unidade">Kg</span>`;
   return `<div class="fusao-resumo-corrida" data-peso-inicial="${pesoInicial}" data-saida-kg="${saida}">
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Peso Inicial</span><strong class="fusao-resumo-valor fusao-resumo-inicial">${kg(pesoInicial)}</strong></div>
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Entrada</span><strong class="fusao-resumo-valor fusao-resumo-entrada">${kg(entrada)}</strong></div>
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Saída</span><strong class="fusao-resumo-valor fusao-resumo-saida">${kg(saida)}</strong></div>
-      <div class="fusao-resumo-item"><span class="fusao-resumo-label">Volume atual</span><strong class="fusao-resumo-valor fusao-resumo-volume">${kg(volumeAtualKg)}</strong></div>
+      <div class="fusao-resumo-item"><span class="fusao-resumo-label">Volume atual</span><strong class="fusao-resumo-valor fusao-resumo-volume">${kg(volume)}</strong></div>
     </div>`;
 }
 // Já recebe tudo embutido numa consulta só (corridaAbertaCompletaDoForno) —
@@ -494,7 +497,7 @@ function corridaCardHtml(corrida, volumeAtualKg) {
         <button type="button" class="button button-primary fusao-salvar-saidas" data-salvar-saidas hidden>OK</button>
         <label>Lingote (kg)<input type="number" min="0" step="0.01" class="fusao-saida-lingote" value="${corrida.lingote_kg ?? ""}"></label>
         <label>Energia (kWh)<input type="number" min="0" step="0.01" class="fusao-saida-energia" value="${corrida.energia_kwh ?? ""}"></label>
-        <button type="button" class="button button-danger" data-acao="cancelar">Cancelar</button>
+        <button type="button" class="button button-danger" data-acao="excluir">Excluir</button>
         <button type="button" class="button button-primary" data-acao="fechar">Fechar corrida</button>
       </div>
     </div>`;
@@ -691,7 +694,7 @@ function bindCorridaCard(container, forno) {
   container.querySelectorAll("[data-acao]").forEach((button) => {
     button.addEventListener("click", async () => {
       const acao = button.dataset.acao;
-      if (acao === "cancelar" && !confirm("Cancelar esta corrida? Essa ação não pode ser desfeita.")) return;
+      if (acao === "excluir" && !confirm("Excluir esta corrida? Essa ação não pode ser desfeita.")) return;
       const mensagemAntiga = container.querySelector(".fusao-forno-message");
       if (mensagemAntiga) mensagemAntiga.hidden = true;
       button.disabled = true;
@@ -713,7 +716,7 @@ function bindCorridaCard(container, forno) {
           );
           await window.LIDUTEC_PRODUCAO_FUSAO_DATA.fecharCorrida(atual.id, atual.versao, fusaoMontarDataHora(atual.data_operacional, hora));
         }
-        if (acao === "cancelar") await window.LIDUTEC_PRODUCAO_FUSAO_DATA.cancelarCorrida(atual.id, atual.versao);
+        if (acao === "excluir") await window.LIDUTEC_PRODUCAO_FUSAO_DATA.excluirCorrida(atual.id, atual.versao);
         await refreshVolumeAtual();
         await renderFornoCard(forno);
         await loadCorridasList();
@@ -1009,7 +1012,7 @@ function fusaoCorridaId() {
   return new URLSearchParams(location.search).get("id");
 }
 function renderCorridaStepper(corrida) {
-  const cls = corrida.status === "CANCELADA" ? "is-cancelada" : corrida.status === "FECHADA" ? "is-done" : "is-current";
+  const cls = corrida.status === "FECHADA" ? "is-done" : "is-current";
   fq("#corrida-stepper").innerHTML = `<span class="fusao-status-step ${cls}">${FUSAO_STATUS_NOMES[corrida.status] || corrida.status}</span>`;
 }
 function renderCorridaStatusActions(corrida) {
@@ -1017,16 +1020,18 @@ function renderCorridaStatusActions(corrida) {
   const podeEditar = fusaoState.permissions.has("producao_fusao.lancar");
   if (!podeEditar) { container.innerHTML = ""; return; }
   const botoes = [];
-  if (corrida.status === "ABERTA") botoes.push(`<button type="button" class="button button-primary" data-acao="fechar">Fechar corrida</button>`);
+  if (corrida.status === "ABERTA") {
+    botoes.push(`<button type="button" class="button button-primary" data-acao="fechar">Fechar corrida</button>`);
+    botoes.push(`<button type="button" class="button button-danger" data-acao="excluir">Excluir corrida</button>`);
+  }
   if (corrida.status === "FECHADA") botoes.push(`<button type="button" class="button button-secondary" data-acao="reabrir">Editar (reabrir)</button>`);
-  if (corrida.status !== "CANCELADA") botoes.push(`<button type="button" class="button button-danger" data-acao="cancelar">Cancelar corrida</button>`);
   container.innerHTML = botoes.join("");
   container.querySelectorAll("[data-acao]").forEach((button) => {
     button.addEventListener("click", () => executarAcaoCorrida(button.dataset.acao));
   });
 }
 async function executarAcaoCorrida(acao) {
-  if (acao === "cancelar" && !confirm("Cancelar esta corrida? Essa ação não pode ser desfeita.")) return;
+  if (acao === "excluir" && !confirm("Excluir esta corrida? Essa ação não pode ser desfeita.")) return;
   fq("#corrida-status-message").hidden = true;
   try {
     const corrida = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corrida(fusaoCorridaId());
@@ -1037,7 +1042,12 @@ async function executarAcaoCorrida(acao) {
       await window.LIDUTEC_PRODUCAO_FUSAO_DATA.fecharCorrida(fusaoCorridaId(), corrida.versao, fusaoMontarDataHora(corrida.data_operacional, hora));
     }
     if (acao === "reabrir") await window.LIDUTEC_PRODUCAO_FUSAO_DATA.reabrirCorrida(fusaoCorridaId(), corrida.versao);
-    if (acao === "cancelar") await window.LIDUTEC_PRODUCAO_FUSAO_DATA.cancelarCorrida(fusaoCorridaId(), corrida.versao);
+    if (acao === "excluir") {
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.excluirCorrida(fusaoCorridaId(), corrida.versao);
+      // A corrida não existe mais — não dá pra recarregar esta tela.
+      location.href = "./index.html";
+      return;
+    }
     await loadCorridaDetail();
   } catch (error) {
     const el = fq("#corrida-status-message");

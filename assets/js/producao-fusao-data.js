@@ -33,7 +33,7 @@
       .eq("forno_id", fornoId).is("encerrado_em", null).maybeSingle(), null),
     corridasNoCiclo: async (cicloId) => {
       const response = await client().from("corridas_fusao")
-        .select("id", { count: "exact", head: true }).eq("ciclo_refratario_id", cicloId).neq("status", "CANCELADA");
+        .select("id", { count: "exact", head: true }).eq("ciclo_refratario_id", cicloId);
       if (response.error) throw response.error;
       return { count: response.count ?? 0 };
     },
@@ -63,7 +63,7 @@
       .order("criado_em", { foreignTable: "corridas_fusao_mensagens" })
       .maybeSingle(), null),
     corrida: (id) => result(client().from("corridas_fusao")
-      .select("id,codigo,forno_id,ciclo_refratario_id,numero_sequencia,data_operacional,turno,status,versao,criado_em,produto_id,inicio,fim,sobra_inicial_kg,fornos_fusao(codigo,nome,tipo),produtos(codigo,nome)")
+      .select("id,codigo,forno_id,ciclo_refratario_id,numero_sequencia,data_operacional,turno,status,versao,criado_em,produto_id,inicio,fim,sobra_inicial_kg,escoria_kg,lingote_kg,ajuste_kg,saldo_forno_no_fechamento_kg,fornos_fusao(codigo,nome,tipo),produtos(codigo,nome)")
       .eq("id", id).maybeSingle(), null),
     // Movimentos de transferência da corrida, dos dois lados: saídas (essa
     // corrida mandou pra outro forno) e entradas (recebeu de outra) — vira
@@ -105,7 +105,7 @@
     }), null),
     fecharCorrida: (corridaId, versao, fim) => result(client().rpc("fechar_corrida_fusao", { p_corrida_id: corridaId, p_versao: versao, p_fim: fim }), null),
     reabrirCorrida: (corridaId, versao) => result(client().rpc("reabrir_corrida_fusao", { p_corrida_id: corridaId, p_versao: versao }), null),
-    cancelarCorrida: (corridaId, versao) => result(client().rpc("cancelar_corrida_fusao", { p_corrida_id: corridaId, p_versao: versao }), null),
+    excluirCorrida: (corridaId, versao) => result(client().rpc("excluir_corrida_fusao", { p_corrida_id: corridaId, p_versao: versao }), null),
     atualizarProduto: (corridaId, produtoId) => result(client().rpc("atualizar_produto_corrida_fusao", {
       p_corrida_id: corridaId, p_produto_id: produtoId
     }), null),

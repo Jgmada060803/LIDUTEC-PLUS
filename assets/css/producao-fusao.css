@@ -91,7 +91,6 @@ body[data-production-page="ponte"] .app-shell { width: 100%; margin-left: 0; }
 .fusao-status-step { padding: 8px 14px; border-radius: 999px; font-size: .78rem; font-weight: 800; background: #eef1f4; color: var(--color-text-muted); }
 .fusao-status-step.is-done { background: var(--color-primary-light); color: var(--color-primary); }
 .fusao-status-step.is-current { background: var(--color-primary); color: #fff; }
-.fusao-status-step.is-cancelada { background: #fceaec; color: #b90e2c; }
 
 .fusao-saldo-negativo { color: #b90e2c; font-weight: 800; }
 .fusao-saldo-positivo { color: var(--color-text-muted); }
