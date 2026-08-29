@@ -212,6 +212,71 @@ function bindProdutoEditavel(container, corridaId) {
     }
   });
 }
+// Corrigir o número da corrida (item planejado: número normal continua
+// automático — isso é só uma correção manual pontual, exige
+// producao_fusao.editar). Só o número (3 últimos dígitos do código) é
+// editável; forno+ciclo (prefixo) nunca mudam aqui.
+function fusaoNumeroCorridaHtml(corrida) {
+  const codigoHtml = `<strong class="fusao-corrida-codigo-destaque fusao-numero-display">${fEsc(fusaoCodigoCorridaMascarado(corrida.codigo))}</strong>`;
+  if (!fusaoState.permissions.has("producao_fusao.editar")) return codigoHtml;
+  return `<span class="fusao-numero-editavel" data-numero-atual="${corrida.numero_sequencia}">
+      ${codigoHtml}
+      <button type="button" class="fusao-editable-toggle" title="Corrigir número da corrida">...</button>
+    </span>`;
+}
+function bindNumeroEditavel(container, corrida, forno) {
+  const el = container.querySelector(".fusao-numero-editavel");
+  if (!el || el.dataset.bound) return;
+  el.dataset.bound = "1";
+  const toggle = el.querySelector(".fusao-editable-toggle");
+  toggle.dataset.mode = "editar";
+  toggle.addEventListener("click", async () => {
+    if (toggle.dataset.mode !== "salvar") {
+      const numeroAtual = Number(el.dataset.numeroAtual);
+      el.querySelector(".fusao-numero-display").outerHTML = `<input type="number" min="1" step="1" class="fusao-numero-input" value="${numeroAtual}">`;
+      toggle.dataset.mode = "salvar";
+      toggle.textContent = "OK";
+      toggle.title = "Salvar número";
+      el.querySelector(".fusao-numero-input").focus();
+      return;
+    }
+    const input = el.querySelector(".fusao-numero-input");
+    const numeroAtual = Number(el.dataset.numeroAtual);
+    const novoNumero = Number(input.value);
+    const voltarParaDisplay = (codigo) => {
+      el.querySelector(".fusao-numero-input").outerHTML = `<strong class="fusao-corrida-codigo-destaque fusao-numero-display">${fEsc(fusaoCodigoCorridaMascarado(codigo))}</strong>`;
+      toggle.dataset.mode = "editar";
+      toggle.textContent = "...";
+      toggle.title = "Corrigir número da corrida";
+    };
+    if (!novoNumero || novoNumero <= 0) { alert("Informe um número de corrida válido."); return; }
+    if (novoNumero === numeroAtual) { voltarParaDisplay(corrida.codigo); return; }
+    try {
+      const maximo = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.maxNumeroSequenciaCiclo(corrida.ciclo_refratario_id, corrida.id);
+      const proximoEsperado = maximo + 1;
+      if (novoNumero > proximoEsperado) {
+        const confirma = confirm(
+          `ATENÇÃO\nA corrida ${proximoEsperado} ainda não foi registrada neste forno.\n\nDeseja realmente usar o número ${novoNumero}?`
+        );
+        if (!confirma) return;
+      }
+      const motivo = (prompt("Motivo da correção (opcional):", "") || "").trim() || null;
+      toggle.disabled = true; input.disabled = true;
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corrigirNumeroCorrida(corrida.id, novoNumero, motivo);
+      // Só o número (3 últimos dígitos) muda — forno/ciclo (prefixo) ficam iguais.
+      corrida.numero_sequencia = novoNumero;
+      corrida.codigo = corrida.codigo.slice(0, -3) + String(novoNumero).padStart(3, "0");
+      el.dataset.numeroAtual = String(novoNumero);
+      voltarParaDisplay(corrida.codigo);
+      await loadCorridasList();
+    } catch (error) {
+      input.disabled = false;
+      alert(error.message);
+    } finally {
+      toggle.disabled = false;
+    }
+  });
+}
 function novaCorridaItemRow() {
   const row = document.createElement("div");
   row.className = "fusao-item-row";
@@ -476,7 +541,7 @@ function corridaCardHtml(corrida, volumeAtualKg) {
   const produto = fusaoState.produtos.find((p) => p.id === corrida.produto_id) || corrida.produtos;
   return `<div class="fusao-corrida-inline" data-corrida-id="${corrida.id}" data-versao="${corrida.versao}" data-forno-id="${corrida.forno_id}">
       <p><span class="fusao-status-step ${fusaoCorridaStatusBadgeClass(corrida.status)}">${FUSAO_STATUS_NOMES[corrida.status] || corrida.status}</span>
-        <strong class="fusao-corrida-codigo-destaque">${fEsc(fusaoCodigoCorridaMascarado(corrida.codigo))}</strong> — ${corrida.turno}
+        ${fusaoNumeroCorridaHtml(corrida)} — ${corrida.turno}
         <span class="fusao-carregamento-badge">${carregamentoConcluido ? `<span class="fusao-ponte-status is-concluido">✓ Carregamento concluído</span>` : ""}</span></p>
       <p class="fusao-corrida-meta">${fusaoProdutoEditavelHtml(corrida, produto)}
         <span class="fusao-corrida-horarios">Início: <strong>${corrida.inicio ? new Date(corrida.inicio).toLocaleString("pt-BR") : "—"}</strong>
@@ -615,10 +680,11 @@ function fusaoOnSavedCard(container) {
     atualizarBadgeCarregamento(container);
   };
 }
-function bindCorridaCard(container, forno) {
+function bindCorridaCard(container, forno, corrida) {
   const corridaId = Number(container.querySelector(".fusao-corrida-inline")?.dataset.corridaId);
   bindEditableCells(container, corridaId, fusaoOnSavedCard(container));
   bindProdutoEditavel(container, corridaId);
+  bindNumeroEditavel(container, corrida, forno);
   fusaoBindMensagens(container.querySelector(".fusao-mensagens"));
   // Delegado no container (sobrevive a re-render parcial da tabela ao
   // incluir material) — remove só o que ainda não foi pesado.
@@ -958,7 +1024,7 @@ async function renderFornoCard(forno) {
   card.innerHTML = `<h3>${fEsc(forno.nome)}</h3>`;
   if (corridaAberta) {
     card.insertAdjacentHTML("beforeend", corridaHtml);
-    bindCorridaCard(card, forno);
+    bindCorridaCard(card, forno, corridaAberta);
     return;
   }
   card.classList.remove("is-good", "is-warning", "is-critical");

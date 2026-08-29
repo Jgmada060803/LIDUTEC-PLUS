@@ -53,7 +53,7 @@
     // banco por card (1 pra achar a corrida + 3 em paralelo depois de
     // saber o id); agora é 1 só, feita direto pelo forno_id.
     corridaAbertaCompletaDoForno: (fornoId) => result(client().from("corridas_fusao")
-      .select("id,codigo,forno_id,turno,status,versao,data_operacional,produto_id,inicio,fim,sobra_inicial_kg,escoria_kg,lingote_kg,energia_kwh,ajuste_kg,produtos(codigo,nome)," +
+      .select("id,codigo,forno_id,ciclo_refratario_id,numero_sequencia,turno,status,versao,data_operacional,produto_id,inicio,fim,sobra_inicial_kg,escoria_kg,lingote_kg,energia_kwh,ajuste_kg,produtos(codigo,nome)," +
         "corridas_fusao_carga_itens(id,material_id,quantidade_planejada_kg,quantidade_realizada_kg,estado_fisico,materiais_fusao(nome,tipo,modo_pesagem))," +
         "corridas_fusao_mensagens(id,mensagem,criado_em,origem,usuarios(nome))," +
         "saidas:transferencias_fusao!corrida_origem_id(id,quantidade_kg,corridas_fusao!corrida_destino_id(codigo))," +
@@ -106,6 +106,23 @@
     fecharCorrida: (corridaId, versao, fim) => result(client().rpc("fechar_corrida_fusao", { p_corrida_id: corridaId, p_versao: versao, p_fim: fim }), null),
     reabrirCorrida: (corridaId, versao) => result(client().rpc("reabrir_corrida_fusao", { p_corrida_id: corridaId, p_versao: versao }), null),
     excluirCorrida: (corridaId, versao) => result(client().rpc("excluir_corrida_fusao", { p_corrida_id: corridaId, p_versao: versao }), null),
+    // Maior número já usado no ciclo (pra avisar o operador quando a
+    // correção manual pula numeração — não conta a própria corrida). Nunca
+    // fica abaixo do número inicial do ciclo (a numeração real já praticada
+    // antes de o sistema existir, guardada no ciclo do refratário).
+    maxNumeroSequenciaCiclo: async (cicloId, corridaId) => {
+      const [maiorCorrida, ciclo] = await Promise.all([
+        client().from("corridas_fusao").select("numero_sequencia").eq("ciclo_refratario_id", cicloId).neq("id", corridaId)
+          .order("numero_sequencia", { ascending: false }).limit(1).maybeSingle(),
+        client().from("ciclos_refratario_fusao").select("numero_sequencia_inicial").eq("id", cicloId).maybeSingle()
+      ]);
+      if (maiorCorrida.error) throw maiorCorrida.error;
+      if (ciclo.error) throw ciclo.error;
+      return Math.max(maiorCorrida.data?.numero_sequencia ?? 0, ciclo.data?.numero_sequencia_inicial ?? 0);
+    },
+    corrigirNumeroCorrida: (corridaId, novoNumero, motivo) => result(client().rpc("corrigir_numero_corrida_fusao", {
+      p_corrida_id: corridaId, p_novo_numero: novoNumero, p_motivo: motivo
+    }), null),
     atualizarProduto: (corridaId, produtoId) => result(client().rpc("atualizar_produto_corrida_fusao", {
       p_corrida_id: corridaId, p_produto_id: produtoId
     }), null),

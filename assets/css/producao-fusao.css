@@ -144,6 +144,7 @@ body[data-production-page="ponte"] .app-shell { width: 100%; margin-left: 0; }
 }
 .fusao-editar-transferencia:hover { color: var(--color-text); }
 .fusao-transferencia-input { width: 90px; min-height: 26px; padding: 2px 6px; border: 1px solid var(--color-border); border-radius: 6px; }
+.fusao-numero-input { width: 90px; min-height: 26px; padding: 2px 6px; border: 1px solid var(--color-border); border-radius: 6px; font-weight: 800; }
 /* Campo com sugestões (digita e aparecem as opções filtradas) — usado
    tanto pro produto quanto pro material da carga. */
 .fusao-combobox { position: relative; display: inline-block; }
