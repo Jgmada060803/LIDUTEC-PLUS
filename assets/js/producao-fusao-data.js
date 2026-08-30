@@ -63,7 +63,7 @@
       .order("criado_em", { foreignTable: "corridas_fusao_mensagens" })
       .maybeSingle(), null),
     corrida: (id) => result(client().from("corridas_fusao")
-      .select("id,codigo,forno_id,ciclo_refratario_id,numero_sequencia,data_operacional,turno,status,versao,criado_em,produto_id,inicio,fim,sobra_inicial_kg,escoria_kg,lingote_kg,ajuste_kg,saldo_forno_no_fechamento_kg,fornos_fusao(codigo,nome,tipo),produtos(codigo,nome)")
+      .select("id,codigo,forno_id,ciclo_refratario_id,numero_sequencia,data_operacional,turno,status,versao,criado_em,produto_id,inicio,fim,sobra_inicial_kg,escoria_kg,lingote_kg,energia_kwh,ajuste_kg,temperatura_programada_c,saldo_forno_no_fechamento_kg,fornos_fusao(codigo,nome,tipo),produtos(codigo,nome)")
       .eq("id", id).maybeSingle(), null),
     // Movimentos de transferência da corrida, dos dois lados: saídas (essa
     // corrida mandou pra outro forno) e entradas (recebeu de outra) — vira
@@ -125,6 +125,31 @@
     }), null),
     atualizarTemperaturaProgramada: (corridaId, temperaturaC) => result(client().rpc("atualizar_temperatura_programada_fusao", {
       p_corrida_id: corridaId, p_temperatura_c: temperaturaC
+    }), null),
+    // Saída de panelas do Holding — uma linha por panela retirada.
+    panelasDaCorrida: (corridaId) => result(client().from("panelas_holding")
+      .select("id,sequencial,produto_id,hora_retirada,peso_kg,temperatura_c,carbono_equivalente,fesimg_liga1_kg,fesimg_liga4_kg,inoculante_kg,silicio_kg,grafite_kg,sucata_cobertura_kg,status,produtos(codigo,nome)")
+      .eq("holding_corrida_id", corridaId).order("sequencial", { ascending: false })),
+    criarPanelaHolding: (corridaId, pesoKg, horaRetirada, fesimgLiga1Kg, fesimgLiga4Kg) => result(client().rpc("criar_panela_holding", {
+      p_holding_corrida_id: corridaId, p_peso_kg: pesoKg, p_hora_retirada: horaRetirada,
+      p_fesimg_liga1_kg: fesimgLiga1Kg, p_fesimg_liga4_kg: fesimgLiga4Kg
+    }), null),
+    // Última panela válida (não rejeitada) desse Holding, de qualquer
+    // corrida — usada só pra pré-preencher FeSiMg Liga 1/4 na hora de criar
+    // uma panela nova (o resto dos campos herdados fica por conta da RPC).
+    ultimaPanelaHolding: async (fornoId) => {
+      const response = await client().from("panelas_holding")
+        .select("fesimg_liga1_kg,fesimg_liga4_kg,corridas_fusao!inner(forno_id)")
+        .eq("corridas_fusao.forno_id", fornoId).neq("status", "REJEITADA")
+        .order("criado_em", { ascending: false }).limit(1).maybeSingle();
+      if (response.error) throw response.error;
+      return response.data ?? null;
+    },
+    atualizarCampoPanelaHolding: (panelaId, campo, valor) => result(client().rpc("atualizar_campo_panela_holding", {
+      p_panela_id: panelaId, p_campo: campo, p_valor: valor
+    }), null),
+    atualizarHoraRetiradaPanelaHolding: (panelaId, horaRetirada) => result(client().rpc("atualizar_hora_retirada_panela_holding", {
+      p_panela_id: panelaId, p_hora_retirada: horaRetirada
     }), null),
     atualizarProduto: (corridaId, produtoId) => result(client().rpc("atualizar_produto_corrida_fusao", {
       p_corrida_id: corridaId, p_produto_id: produtoId

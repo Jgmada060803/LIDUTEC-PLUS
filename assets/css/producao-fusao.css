@@ -9,6 +9,41 @@
 .fusao-header-field { min-height: 42px; padding: 6px 12px; border: 1px solid var(--color-border); border-radius: 8px; font-weight: 800; background: #fff; }
 
 .fusao-fornos-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 28px; }
+
+/* Tela de saída de panelas do Holding — planilha compacta, sem cards
+   grandes (pedido explícito: "estrutura semelhante a uma planilha"). */
+.fusao-holding-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.fusao-holding-card h3 { margin: 0 0 4px; font-size: 1.02rem; font-weight: 900; }
+.fusao-holding-cabecalho { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.fusao-holding-corrida-linha { margin: 0; font-size: 1.05rem; color: var(--color-text-muted); display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+.fusao-holding-corrida-linha strong { color: var(--color-text); font-weight: 800; }
+/* Saldo do forno em destaque, à direita — pedido explícito. */
+.fusao-holding-saldo-destaque { margin: 0; text-align: right; font-size: .74rem; color: var(--color-text-muted); white-space: nowrap; }
+.fusao-holding-saldo-destaque .fusao-holding-saldo { display: block; margin-top: 2px; font-size: 1.6rem; font-weight: 900; color: var(--color-primary); }
+.fusao-holding-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.fusao-holding-table { width: 100%; border-collapse: collapse; font-size: .8rem; white-space: nowrap; }
+.fusao-holding-table th, .fusao-holding-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); text-align: left; }
+.fusao-holding-table tbody tr:nth-child(odd) { background: #f8f9fb; }
+.fusao-holding-campo-editavel { display: inline-flex; align-items: center; gap: 4px; }
+.fusao-holding-campo-input { width: 76px; min-height: 26px; padding: 2px 6px; border: 1px solid var(--color-border); border-radius: 6px; }
+/* Só empilha em telas largas — em telas estreitas o .fusao-item-row de
+   base já vira 1 coluna (regra em @media max-width:700px mais abaixo). */
+@media (min-width: 701px) {
+  .fusao-holding-card .fusao-nova-panela-campos { grid-template-columns: 1fr 1fr 1fr 1fr auto; }
+}
+.fusao-holding-acoes { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 10px; }
+/* Responsivo pra tablet/smartphone: 2 colunas viram 1, tabela larga rola
+   por dentro (sem estourar a página), e a fonte/preenchimento encolhem um
+   pouco pra caber mais coluna na tela sem ficar ilegível. */
+@media (max-width: 900px) {
+  .fusao-holding-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .fusao-holding-saldo-destaque { text-align: left; }
+  .fusao-holding-table { font-size: .74rem; }
+  .fusao-holding-table th, .fusao-holding-table td { padding: 5px 6px; }
+  .fusao-holding-campo-input { width: 62px; }
+}
 .fusao-forno-card h3 { margin: 0 0 12px; font-size: 1.02rem; font-weight: 900; }
 .fusao-forno-card .meta-form { grid-template-columns: 1fr 1fr; }
 .fusao-forno-card .fusao-item-row { grid-template-columns: 2fr 1fr auto; }
@@ -71,6 +106,12 @@ body[data-production-page="corrida"] #carga-rows td:nth-child(1) { font-weight: 
 body[data-production-page="ponte"] .sidebar,
 body[data-production-page="ponte"] .menu-button { display: none; }
 body[data-production-page="ponte"] .app-shell { width: 100%; margin-left: 0; }
+
+/* Tela cheia sem menu lateral na saída de panelas do Holding. */
+body[data-production-page="holding"] .sidebar,
+body[data-production-page="holding"] .menu-button { display: none; }
+body[data-production-page="holding"] .app-shell { width: 100%; margin-left: 0; }
+
 @media (max-width: 900px) {
   .fusao-fornos-grid { grid-template-columns: 1fr; }
 }
@@ -181,9 +222,18 @@ body[data-production-page="ponte"] .app-shell { width: 100%; margin-left: 0; }
 .fusao-tabelas-carga tr.fusao-transferencia-row td { font-weight: 700; }
 .fusao-tabelas-carga tr.fusao-transferencia-saida td { color: var(--color-danger); }
 .fusao-tabelas-carga tr.fusao-transferencia-entrada td { color: var(--color-success); }
+/* Mesmo destaque na tabela de carga da tela da corrida (fora do card). */
+#carga-rows tr.fusao-transferencia-row td { font-weight: 700; white-space: nowrap; }
+#carga-rows tr.fusao-transferencia-saida td { color: var(--color-danger); }
+#carga-rows tr.fusao-transferencia-entrada td { color: var(--color-success); }
+
+/* Pedido explícito: fundo do título da tabela de carregamento em verde,
+   da tabela de retirada de metal (panelas do Holding) em vermelho. */
+.fusao-cabecalho-carregamento th { background: var(--color-success); color: #fff; }
+.fusao-cabecalho-retirada th { background: var(--color-danger); color: #fff; }
 
 /* Linha de total no fim da tabela de materiais do card. */
-.fusao-tabela-total-row td { border-top: 2px solid var(--color-border); }
+.fusao-tabela-total-row td { border-top: 2px solid var(--color-border); background: #eef1f4; font-weight: 700; }
 
 /* Pedido explícito: planejado (azul) e real (preto), bem negrito e
    destacado, nos cards do painel de fornos — cobre tanto a célula
