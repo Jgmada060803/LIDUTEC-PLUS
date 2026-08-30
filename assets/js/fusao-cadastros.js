@@ -51,6 +51,7 @@ async function loadFornos() {
   fcq("#fornos-rows").innerHTML = rows.map((item) => `<tr>
       <td>${fcEsc(item.codigo)}</td><td>${fcEsc(item.nome)}</td><td>${FORNO_TIPO_NOMES[item.tipo] || item.tipo}</td>
       <td>${item.carro ? `Carro ${item.carro}` : "—"}</td>
+      <td>${item.capacidade_kg != null ? Number(item.capacidade_kg).toLocaleString("pt-BR") : "—"}</td>
       <td>${item.limite_atencao_corridas}</td><td>${item.limite_critico_corridas}</td>
       <td>${item.ativo ? "Ativo" : "Inativo"}</td>
       <td><button type="button" class="button button-secondary" data-edit-forno="${item.id}">Editar</button></td>
@@ -66,6 +67,7 @@ async function loadFornos() {
       form.elements.tipo.value = item.tipo;
       form.elements.limite_atencao.value = item.limite_atencao_corridas;
       form.elements.limite_critico.value = item.limite_critico_corridas;
+      form.elements.capacidade_kg.value = item.capacidade_kg ?? "";
       form.elements.carro.value = item.carro ?? "";
       form.elements.ativo.checked = item.ativo;
       fcq("#forno-cancel-edit").hidden = false;
@@ -136,7 +138,8 @@ async function initializeFusaoCadastros() {
         p_codigo: form.elements.codigo.value, p_nome: form.elements.nome.value, p_tipo: form.elements.tipo.value,
         p_limite_atencao: Number(form.elements.limite_atencao.value), p_limite_critico: Number(form.elements.limite_critico.value),
         p_ativo: form.elements.ativo.checked,
-        p_carro: form.elements.carro.value ? Number(form.elements.carro.value) : null
+        p_carro: form.elements.carro.value ? Number(form.elements.carro.value) : null,
+        p_capacidade_kg: form.elements.capacidade_kg.value ? Number(form.elements.capacidade_kg.value) : null
       });
       fcMessage("#forno-message", "Forno salvo com sucesso.");
       resetForm(form, "#forno-cancel-edit");

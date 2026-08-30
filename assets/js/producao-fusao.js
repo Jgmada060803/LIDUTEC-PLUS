@@ -212,6 +212,53 @@ function bindProdutoEditavel(container, corridaId) {
     }
   });
 }
+// Temperatura programada (setpoint) do Holding — só faz sentido pra forno
+// tipo HOLDING, associada à corrida (período) em vez de ficar solta no
+// cadastro do forno; ajustável quantas vezes precisar enquanto ABERTA.
+function fusaoTemperaturaProgramadaHtml(corrida) {
+  const valor = corrida.temperatura_programada_c;
+  const display = `<strong class="fusao-temperatura-display">${valor != null ? `${fNumber(valor).toLocaleString("pt-BR")} °C` : "—"}</strong>`;
+  return ` · Temp. programada: <span class="fusao-temperatura-editavel">${display}
+      <button type="button" class="fusao-editable-toggle" title="Ajustar temperatura programada">...</button>
+    </span>`;
+}
+function bindTemperaturaProgramada(container, corrida) {
+  const el = container.querySelector(".fusao-temperatura-editavel");
+  if (!el || el.dataset.bound) return;
+  el.dataset.bound = "1";
+  const toggle = el.querySelector(".fusao-editable-toggle");
+  toggle.dataset.mode = "editar";
+  toggle.addEventListener("click", async () => {
+    if (toggle.dataset.mode !== "salvar") {
+      const valorAtual = corrida.temperatura_programada_c ?? "";
+      el.querySelector(".fusao-temperatura-display").outerHTML = `<input type="number" step="1" class="fusao-numero-input" value="${valorAtual}">`;
+      toggle.dataset.mode = "salvar";
+      toggle.textContent = "OK";
+      toggle.title = "Salvar temperatura";
+      el.querySelector("input").focus();
+      return;
+    }
+    const input = el.querySelector("input");
+    const novoValor = input.value === "" ? null : Number(input.value);
+    const voltarParaDisplay = (valor) => {
+      input.outerHTML = `<strong class="fusao-temperatura-display">${valor != null ? `${fNumber(valor).toLocaleString("pt-BR")} °C` : "—"}</strong>`;
+      toggle.dataset.mode = "editar";
+      toggle.textContent = "...";
+      toggle.title = "Ajustar temperatura programada";
+    };
+    try {
+      toggle.disabled = true; input.disabled = true;
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarTemperaturaProgramada(corrida.id, novoValor);
+      corrida.temperatura_programada_c = novoValor;
+      voltarParaDisplay(novoValor);
+    } catch (error) {
+      input.disabled = false;
+      alert(error.message);
+    } finally {
+      toggle.disabled = false;
+    }
+  });
+}
 // Corrigir o número da corrida (item planejado: número normal continua
 // automático — isso é só uma correção manual pontual, exige
 // producao_fusao.editar). Só o número (3 últimos dígitos do código) é
@@ -539,13 +586,15 @@ function corridaCardHtml(corrida, volumeAtualKg) {
   const mensagens = corrida.corridas_fusao_mensagens || [];
   const { carregamentoConcluido, html: tabelasHtml } = fusaoTabelasCargaHtml(todosItens, transferencias);
   const produto = fusaoState.produtos.find((p) => p.id === corrida.produto_id) || corrida.produtos;
+  const forno = fusaoState.fornos.find((f) => f.id === corrida.forno_id);
   return `<div class="fusao-corrida-inline" data-corrida-id="${corrida.id}" data-versao="${corrida.versao}" data-forno-id="${corrida.forno_id}">
       <p><span class="fusao-status-step ${fusaoCorridaStatusBadgeClass(corrida.status)}">${FUSAO_STATUS_NOMES[corrida.status] || corrida.status}</span>
         ${fusaoNumeroCorridaHtml(corrida)} — ${corrida.turno}
         <span class="fusao-carregamento-badge">${carregamentoConcluido ? `<span class="fusao-ponte-status is-concluido">✓ Carregamento concluído</span>` : ""}</span></p>
       <p class="fusao-corrida-meta">${fusaoProdutoEditavelHtml(corrida, produto)}
         <span class="fusao-corrida-horarios">Início: <strong>${corrida.inicio ? new Date(corrida.inicio).toLocaleString("pt-BR") : "—"}</strong>
-        ${corrida.fim ? ` · Fim: <strong>${new Date(corrida.fim).toLocaleString("pt-BR")}</strong>` : ""}</span></p>
+        ${corrida.fim ? ` · Fim: <strong>${new Date(corrida.fim).toLocaleString("pt-BR")}</strong>` : ""}
+        ${forno?.tipo === "HOLDING" ? fusaoTemperaturaProgramadaHtml(corrida) : ""}</span></p>
       ${fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtualKg)}
       <div class="fusao-tabelas-carga">${tabelasHtml}</div>
       <div class="fusao-add-item-area">
@@ -680,11 +729,36 @@ function fusaoOnSavedCard(container) {
     atualizarBadgeCarregamento(container);
   };
 }
+// Antes de confirmar a transferência (card do forno e corrida.html), mostra
+// a situação atual do forno destino (corrida aberta, início, metal atual,
+// capacidade) e o saldo estimado depois — pedido explícito, pra não
+// estourar o forno sem o operador perceber. Sem corrida aberta no destino,
+// deixa a RPC recusar com a mensagem dela (não duplica essa checagem aqui).
+async function fusaoConfirmarTransferencia(fornoDestinoId, quantidadeKg) {
+  const fornoDestino = fusaoState.fornos.find((f) => f.id === fornoDestinoId);
+  const corridaDestino = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridaAbertaDoForno(fornoDestinoId);
+  if (!corridaDestino) return true;
+  const metalAtual = fusaoState.volumeAtual[fornoDestinoId] ?? 0;
+  const capacidade = fornoDestino?.capacidade_kg;
+  const saldoDepois = metalAtual + quantidadeKg;
+  const linhas = [
+    fornoDestino?.nome || fornoDestino?.codigo || "Forno destino",
+    `Corrida atual: ${fusaoCodigoCorridaMascarado(corridaDestino.codigo)}`,
+    corridaDestino.inicio ? `Início: ${new Date(corridaDestino.inicio).toLocaleString("pt-BR")}` : null,
+    `Metal atual: ${fusaoKg(metalAtual)} kg`,
+    `Transferência solicitada: ${fusaoKg(quantidadeKg)} kg`,
+    `Saldo após transferência: ${fusaoKg(saldoDepois)} kg`,
+    capacidade != null ? `Capacidade: ${fusaoKg(capacidade)} kg` : null,
+    capacidade != null && saldoDepois > capacidade ? "\nATENÇÃO: o saldo após a transferência ultrapassa a capacidade cadastrada!" : null
+  ].filter(Boolean).join("\n");
+  return confirm(`${linhas}\n\nConfirma a transferência para este forno?`);
+}
 function bindCorridaCard(container, forno, corrida) {
   const corridaId = Number(container.querySelector(".fusao-corrida-inline")?.dataset.corridaId);
   bindEditableCells(container, corridaId, fusaoOnSavedCard(container));
   bindProdutoEditavel(container, corridaId);
   bindNumeroEditavel(container, corrida, forno);
+  bindTemperaturaProgramada(container, corrida);
   fusaoBindMensagens(container.querySelector(".fusao-mensagens"));
   // Delegado no container (sobrevive a re-render parcial da tabela ao
   // incluir material) — remove só o que ainda não foi pesado.
@@ -922,6 +996,7 @@ function bindCorridaCard(container, forno, corrida) {
         const fornoDestinoId = Number(row.querySelector('[name="forno_destino_id"]').value);
         const quantidade = Number(row.querySelector('[name="quantidade_kg"]').value);
         if (!fornoDestinoId || !quantidade) throw new Error("Selecione o forno destino e informe a quantidade.");
+        if (!(await fusaoConfirmarTransferencia(fornoDestinoId, quantidade))) return;
         confirmar.disabled = true;
         const atual = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridaAbertaDoForno(forno.id);
         if (!atual) throw new Error("Esta corrida não está mais aberta — a tela foi atualizada.");
@@ -1358,11 +1433,12 @@ async function initializeFusaoCorrida() {
     event.preventDefault();
     const form = event.currentTarget;
     const button = event.submitter;
-    button.disabled = true;
     try {
       const fornoDestinoId = Number(form.elements.forno_destino_id.value);
       const quantidade = Number(form.elements.quantidade_kg.value);
       if (!fornoDestinoId || !quantidade) throw new Error("Selecione o forno destino e informe a quantidade.");
+      if (!(await fusaoConfirmarTransferencia(fornoDestinoId, quantidade))) return;
+      button.disabled = true;
       await window.LIDUTEC_PRODUCAO_FUSAO_DATA.transferirMetal(fusaoCorridaId(), fornoDestinoId, quantidade);
       form.reset();
     } catch (error) {

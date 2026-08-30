@@ -60,6 +60,7 @@
       </select></label>
       <label>Limite atenção (corridas)<input name="limite_atencao" type="number" min="1" value="100" required></label>
       <label>Limite crítico (corridas)<input name="limite_critico" type="number" min="1" value="150" required></label>
+      <label>Capacidade (kg)<input name="capacidade_kg" type="number" min="0" step="1" placeholder="Opcional"></label>
       <label>Carro da ponte<select name="carro">
         <option value="">Nenhum</option>
         <option value="1">Carro 1</option>
@@ -73,7 +74,7 @@
 
   <section class="panel">
     <div class="panel-header"><h3>Fornos cadastrados</h3></div>
-    <div class="table-wrapper"><table class="products-table"><thead><tr><th>Código</th><th>Nome</th><th>Tipo</th><th>Carro</th><th>Atenção</th><th>Crítico</th><th>Status</th><th></th></tr></thead><tbody id="fornos-rows"></tbody></table></div>
+    <div class="table-wrapper"><table class="products-table"><thead><tr><th>Código</th><th>Nome</th><th>Tipo</th><th>Carro</th><th>Capacidade (kg)</th><th>Atenção</th><th>Crítico</th><th>Status</th><th></th></tr></thead><tbody id="fornos-rows"></tbody></table></div>
   </section>
 </main></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/producao-fusao-data.js"></script><script src="../../assets/js/fusao-cadastros.js"></script></body></html>

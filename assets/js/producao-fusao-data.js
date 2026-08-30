@@ -12,14 +12,14 @@
       return result(query);
     },
     fornos: (tipo = null) => {
-      let query = client().from("fornos_fusao").select("id,codigo,nome,tipo,limite_atencao_corridas,limite_critico_corridas,ativo,carro").eq("ativo", true).order("codigo");
+      let query = client().from("fornos_fusao").select("id,codigo,nome,tipo,limite_atencao_corridas,limite_critico_corridas,ativo,carro,capacidade_kg").eq("ativo", true).order("codigo");
       if (tipo) query = query.eq("tipo", tipo);
       return result(query);
     },
     materiaisTodos: () => result(client().from("materiais_fusao")
       .select("id,nome,tipo,ativo,pct_c,pct_si,pct_mn,pct_p,pct_cr,pct_s,pct_sn,pct_cu,pct_mo,pct_al,pct_pb,modo_pesagem")
       .order("nome")),
-    fornosTodos: () => result(client().from("fornos_fusao").select("id,codigo,nome,tipo,limite_atencao_corridas,limite_critico_corridas,ativo,carro").order("codigo")),
+    fornosTodos: () => result(client().from("fornos_fusao").select("id,codigo,nome,tipo,limite_atencao_corridas,limite_critico_corridas,ativo,carro,capacidade_kg").order("codigo")),
     produtos: () => result(client().from("produtos").select("id,codigo,nome").eq("status", "ATIVO").order("codigo")),
     volumeAtualFornos: () => result(client().from("fornos_fusao_volume_atual").select("forno_id,volume_atual_kg")),
     tiposMaterialProdutos: () => result(client().rpc("tipos_material_produtos_fusao")),
@@ -53,7 +53,7 @@
     // banco por card (1 pra achar a corrida + 3 em paralelo depois de
     // saber o id); agora é 1 só, feita direto pelo forno_id.
     corridaAbertaCompletaDoForno: (fornoId) => result(client().from("corridas_fusao")
-      .select("id,codigo,forno_id,ciclo_refratario_id,numero_sequencia,turno,status,versao,data_operacional,produto_id,inicio,fim,sobra_inicial_kg,escoria_kg,lingote_kg,energia_kwh,ajuste_kg,produtos(codigo,nome)," +
+      .select("id,codigo,forno_id,ciclo_refratario_id,numero_sequencia,turno,status,versao,data_operacional,produto_id,inicio,fim,sobra_inicial_kg,escoria_kg,lingote_kg,energia_kwh,ajuste_kg,temperatura_programada_c,produtos(codigo,nome)," +
         "corridas_fusao_carga_itens(id,material_id,quantidade_planejada_kg,quantidade_realizada_kg,estado_fisico,materiais_fusao(nome,tipo,modo_pesagem))," +
         "corridas_fusao_mensagens(id,mensagem,criado_em,origem,usuarios(nome))," +
         "saidas:transferencias_fusao!corrida_origem_id(id,quantidade_kg,corridas_fusao!corrida_destino_id(codigo))," +
@@ -122,6 +122,9 @@
     },
     corrigirNumeroCorrida: (corridaId, novoNumero, motivo) => result(client().rpc("corrigir_numero_corrida_fusao", {
       p_corrida_id: corridaId, p_novo_numero: novoNumero, p_motivo: motivo
+    }), null),
+    atualizarTemperaturaProgramada: (corridaId, temperaturaC) => result(client().rpc("atualizar_temperatura_programada_fusao", {
+      p_corrida_id: corridaId, p_temperatura_c: temperaturaC
     }), null),
     atualizarProduto: (corridaId, produtoId) => result(client().rpc("atualizar_produto_corrida_fusao", {
       p_corrida_id: corridaId, p_produto_id: produtoId
