@@ -110,7 +110,7 @@
       .select("id,status,versao,rascunho_producoes,rascunho_paradas,rascunho_linhas,atualizado_por,atualizado_em,usuarios!turnos_producao_acabamento_atualizado_por_fkey(nome),turnos_acabamento_linhas(linha_maquina_id,operadores_planejados,operadores_presentes)")
       .eq("data_operacional", date).eq("turno", turno).maybeSingle(), null),
     shiftProductions: (id) => result(client().from("registros_producao_acabamento")
-      .select("linha_maquina_id,produto_id,quantidade_liberada,quantidade_rejeitada,quantidade_retrabalhada,quantidade_refugada")
+      .select("linha_maquina_id,produto_id,rastreabilidade,quantidade_liberada,quantidade_rejeitada,quantidade_retrabalhada,quantidade_refugada")
       .eq("turno_producao_id", id).order("linha_maquina_id").order("produto_id")),
     shiftStops: (id) => result(client().from("paradas_producao_acabamento")
       .select("inicio,fim,setor_origem_id,categoria_id,posto_equipamento_id,tipo_ocorrencia,componentes_indisponiveis,observacao").eq("turno_producao_id", id).order("inicio")),

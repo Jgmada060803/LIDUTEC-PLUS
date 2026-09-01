@@ -6,6 +6,8 @@
 .shift-entry-table input,.shift-entry-table select,.shift-entry-table output{min-height:36px;height:36px;font-size:1rem}
 .shift-entry-table input[type="number"]{text-align:left}
 .shift-entry-table .typeahead-field[data-typeahead="produto_id"] { min-width: 260px; }
+.shift-entry-table input[name="rastreabilidade"] { min-width: 100px; }
+.shift-entry-table .shift-total-row td { background: #eef1f4; font-weight: 700; height: auto; padding: 8px; }
 
 /* A tabela de paradas ganhou 2 colunas (Condição, Perda equivalente) entre
    "Posto/Equipamento" e "Setor de origem" — dá mais espaço pra elas e pro

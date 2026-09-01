@@ -153,6 +153,7 @@ function productionRow() {
   row.className = "shift-production-row";
   row.innerHTML = `
     <td>${window.LIDUTEC_TYPEAHEAD.fieldHtml("produto_id", 'name="produto_id"', "Buscar produto por código ou nome...", "Produto")}</td>
+    <td><input name="rastreabilidade" type="text" maxlength="120" placeholder="lote"></td>
     <td><input name="quantidade_liberada" type="number" min="0" step="1" value="0"></td>
     <td><input name="quantidade_rejeitada" type="number" min="0" step="1" value="0"></td>
     <td><input name="quantidade_retrabalhada" type="number" min="0" step="1" value="0"></td>
@@ -340,10 +341,33 @@ function updateStopRow(row) {
 function appendEntryRow(target, row) {
   aq(target).append(row);
 }
+// Total de Liberada/Rejato/Retrabalhada/Refugada por tabela (Linha 1 e
+// Linha 2) — pedido explícito, pra não precisar somar de cabeça.
+function updateProductionTotals(tbodySelector) {
+  const tbody = aq(tbodySelector);
+  const table = tbody?.closest("table");
+  if (!table) return;
+  const totals = { liberada: 0, rejeitada: 0, retrabalhada: 0, refugada: 0 };
+  for (const row of tbody.querySelectorAll(".shift-production-row")) {
+    totals.liberada += anumber(row.querySelector('[name="quantidade_liberada"]').value);
+    totals.rejeitada += anumber(row.querySelector('[name="quantidade_rejeitada"]').value);
+    totals.retrabalhada += anumber(row.querySelector('[name="quantidade_retrabalhada"]').value);
+    totals.refugada += anumber(row.querySelector('[name="quantidade_refugada"]').value);
+  }
+  table.querySelector("[data-total-liberada]").textContent = totals.liberada.toLocaleString("pt-BR");
+  table.querySelector("[data-total-rejeitada]").textContent = totals.rejeitada.toLocaleString("pt-BR");
+  table.querySelector("[data-total-retrabalhada]").textContent = totals.retrabalhada.toLocaleString("pt-BR");
+  table.querySelector("[data-total-refugada]").textContent = totals.refugada.toLocaleString("pt-BR");
+}
+function updateAllProductionTotals() {
+  updateProductionTotals("#production-entry-rows-l1");
+  updateProductionTotals("#production-entry-rows-l2");
+}
 function resetShiftEntryRows() {
   aq("#production-entry-rows-l1").replaceChildren(productionRow());
   aq("#production-entry-rows-l2").replaceChildren(productionRow());
   aq("#stop-entry-rows").replaceChildren(stopRow());
+  updateAllProductionTotals();
 }
 function shiftDraftKey() {
   const form = aq("#shift-entry-form");
@@ -361,6 +385,7 @@ function populateShiftRows(productions, stops, linhas) {
       const row = productionRow();
       applyRowValues(row, {
         produto_id: item.produto_id ?? "",
+        rastreabilidade: item.rastreabilidade ?? "",
         quantidade_liberada: item.quantidade_liberada ?? 0,
         quantidade_rejeitada: item.quantidade_rejeitada ?? 0,
         quantidade_retrabalhada: item.quantidade_retrabalhada ?? 0,
@@ -371,6 +396,7 @@ function populateShiftRows(productions, stops, linhas) {
   };
   fillProductions("#production-entry-rows-l1", rowsL1);
   fillProductions("#production-entry-rows-l2", rowsL2);
+  updateAllProductionTotals();
 
   const form = aq("#shift-entry-form");
   const linhaL1 = (linhas || []).find((item) => String(item.linha_id ?? item.linha_maquina_id) === String(linha1Id()));
@@ -427,6 +453,7 @@ function serializeProductionSection(target, linhaId) {
     .map((row) => ({
       linha_id: linhaId,
       produto_id: anumber(row.querySelector('[name="produto_id"]').value),
+      rastreabilidade: row.querySelector('[name="rastreabilidade"]').value,
       quantidade_liberada: anumber(row.querySelector('[name="quantidade_liberada"]').value),
       quantidade_rejeitada: anumber(row.querySelector('[name="quantidade_rejeitada"]').value),
       quantidade_retrabalhada: anumber(row.querySelector('[name="quantidade_retrabalhada"]').value),
@@ -1087,8 +1114,8 @@ async function initializeShiftEntry() {
   initializeShiftCalendar();
   resetShiftEntryRows();
 
-  aq("#add-production-row-l1").addEventListener("click", () => { appendEntryRow("#production-entry-rows-l1", productionRow()); saveShiftDraft(); });
-  aq("#add-production-row-l2").addEventListener("click", () => { appendEntryRow("#production-entry-rows-l2", productionRow()); saveShiftDraft(); });
+  aq("#add-production-row-l1").addEventListener("click", () => { appendEntryRow("#production-entry-rows-l1", productionRow()); updateAllProductionTotals(); saveShiftDraft(); });
+  aq("#add-production-row-l2").addEventListener("click", () => { appendEntryRow("#production-entry-rows-l2", productionRow()); updateAllProductionTotals(); saveShiftDraft(); });
   aq("#add-stop-row").addEventListener("click", () => { appendEntryRow("#stop-entry-rows", stopRow()); saveShiftDraft(); renderAcabamentoIllustrations(); });
   for (const key of ["l1", "l2"]) {
     const box = aq(`#absenteeism-box-${key}`);
@@ -1107,6 +1134,7 @@ async function initializeShiftEntry() {
       catch (error) { acabamentoMessage(error.message, "error", "stop-time"); }
       renderAcabamentoIllustrations();
     }
+    if (event.target.closest(".shift-production-row")) updateAllProductionTotals();
     saveShiftDraft();
   });
   form.addEventListener("click", (event) => {
@@ -1125,6 +1153,7 @@ async function initializeShiftEntry() {
     } else {
       row.remove();
     }
+    if (row.matches(".shift-production-row")) updateAllProductionTotals();
     saveShiftDraft();
     if (row.matches(".shift-stop-row")) { renderAcabamentoIllustrations(); updateAbsenteeismBoxes(); }
   });
