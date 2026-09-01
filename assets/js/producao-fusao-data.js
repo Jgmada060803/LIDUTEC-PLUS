@@ -23,6 +23,10 @@
     produtos: () => result(client().from("produtos").select("id,codigo,nome").eq("status", "ATIVO").order("codigo")),
     volumeAtualFornos: () => result(client().from("fornos_fusao_volume_atual").select("forno_id,volume_atual_kg")),
     tiposMaterialProdutos: () => result(client().rpc("tipos_material_produtos_fusao")),
+    // CE/temperatura min-max (já existiam na ficha técnica, só faltava
+    // ler) e peso metálico por molde — usado pelos gráficos e pelo
+    // balanço de massa (etapas seguintes do roadmap).
+    especificacoesFusaoVazamentoProdutos: () => result(client().rpc("especificacoes_fusao_vazamento_produtos")),
     salvarMaterial: (payload) => result(client().rpc("salvar_material_fusao", payload), null),
     salvarForno: (payload) => result(client().rpc("salvar_forno_fusao", payload), null),
     trocarRefratario: (fornoId, motivo, situacaoForno, observacoes) => result(client().rpc("trocar_refratario_fusao", {
@@ -57,7 +61,8 @@
         "corridas_fusao_carga_itens(id,material_id,quantidade_planejada_kg,quantidade_realizada_kg,estado_fisico,materiais_fusao(nome,tipo,modo_pesagem))," +
         "corridas_fusao_mensagens(id,mensagem,criado_em,origem,usuarios(nome))," +
         "saidas:transferencias_fusao!corrida_origem_id(id,quantidade_kg,corridas_fusao!corrida_destino_id(codigo))," +
-        "entradas:transferencias_fusao!corrida_destino_id(id,quantidade_kg,corridas_fusao!corrida_origem_id(codigo))")
+        "entradas:transferencias_fusao!corrida_destino_id(id,quantidade_kg,corridas_fusao!corrida_origem_id(codigo))," +
+        "panelas_holding(peso_kg)")
       .eq("forno_id", fornoId).eq("status", "ABERTA")
       .order("id", { foreignTable: "corridas_fusao_carga_itens" })
       .order("criado_em", { foreignTable: "corridas_fusao_mensagens" })
@@ -128,7 +133,7 @@
     }), null),
     // Saída de panelas do Holding — uma linha por panela retirada.
     panelasDaCorrida: (corridaId) => result(client().from("panelas_holding")
-      .select("id,sequencial,produto_id,hora_retirada,peso_kg,temperatura_c,carbono_equivalente,fesimg_liga1_kg,fesimg_liga4_kg,inoculante_kg,silicio_kg,grafite_kg,sucata_cobertura_kg,status,produtos(codigo,nome)")
+      .select("id,sequencial,sequencial_vazamento,produto_id,hora_retirada,peso_kg,temperatura_c,carbono_equivalente,fesimg_liga1_kg,fesimg_liga4_kg,inoculante_kg,silicio_kg,grafite_kg,sucata_cobertura_kg,status,produtos(codigo,nome)")
       .eq("holding_corrida_id", corridaId).order("sequencial", { ascending: false })),
     criarPanelaHolding: (corridaId, pesoKg, horaRetirada, fesimgLiga1Kg, fesimgLiga4Kg) => result(client().rpc("criar_panela_holding", {
       p_holding_corrida_id: corridaId, p_peso_kg: pesoKg, p_hora_retirada: horaRetirada,
@@ -145,11 +150,73 @@
       if (response.error) throw response.error;
       return response.data ?? null;
     },
+    // Análise térmica do Holding — vale até a próxima, sem repetir a cada
+    // panela; "última" é sempre a mais recente por forno.
+    ultimaAnaliseTermicaHolding: (fornoId) => result(client().from("analises_termicas_holding")
+      .select("carbono_equivalente,carbono,delta_t,temp_liquidus,temp_solidus,medido_em")
+      .eq("forno_id", fornoId).order("medido_em", { ascending: false }).limit(1).maybeSingle(), null),
+    // Últimas 5 análises térmicas completas (CE, Carbono, ΔT, Liquidus,
+    // Solidus) — não só o CE isolado.
+    ultimasAnalisesTermicasHolding: (fornoId, limite = 5) => result(client().from("analises_termicas_holding")
+      .select("carbono_equivalente,carbono,delta_t,temp_liquidus,temp_solidus,medido_em")
+      .eq("forno_id", fornoId).order("medido_em", { ascending: false }).limit(limite)),
+    registrarAnaliseTermicaHolding: (fornoId, ce, carbono, deltaT, liquidus, solidus) => result(client().rpc("registrar_analise_termica_holding", {
+      p_forno_id: fornoId, p_carbono_equivalente: ce, p_carbono: carbono,
+      p_delta_t: deltaT, p_temp_liquidus: liquidus, p_temp_solidus: solidus
+    }), null),
     atualizarCampoPanelaHolding: (panelaId, campo, valor) => result(client().rpc("atualizar_campo_panela_holding", {
       p_panela_id: panelaId, p_campo: campo, p_valor: valor
     }), null),
     atualizarHoraRetiradaPanelaHolding: (panelaId, horaRetirada) => result(client().rpc("atualizar_hora_retirada_panela_holding", {
       p_panela_id: panelaId, p_hora_retirada: horaRetirada
+    }), null),
+    // Fila do Vazamento — panelas que já saíram do Holding e ainda não
+    // foram vazadas nem rejeitadas, mais antigas primeiro (FIFO).
+    panelasAguardandoVazamento: () => result(client().from("panelas_holding")
+      .select("id,sequencial,hora_retirada,peso_kg,temperatura_c,carbono_equivalente,ce_medido_nesta_panela,status,produto_id,produtos(codigo,nome)," +
+        "corridas_fusao!holding_corrida_id(codigo,forno_id,fornos_fusao(codigo,nome))")
+      .in("status", ["SAIDA_HOLDING", "EM_TRANSITO"]).order("hora_retirada", { ascending: true })),
+    apontarVazamentoPanela: (panelaId, inicioIso, fimIso, temperaturaC, moldeInicial, moldeFinal, ceMedido) => result(client().rpc("apontar_vazamento_panela", {
+      p_panela_id: panelaId, p_inicio: inicioIso, p_fim: fimIso, p_temperatura_c: temperaturaC,
+      p_molde_inicial: moldeInicial, p_molde_final: moldeFinal, p_ce_medido: ceMedido
+    }), null),
+    atualizarProdutoPanelaHolding: (panelaId, produtoId) => result(client().rpc("atualizar_produto_panela_holding", {
+      p_panela_id: panelaId, p_produto_id: produtoId
+    }), null),
+    rejeitarPanelaHolding: (panelaId, motivo) => result(client().rpc("rejeitar_panela_holding", {
+      p_panela_id: panelaId, p_motivo: motivo
+    }), null),
+    registrarRetornoPanelaHolding: (panelaId, fornoDestinoId) => result(client().rpc("registrar_retorno_panela_holding", {
+      p_panela_id: panelaId, p_forno_destino_id: fornoDestinoId
+    }), null),
+    // Rejeitadas ainda sem retorno registrado — aparecem na própria tela
+    // do Vazamento pra o operador escolher o forno e confirmar.
+    panelasRejeitadasAguardandoRetorno: () => result(client().from("panelas_holding")
+      .select("id,sequencial,peso_kg,motivo_rejeicao,produtos(codigo,nome),corridas_fusao!holding_corrida_id(codigo,fornos_fusao(codigo,nome))")
+      .eq("status", "REJEITADA").order("atualizado_em", { ascending: true })),
+    // Histórico de quem já foi vazada — some da fila de espera, mas
+    // precisa continuar visível pra quem só acessa a tela do Vazamento
+    // (perfil restrito não entra no Holding nem na corrida).
+    panelasVazadasRecentes: (limite = 20) => result(client().from("panelas_holding")
+      .select("id,sequencial,sequencial_vazamento,peso_kg,hora_inicio_vazamento,hora_fim_vazamento,molde_inicial,molde_final,quantidade_moldes,carbono_equivalente,ce_medido_nesta_panela,produtos(codigo,nome),corridas_fusao!holding_corrida_id(codigo,fornos_fusao(codigo,nome))")
+      .eq("status", "VAZADA").order("hora_fim_vazamento", { ascending: false }).limit(limite)),
+    // Metal de panela rejeitada ("Retorno Disa") que voltou pra este forno
+    // — credita o saldo (volume_atual_forno_fusao) e também vira linha na
+    // tabela de materiais, igual transferência. Escopado pela corrida
+    // destino (não só pelo forno): o retorno só existe hoje com corrida
+    // aberta no destino (mesma exigência da transferência), então dá pra
+    // saber com certeza em qual card mostrar sem contar duas vezes (a
+    // próxima corrida já nasce com esse valor embutido no peso inicial).
+    panelasRetornadasParaCorrida: (corridaId) => result(client().from("panelas_holding")
+      .select("id,sequencial,peso_kg,corridas_fusao!holding_corrida_id(codigo,fornos_fusao(codigo))")
+      .eq("status", "RETORNADA").eq("retorno_corrida_destino_id", corridaId)),
+    // Análise térmica do Vazamento — mesmo modelo do Holding, sem forno
+    // (uma estação só); "última" é sempre a mais recente.
+    ultimaAnaliseTermicaVazamento: () => result(client().from("analises_termicas_vazamento")
+      .select("carbono_equivalente,carbono,delta_t,temp_liquidus,temp_solidus,medido_em")
+      .order("medido_em", { ascending: false }).limit(1).maybeSingle(), null),
+    registrarAnaliseTermicaVazamento: (ce, carbono, deltaT, liquidus, solidus) => result(client().rpc("registrar_analise_termica_vazamento", {
+      p_carbono_equivalente: ce, p_carbono: carbono, p_delta_t: deltaT, p_temp_liquidus: liquidus, p_temp_solidus: solidus
     }), null),
     atualizarProduto: (corridaId, produtoId) => result(client().rpc("atualizar_produto_corrida_fusao", {
       p_corrida_id: corridaId, p_produto_id: produtoId

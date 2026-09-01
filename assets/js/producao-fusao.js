@@ -3,7 +3,7 @@ const fEsc = (value = "") => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&
 const fNumber = (value) => Number(value || 0);
 const fusaoPage = document.body.dataset.productionPage;
 const fusaoState = { user: null, permissions: null, materiais: [], fornos: [], produtos: [], volumeAtual: {} };
-const fusaoCorridaCache = { corrida: null, itens: [], transferencias: { entradas: [], saidas: [] } };
+const fusaoCorridaCache = { corrida: null, itens: [], transferencias: { entradas: [], saidas: [] }, panelasHolding: [] };
 
 const FUSAO_STATUS_NOMES = { ABERTA: "Aberta", FECHADA: "Fechada" };
 
@@ -27,6 +27,13 @@ function fusaoCodigoCorridaMascarado(codigo) {
   const numero = codigo.slice(-6);
   const prefixo = codigo.slice(0, -6);
   return `${prefixo}.${numero.slice(0, 3)}.${numero.slice(3)}`;
+}
+// Identificação da panela na vazadora: código da corrida (mascarado) + V +
+// sequencial do dia (só panela efetivamente vazada tem isso) — ex.:
+// "H1.052.085-V1". Reinicia por dia, pedido explícito.
+function fusaoIdentificacaoVazamento(codigoCorrida, sequencialVazamento) {
+  const codigo = fusaoCodigoCorridaMascarado(codigoCorrida);
+  return sequencialVazamento != null ? `${codigo}-V${sequencialVazamento}` : codigo;
 }
 
 async function loadFusaoSupport() {
@@ -528,6 +535,106 @@ function fusaoTransferenciaCardRowHtml(direcao, transferencia) {
       </span></td>
     </tr>`;
 }
+// "Retorno Disa" — metal que volta pro forno (hoje: panela rejeitada
+// devolvida; na etapa de lingotamento, a sobra do vazamento vai usar a
+// mesma linha/nome, "afinal é a mesma coisa" — pedido explícito. Verde
+// como entrada, sem ações (não é editável/removível por aqui).
+function fusaoRetornoDisaRowHtml(quantidadePanelas, quantidadeKg) {
+  return `<tr class="fusao-transferencia-row fusao-transferencia-entrada">
+      <td colspan="3">RETORNO DISA (${quantidadePanelas} panela${quantidadePanelas === 1 ? "" : "s"})</td>
+      <td>${fNumber(quantidadeKg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
+      <td></td>
+    </tr>`;
+}
+// Panelas rejeitadas aguardando retorno — o operador escolhe o forno de
+// destino e confirma; credita o saldo daquele forno (mantendo vínculo com
+// a panela original, corrida e produto — nada some sem rastro). Reaproveitada
+// tanto na tela do Vazamento quanto no painel flutuante do planejamento
+// (índice), pra quem decide o destino não precisar trocar de tela.
+function fusaoRejeitadaRowHtml(panela) {
+  const holding = panela.corridas_fusao?.fornos_fusao;
+  const corridaCodigo = panela.corridas_fusao?.codigo;
+  const produto = panela.produtos;
+  const opcoesFornos = fusaoState.fornos.map((f) => `<option value="${f.id}">${fEsc(f.codigo)} — ${fEsc(f.nome)}</option>`).join("");
+  return `<tr data-panela-id="${panela.id}">
+      <td>${fEsc(holding?.codigo || "—")}</td>
+      <td>${panela.sequencial}</td>
+      <td>${fEsc(fusaoCodigoCorridaMascarado(corridaCodigo))}</td>
+      <td>${fEsc(produto?.codigo || "—")}</td>
+      <td>${fusaoKg(panela.peso_kg)}</td>
+      <td>${fEsc(panela.motivo_rejeicao || "—")}</td>
+      <td><select name="forno_destino"><option value="">Forno destino</option>${opcoesFornos}</select></td>
+      <td><button type="button" class="button button-primary" data-confirmar-retorno>Registrar retorno</button></td>
+    </tr>`;
+}
+function fusaoBindRejeitadaRow(tbody, panela, aoConcluir) {
+  const row = tbody.querySelector(`tr[data-panela-id="${panela.id}"]`);
+  if (!row) return;
+  const botao = row.querySelector("[data-confirmar-retorno]");
+  botao.addEventListener("click", async () => {
+    const fornoId = Number(row.querySelector('[name="forno_destino"]').value);
+    if (!fornoId) { alert("Selecione o forno de destino."); return; }
+    try {
+      botao.disabled = true;
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.registrarRetornoPanelaHolding(panela.id, fornoId);
+      await aoConcluir();
+    } catch (error) {
+      alert(error.message);
+      botao.disabled = false;
+    }
+  });
+}
+// Renderiza dentro de qualquer container (seletor) e devolve a quantidade
+// de panelas pendentes — quem chama decide o que fazer com esse número
+// (ex.: mostrar/esconder o painel flutuante do índice).
+async function fusaoRenderRejeitadasAguardandoRetorno(containerSeletor) {
+  const panelas = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasRejeitadasAguardandoRetorno();
+  const container = fq(containerSeletor);
+  if (!container) return panelas.length;
+  if (!panelas.length) { container.innerHTML = ""; return 0; }
+  container.innerHTML = `<div class="panel-header"><h3>Panelas rejeitadas aguardando retorno</h3></div>
+    <div class="table-wrapper"><table class="products-table">
+      <thead><tr class="fusao-cabecalho-retirada"><th>Holding</th><th>Panela Nº</th><th>Corrida</th><th>Produto</th><th>Peso (kg)</th><th>Motivo</th><th>Forno destino</th><th></th></tr></thead>
+      <tbody>${panelas.map(fusaoRejeitadaRowHtml).join("")}</tbody>
+    </table></div>`;
+  const tbody = container.querySelector("tbody");
+  panelas.forEach((panela) => fusaoBindRejeitadaRow(tbody, panela, () => fusaoRenderRejeitadasAguardandoRetorno(containerSeletor)));
+  return panelas.length;
+}
+// Painel flutuante do planejamento (índice) — mesma tabela acima, só que
+// sobreposta à tela (não empurra o grid de fornos) e arrastável, pra dar
+// pra decidir o destino do retorno sem sair da tela de carregamento nem
+// perder o que já estava vendo. Some sozinho quando não há pendência.
+function fusaoTornarArrastavel(painel, alca) {
+  let arrastando = false, offsetX = 0, offsetY = 0;
+  alca.addEventListener("pointerdown", (event) => {
+    arrastando = true;
+    const rect = painel.getBoundingClientRect();
+    offsetX = event.clientX - rect.left;
+    offsetY = event.clientY - rect.top;
+    painel.style.left = `${rect.left}px`;
+    painel.style.top = `${rect.top}px`;
+    painel.style.right = "auto";
+    painel.style.bottom = "auto";
+    alca.setPointerCapture(event.pointerId);
+  });
+  alca.addEventListener("pointermove", (event) => {
+    if (!arrastando) return;
+    const maxX = Math.max(0, window.innerWidth - painel.offsetWidth);
+    const maxY = Math.max(0, window.innerHeight - painel.offsetHeight);
+    painel.style.left = `${Math.min(Math.max(0, event.clientX - offsetX), maxX)}px`;
+    painel.style.top = `${Math.min(Math.max(0, event.clientY - offsetY), maxY)}px`;
+  });
+  const soltar = () => { arrastando = false; };
+  alca.addEventListener("pointerup", soltar);
+  alca.addEventListener("pointercancel", soltar);
+}
+async function fusaoAtualizarRetornoFlutuante() {
+  const painel = fq("#fusao-retorno-flutuante");
+  if (!painel) return;
+  const quantidade = await fusaoRenderRejeitadasAguardandoRetorno("#fusao-retorno-flutuante-corpo");
+  painel.hidden = quantidade === 0;
+}
 function fusaoTabelaTotalRowHtml(itens) {
   const planejado = itens.reduce((soma, item) => soma + fNumber(item.quantidade_planejada_kg), 0);
   const realizado = itens.reduce((soma, item) => soma + fNumber(item.quantidade_realizada_kg), 0);
@@ -539,15 +646,17 @@ function fusaoTabelaTotalRowHtml(itens) {
       <td class="fusao-total-progresso">${fusaoProgressoHtml(realizado, planejado)}</td>
     </tr>`;
 }
-function fusaoTabelasCargaHtml(itens, transferencias) {
+function fusaoTabelasCargaHtml(itens, transferencias, retornosDisa = []) {
   const carregamentoConcluido = itens.length > 0 && itens.every((item) =>
     fNumber(item.quantidade_realizada_kg) > 0 && fNumber(item.quantidade_realizada_kg) >= fNumber(item.quantidade_planejada_kg)
   );
   const entradaLinhas = (transferencias?.entradas || []).map((t) => fusaoTransferenciaCardRowHtml("entrada", t));
   const saidaLinhas = (transferencias?.saidas || []).map((t) => fusaoTransferenciaCardRowHtml("saida", t));
-  if (!itens.length && !entradaLinhas.length && !saidaLinhas.length) return { carregamentoConcluido, html: "" };
+  const retornoKgTotal = retornosDisa.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
+  const retornoLinhas = retornosDisa.length ? [fusaoRetornoDisaRowHtml(retornosDisa.length, retornoKgTotal)] : [];
+  if (!itens.length && !entradaLinhas.length && !saidaLinhas.length && !retornoLinhas.length) return { carregamentoConcluido, html: "" };
   const html = `<table class="products-table"><thead><tr><th>Material</th><th>Carregamento</th><th>Planejado (kg)</th><th>Real (kg)</th><th>Progresso</th></tr></thead>
-      <tbody>${entradaLinhas.join("")}${itens.map(fusaoCardRowHtml).join("")}${saidaLinhas.join("")}</tbody>
+      <tbody>${entradaLinhas.join("")}${retornoLinhas.join("")}${itens.map(fusaoCardRowHtml).join("")}${saidaLinhas.join("")}</tbody>
       ${itens.length ? `<tfoot>${fusaoTabelaTotalRowHtml(itens)}</tfoot>` : ""}</table>`;
   return { carregamentoConcluido, html };
 }
@@ -556,19 +665,24 @@ function fusaoTabelasCargaHtml(itens, transferencias) {
 // Ponte/direto) + recebido por transferência (pra fechar a conta certinho
 // quando é um Holding recebendo de outro forno); saída = transferido pra
 // fora; volume atual = inicial + entrada − saída.
-function fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtualKg) {
+function fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtualKg, panelasHoldingKg = 0, retornadoKg = 0) {
   const pesoInicial = fNumber(corrida.sobra_inicial_kg);
   const totalCarregado = todosItens.reduce((soma, item) => soma + fNumber(item.quantidade_realizada_kg), 0);
   const totalRecebido = (transferencias?.entradas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0);
-  const entrada = totalCarregado + totalRecebido;
+  // Metal de panela rejeitada que retornou pra este forno também é
+  // entrada — sem isso o Volume atual (que já credita esse retorno) não
+  // batia com Inicial+Entrada-Saída.
+  const entrada = totalCarregado + totalRecebido + fNumber(retornadoKg);
+  // Panela retirada do Holding é saída igual escória/lingote/ajuste — sem
+  // isso o saldo do forno abatia mas a linha "Saída" não explicava por quê.
   const saida = (transferencias?.saidas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0)
-    + fNumber(corrida.escoria_kg) + fNumber(corrida.lingote_kg) + fNumber(corrida.ajuste_kg);
+    + fNumber(corrida.escoria_kg) + fNumber(corrida.lingote_kg) + fNumber(corrida.ajuste_kg) + fNumber(panelasHoldingKg);
   // Corrida fechada não deve mais "andar" na tela conforme o forno segue
   // sendo usado depois — mostra o saldo congelado no instante do fechamento,
   // não o saldo ao vivo do forno (só a corrida ABERTA mostra o saldo ao vivo).
   const volume = corrida.status === "ABERTA" ? volumeAtualKg : fNumber(corrida.saldo_forno_no_fechamento_kg);
   const kg = (valor) => `${fusaoKg(valor)}<span class="fusao-resumo-unidade">Kg</span>`;
-  return `<div class="fusao-resumo-corrida" data-peso-inicial="${pesoInicial}" data-saida-kg="${saida}">
+  return `<div class="fusao-resumo-corrida" data-peso-inicial="${pesoInicial}" data-saida-kg="${saida}" data-panelas-kg="${fNumber(panelasHoldingKg)}" data-retorno-kg="${fNumber(retornadoKg)}">
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Peso Inicial</span><strong class="fusao-resumo-valor fusao-resumo-inicial">${kg(pesoInicial)}</strong></div>
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Entrada</span><strong class="fusao-resumo-valor fusao-resumo-entrada">${kg(entrada)}</strong></div>
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Saída</span><strong class="fusao-resumo-valor fusao-resumo-saida">${kg(saida)}</strong></div>
@@ -577,16 +691,19 @@ function fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtual
 }
 // Já recebe tudo embutido numa consulta só (corridaAbertaCompletaDoForno) —
 // antes fazia mais 3 idas ao banco aqui dentro; agora só monta o HTML.
-function corridaCardHtml(corrida, volumeAtualKg) {
+function corridaCardHtml(corrida, volumeAtualKg, retornosDisa = []) {
   const todosItens = corrida.corridas_fusao_carga_itens || [];
   const transferencias = {
     saidas: (corrida.saidas || []).map((t) => ({ id: t.id, quantidade_kg: t.quantidade_kg, corridaCodigo: t.corridas_fusao?.codigo })),
     entradas: (corrida.entradas || []).map((t) => ({ id: t.id, quantidade_kg: t.quantidade_kg, corridaCodigo: t.corridas_fusao?.codigo }))
   };
   const mensagens = corrida.corridas_fusao_mensagens || [];
-  const { carregamentoConcluido, html: tabelasHtml } = fusaoTabelasCargaHtml(todosItens, transferencias);
+  const retornadoKg = retornosDisa.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
+  const { carregamentoConcluido, html: tabelasHtml } = fusaoTabelasCargaHtml(todosItens, transferencias, retornosDisa);
   const produto = fusaoState.produtos.find((p) => p.id === corrida.produto_id) || corrida.produtos;
   const forno = fusaoState.fornos.find((f) => f.id === corrida.forno_id);
+  const panelasHoldingLista = corrida.panelas_holding || [];
+  const panelasHoldingKg = panelasHoldingLista.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
   return `<div class="fusao-corrida-inline" data-corrida-id="${corrida.id}" data-versao="${corrida.versao}" data-forno-id="${corrida.forno_id}">
       <p><span class="fusao-status-step ${fusaoCorridaStatusBadgeClass(corrida.status)}">${FUSAO_STATUS_NOMES[corrida.status] || corrida.status}</span>
         ${fusaoNumeroCorridaHtml(corrida)} — ${corrida.turno}
@@ -594,8 +711,9 @@ function corridaCardHtml(corrida, volumeAtualKg) {
       <p class="fusao-corrida-meta">${fusaoProdutoEditavelHtml(corrida, produto)}
         <span class="fusao-corrida-horarios">Início: <strong>${corrida.inicio ? new Date(corrida.inicio).toLocaleString("pt-BR") : "—"}</strong>
         ${corrida.fim ? ` · Fim: <strong>${new Date(corrida.fim).toLocaleString("pt-BR")}</strong>` : ""}
-        ${forno?.tipo === "HOLDING" ? fusaoTemperaturaProgramadaHtml(corrida) : ""}</span></p>
-      ${fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtualKg)}
+        ${forno?.tipo === "HOLDING" ? fusaoTemperaturaProgramadaHtml(corrida) : ""}
+        ${forno?.tipo === "HOLDING" ? ` · Panelas retiradas: <strong>${panelasHoldingLista.length}</strong> (${fusaoKg(panelasHoldingKg)} kg)` : ""}</span></p>
+      ${fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtualKg, panelasHoldingKg, retornadoKg)}
       <div class="fusao-tabelas-carga">${tabelasHtml}</div>
       <div class="fusao-add-item-area">
         <button type="button" class="button button-secondary" data-toggle-add-item>+ Incluir material</button>
@@ -646,7 +764,7 @@ function atualizarBadgeCarregamento(cardContainer) {
   if (resumoEl && entradaEl) {
     const totalRecebido = [...cardContainer.querySelectorAll(".fusao-transferencia-entrada[data-quantidade-kg]")]
       .reduce((soma, row) => soma + fNumber(row.dataset.quantidadeKg), 0);
-    const entrada = realizado + totalRecebido;
+    const entrada = realizado + totalRecebido + fNumber(resumoEl.dataset.retornoKg);
     const kg = (valor) => `${fusaoKg(valor)}<span class="fusao-resumo-unidade">Kg</span>`;
     entradaEl.innerHTML = kg(entrada);
     const volumeEl = cardContainer.querySelector(".fusao-resumo-volume");
@@ -900,7 +1018,7 @@ function bindCorridaCard(container, forno, corrida) {
         if (resumoEl) {
           const transferenciaSaidaTotal = [...container.querySelectorAll(".fusao-transferencia-saida[data-quantidade-kg]")]
             .reduce((soma, row) => soma + fNumber(row.dataset.quantidadeKg), 0);
-          const novaSaida = transferenciaSaidaTotal + fNumber(escoria) + fNumber(lingote) + fNumber(ajuste);
+          const novaSaida = transferenciaSaidaTotal + fNumber(escoria) + fNumber(lingote) + fNumber(ajuste) + fNumber(resumoEl.dataset.panelasKg);
           resumoEl.dataset.saidaKg = novaSaida;
           const saidaEl = container.querySelector(".fusao-resumo-saida");
           if (saidaEl) saidaEl.innerHTML = `${fusaoKg(novaSaida)}<span class="fusao-resumo-unidade">Kg</span>`;
@@ -1100,8 +1218,9 @@ async function renderFornoCard(forno) {
   if (focusWasInside) return; // não pisa em cima de quem está digitando
   const token = (fusaoRenderTokenPorForno[forno.id] = (fusaoRenderTokenPorForno[forno.id] || 0) + 1);
   const corridaAberta = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridaAbertaCompletaDoForno(forno.id);
+  const retornosDisa = corridaAberta ? await window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasRetornadasParaCorrida(corridaAberta.id) : [];
   const volumeAtualKg = fusaoState.volumeAtual[forno.id] ?? 0;
-  const corridaHtml = corridaAberta ? corridaCardHtml(corridaAberta, volumeAtualKg) : null;
+  const corridaHtml = corridaAberta ? corridaCardHtml(corridaAberta, volumeAtualKg, retornosDisa) : null;
   if (fusaoRenderTokenPorForno[forno.id] !== token) return; // uma chamada mais nova já assumiu
   card.innerHTML = `<h3>${fEsc(forno.nome)}</h3>`;
   if (corridaAberta) {
@@ -1130,6 +1249,15 @@ async function initializeFusaoIndex() {
     ...fusaoState.fornos.map((forno) => renderFornoCard(forno).catch((error) => alert(error.message))),
     loadCorridasList()
   ]);
+  const retornoPainel = fq("#fusao-retorno-flutuante");
+  if (retornoPainel) {
+    fusaoTornarArrastavel(retornoPainel, fq("#fusao-retorno-flutuante-header"));
+    await fusaoAtualizarRetornoFlutuante().catch(() => {});
+    setInterval(() => {
+      const focoDentro = document.activeElement?.closest("#fusao-retorno-flutuante");
+      if (!focoDentro) fusaoAtualizarRetornoFlutuante().catch(() => {});
+    }, 20000);
+  }
   // Corrida aberta atualiza sozinha (reflete o que a Ponte for registrando,
   // ou outro supervisor editando) via Realtime — só a linha/card que mudou
   // de fato é redesenhado, sem consultar todos os fornos de tempos em
@@ -1254,14 +1382,15 @@ function cargaRowHtml(item, podeEditar) {
 // Realizado do total soma também as transferências (entrada soma, saída
 // abate) — senão uma corrida só com transferência (comum no Holding)
 // ficava sem total nenhum, mesmo tendo linhas na tabela.
-function cargaTotalRealizado(itens, transferencias) {
+function cargaTotalRealizado(itens, transferencias, retornoKg = 0) {
   return itens.reduce((soma, i) => soma + fNumber(i.quantidade_realizada_kg), 0)
     + (transferencias?.entradas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0)
-    - (transferencias?.saidas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0);
+    - (transferencias?.saidas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0)
+    + fNumber(retornoKg);
 }
-function cargaTotalRowHtml(itens, transferencias) {
+function cargaTotalRowHtml(itens, transferencias, retornoKg = 0) {
   const planejado = itens.reduce((soma, i) => soma + fNumber(i.quantidade_planejada_kg), 0);
-  const realizado = cargaTotalRealizado(itens, transferencias);
+  const realizado = cargaTotalRealizado(itens, transferencias, retornoKg);
   return `<tr class="fusao-tabela-total-row" id="carga-total-row">
       <td><strong>Total</strong></td>
       <td><strong class="fusao-total-planejado">${fusaoKg(planejado)}</strong></td>
@@ -1272,8 +1401,9 @@ function cargaTotalRowHtml(itens, transferencias) {
 function atualizarTotalCarga(itens) {
   const totalRow = fq("#carga-total-row");
   if (!totalRow) return;
+  const retornoKg = (fusaoCorridaCache.retornosDisa || []).reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
   const planejado = itens.reduce((soma, i) => soma + fNumber(i.quantidade_planejada_kg), 0);
-  const realizado = cargaTotalRealizado(itens, fusaoCorridaCache.transferencias);
+  const realizado = cargaTotalRealizado(itens, fusaoCorridaCache.transferencias, retornoKg);
   totalRow.querySelector(".fusao-total-planejado").textContent = fusaoKg(planejado);
   totalRow.querySelector(".fusao-total-realizado").textContent = fusaoKg(realizado);
   totalRow.querySelector(".fusao-saldo-cell").innerHTML = fusaoSaldoCell(planejado, realizado);
@@ -1307,14 +1437,27 @@ function transferenciaRowCorridaHtml(direcao, transferencia) {
       <td>—</td>
     </tr>`;
 }
+// Mesma ideia da linha "Retorno Disa" do card do índice, só que consolidada
+// numa única linha (quantidade de panelas + kg total) em vez de uma linha
+// por panela — pedido explícito pra não poluir a tabela.
+function retornoDisaRowCorridaHtml(quantidadePanelas, quantidadeKg) {
+  return `<tr class="fusao-transferencia-row fusao-transferencia-entrada">
+      <td colspan="2">RETORNO DISA (${quantidadePanelas} panela${quantidadePanelas === 1 ? "" : "s"})</td>
+      <td>${fNumber(quantidadeKg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
+      <td>—</td>
+    </tr>`;
+}
 async function renderCargaTable(itens, corrida) {
   const podeEditar = fusaoState.permissions.has("producao_fusao.lancar") && corrida.status === "ABERTA";
   const transferencias = fusaoCorridaCache.transferencias;
   const entradaLinhas = (transferencias?.entradas || []).map((t) => transferenciaRowCorridaHtml("entrada", t));
   const saidaLinhas = (transferencias?.saidas || []).map((t) => transferenciaRowCorridaHtml("saida", t));
-  const temAlgumaLinha = itens.length || entradaLinhas.length || saidaLinhas.length;
-  fq("#carga-rows").innerHTML = entradaLinhas.join("") + itens.map((item) => cargaRowHtml(item, podeEditar)).join("") + saidaLinhas.join("")
-    + (temAlgumaLinha ? cargaTotalRowHtml(itens, transferencias) : "");
+  const retornosDisa = fusaoCorridaCache.retornosDisa || [];
+  const retornoKg = retornosDisa.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
+  const retornoLinhas = retornosDisa.length ? [retornoDisaRowCorridaHtml(retornosDisa.length, retornoKg)] : [];
+  const temAlgumaLinha = itens.length || entradaLinhas.length || saidaLinhas.length || retornoLinhas.length;
+  fq("#carga-rows").innerHTML = entradaLinhas.join("") + retornoLinhas.join("") + itens.map((item) => cargaRowHtml(item, podeEditar)).join("") + saidaLinhas.join("")
+    + (temAlgumaLinha ? cargaTotalRowHtml(itens, transferencias, retornoKg) : "");
   if (!podeEditar) return;
   bindEditableCells(fq("#carga-rows"), fusaoCorridaId(), cargaOnSaved(itens));
 }
@@ -1405,7 +1548,9 @@ function renderResumoCorrida() {
   const el = fq("#corrida-resumo");
   if (!el || !fusaoCorridaCache.corrida) return;
   const volumeAtualKg = fusaoState.volumeAtual[fusaoCorridaCache.corrida.forno_id] ?? 0;
-  el.innerHTML = fusaoResumoCorridaHtml(fusaoCorridaCache.corrida, fusaoCorridaCache.itens, fusaoCorridaCache.transferencias, volumeAtualKg);
+  const panelasHoldingKg = (fusaoCorridaCache.panelasHolding || []).reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
+  const retornadoKg = (fusaoCorridaCache.retornosDisa || []).reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
+  el.innerHTML = fusaoResumoCorridaHtml(fusaoCorridaCache.corrida, fusaoCorridaCache.itens, fusaoCorridaCache.transferencias, volumeAtualKg, panelasHoldingKg, retornadoKg);
   const ajustesEl = fq("#corrida-ajustes");
   if (ajustesEl) ajustesEl.innerHTML = fusaoAjustesRegistradosHtml(fusaoCorridaCache.corrida);
 }
@@ -1462,7 +1607,7 @@ const PANELA_HOLDING_STATUS_NOMES_CORRIDA = {
   EM_VAZAMENTO: "Em vazamento", VAZADA: "Vazada", REJEITADA: "Rejeitada",
   RETORNO_PENDENTE: "Retorno pendente", RETORNADA: "Retornada"
 };
-function fusaoPanelasHoldingHtml(panelas) {
+function fusaoPanelasHoldingHtml(panelas, codigoCorrida) {
   if (!panelas.length) return `<p class="production-muted">Nenhuma panela retirada ainda.</p>`;
   const kg = (valor) => valor != null ? fNumber(valor).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—";
   const linhas = panelas.map((p) => `<tr>
@@ -1478,6 +1623,7 @@ function fusaoPanelasHoldingHtml(panelas) {
       <td>${kg(p.silicio_kg)}</td>
       <td>${kg(p.grafite_kg)}</td>
       <td>${kg(p.sucata_cobertura_kg)}</td>
+      <td>${fEsc(fusaoIdentificacaoVazamento(codigoCorrida, p.sequencial_vazamento) || "—")}</td>
       <td>${PANELA_HOLDING_STATUS_NOMES_CORRIDA[p.status] || p.status}</td>
     </tr>`).join("");
   const soma = (campo) => panelas.reduce((total, p) => total + fNumber(p[campo]), 0);
@@ -1493,10 +1639,11 @@ function fusaoPanelasHoldingHtml(panelas) {
       <td><strong>${kg(soma("grafite_kg"))}</strong></td>
       <td><strong>${kg(soma("sucata_cobertura_kg"))}</strong></td>
       <td></td>
+      <td></td>
     </tr>`;
   return `<div class="table-wrapper"><table class="products-table">
       <thead><tr class="fusao-cabecalho-retirada"><th>Nº</th><th>Hora</th><th>Produto</th><th>Peso (kg)</th><th>Temp (°C)</th><th>CE</th>
-        <th>FeSiMg L1 (kg)</th><th>FeSiMg L4 (kg)</th><th>Inoculante (kg)</th><th>Silício (kg)</th><th>Grafite (kg)</th><th>Sucata cobertura (kg)</th><th>Status</th></tr></thead>
+        <th>FeSiMg L1 (kg)</th><th>FeSiMg L4 (kg)</th><th>Inoculante (kg)</th><th>Silício (kg)</th><th>Grafite (kg)</th><th>Sucata cobertura (kg)</th><th>Vazamento</th><th>Status</th></tr></thead>
       <tbody>${linhas}</tbody>
       <tfoot>${totalRow}</tfoot></table></div>`;
 }
@@ -1515,11 +1662,13 @@ async function loadCorridaDetail() {
   fusaoCorridaCache.corrida = corrida;
   fusaoCorridaCache.itens = itens;
   fusaoCorridaCache.transferencias = transferencias;
+  fusaoCorridaCache.panelasHolding = panelasHolding;
+  fusaoCorridaCache.retornosDisa = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasRetornadasParaCorrida(corrida.id);
   const panelasPanel = fq("#panelas-holding-panel");
   if (panelasPanel) {
     const ehHolding = corrida.fornos_fusao?.tipo === "HOLDING";
     panelasPanel.hidden = !ehHolding;
-    if (ehHolding) fq("#panelas-holding-painel").innerHTML = fusaoPanelasHoldingHtml(panelasHolding);
+    if (ehHolding) fq("#panelas-holding-painel").innerHTML = fusaoPanelasHoldingHtml(panelasHolding, corrida.codigo);
   }
   fq("#mensagens-painel").innerHTML = fusaoMensagensPainelHtml(id, mensagens, true);
   fusaoBindMensagens(fq("#mensagens-painel .fusao-mensagens"));
@@ -2069,12 +2218,14 @@ async function initializeFusaoProduction() {
     window.LIDUTEC_APP.getUserPermissions(user.id)
   ]);
   if (!profile || profile.status !== "ATIVO") { alert("Seu usuário não possui acesso ativo."); await window.LIDUTEC_APP.signOut(); return; }
-  // Ponte aceita também a permissão restrita (só pesagem, sem acesso ao
-  // planejamento/corrida) — as outras páginas do módulo continuam exigindo
-  // a permissão geral de visualizar.
+  // Ponte e Vazamento aceitam também suas permissões restritas (só a
+  // própria tela, sem acesso ao planejamento/corrida) — as outras páginas
+  // do módulo continuam exigindo a permissão geral de visualizar.
   const podeVerFusao = permissions.has("producao_fusao.visualizar");
   const podeVerPonte = podeVerFusao || permissions.has("producao_fusao.lancar_ponte");
-  if (fusaoPage === "ponte" ? !podeVerPonte : !podeVerFusao) { location.replace("../dashboard.html"); return; }
+  const podeVerVazamento = podeVerFusao || permissions.has("producao_fusao.lancar_vazamento");
+  const podeVerPagina = fusaoPage === "ponte" ? podeVerPonte : fusaoPage === "vazamento" ? podeVerVazamento : podeVerFusao;
+  if (!podeVerPagina) { location.replace("../dashboard.html"); return; }
   fusaoState.user = user;
   fusaoState.userNome = profile.nome;
   fusaoState.permissions = permissions;
@@ -2094,6 +2245,9 @@ async function initializeFusaoProduction() {
   // producao-fusao-holding.js (carregado depois deste na página) — só o
   // gancho de inicialização fica aqui, junto dos das outras telas.
   if (fusaoPage === "holding" && window.initializeFusaoHolding) await window.initializeFusaoHolding();
+  // Mesmo esquema do Holding: a tela do Vazamento vive no próprio arquivo
+  // producao-fusao-vazamento.js.
+  if (fusaoPage === "vazamento" && window.initializeFusaoVazamento) await window.initializeFusaoVazamento();
 
   fq("#menu-button")?.addEventListener("click", () => fq("#sidebar").classList.toggle("open"));
   fq("#logout-button")?.addEventListener("click", () => window.LIDUTEC_APP.signOut());

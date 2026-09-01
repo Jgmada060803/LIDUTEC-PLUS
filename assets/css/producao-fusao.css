@@ -10,6 +10,24 @@
 
 .fusao-fornos-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 28px; }
 
+/* Painel flutuante de "panelas rejeitadas aguardando retorno" no
+   planejamento — sobrepõe o carregamento (pedido explícito) até o
+   supervisor escolher o forno destino; arrastável pra qualquer direção
+   (cima/baixo/lados) sem sair da tela. */
+.fusao-flutuante {
+  position: fixed; top: 96px; right: 20px; left: auto; bottom: auto;
+  width: min(620px, 92vw); max-height: 70vh; overflow: auto;
+  background: #fff; border: 1px solid var(--color-border); border-radius: 10px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .25); z-index: 80;
+}
+.fusao-flutuante-header {
+  cursor: move; user-select: none; touch-action: none;
+  padding: 10px 14px; font-weight: 800; color: #7a5b00;
+  background: #fff3cd; border-bottom: 1px solid #ffe69c; border-radius: 10px 10px 0 0;
+}
+.fusao-flutuante-corpo .panel-header { padding: 10px 14px 0; }
+.fusao-flutuante-corpo .table-wrapper { padding: 0 14px 14px; }
+
 /* Tela de saída de panelas do Holding — planilha compacta, sem cards
    grandes (pedido explícito: "estrutura semelhante a uma planilha"). */
 .fusao-holding-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
@@ -22,6 +40,7 @@
 .fusao-holding-saldo-destaque .fusao-holding-saldo { display: block; margin-top: 2px; font-size: 1.6rem; font-weight: 900; color: var(--color-primary); }
 .fusao-holding-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .fusao-holding-table { width: 100%; border-collapse: collapse; font-size: .8rem; white-space: nowrap; }
+.fusao-holding-table th { white-space: normal; max-width: 70px; line-height: 1.2; }
 .fusao-holding-table th, .fusao-holding-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); text-align: left; }
 .fusao-holding-table tbody tr:nth-child(odd) { background: #f8f9fb; }
 .fusao-holding-campo-editavel { display: inline-flex; align-items: center; gap: 4px; }
@@ -32,6 +51,29 @@
   .fusao-holding-card .fusao-nova-panela-campos { grid-template-columns: 1fr 1fr 1fr 1fr auto; }
 }
 .fusao-holding-acoes { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 10px; }
+.fusao-holding-analise-resumo { margin: 0 0 8px; font-size: .78rem; color: var(--color-text-muted); }
+/* Últimos CE empilhados — uma linha por valor, mais antigo embaixo. */
+.fusao-holding-ce-lista { display: flex; flex-direction: column; gap: 1px; margin-bottom: 10px; font-size: .78rem; }
+.fusao-holding-ce-lista-titulo { font-weight: 700; color: var(--color-text-muted); margin-bottom: 2px; }
+
+/* Tela do Vazamento — fila em planilha; o apontamento (início/fim/
+   temperatura/moldes/CE) fica direto nas últimas colunas da própria
+   linha, sem janela/linha separada (pedido explícito) — colunas estreitas
+   pra caber tudo numa linha só, com rolagem horizontal como reforço. */
+.fusao-vazamento-tabela { white-space: nowrap; }
+.fusao-vazamento-tabela th, .fusao-vazamento-tabela td { padding: 6px 6px; }
+.fusao-vazamento-input { width: 64px; min-height: 30px; padding: 2px 4px; border: 1px solid var(--color-border); border-radius: 6px; }
+.fusao-vazamento-input[type="time"] { width: 76px; }
+.fusao-vazamento-input-num { width: 56px; }
+.fusao-vazamento-tabela .fusao-combobox-input { width: 150px; min-height: 30px; }
+.fusao-vazamento-produto-cel .fusao-produto-editavel { display: inline-flex; align-items: center; gap: 4px; }
+.fusao-vazamento-acoes-cel { display: flex; flex-direction: row; gap: 4px; }
+
+/* Análise térmica do Vazamento — mesmo mini-form (5 campos) já usado no
+   Holding, reaproveitando a mesma classe genérica de grade. */
+@media (min-width: 701px) {
+  .fusao-nova-analise-campos { grid-template-columns: repeat(5, 1fr) auto; }
+}
 /* Responsivo pra tablet/smartphone: 2 colunas viram 1, tabela larga rola
    por dentro (sem estourar a página), e a fonte/preenchimento encolhem um
    pouco pra caber mais coluna na tela sem ficar ilegível. */
@@ -111,6 +153,11 @@ body[data-production-page="ponte"] .app-shell { width: 100%; margin-left: 0; }
 body[data-production-page="holding"] .sidebar,
 body[data-production-page="holding"] .menu-button { display: none; }
 body[data-production-page="holding"] .app-shell { width: 100%; margin-left: 0; }
+
+/* Tela cheia sem menu lateral no Vazamento. */
+body[data-production-page="vazamento"] .sidebar,
+body[data-production-page="vazamento"] .menu-button { display: none; }
+body[data-production-page="vazamento"] .app-shell { width: 100%; margin-left: 0; }
 
 @media (max-width: 900px) {
   .fusao-fornos-grid { grid-template-columns: 1fr; }
