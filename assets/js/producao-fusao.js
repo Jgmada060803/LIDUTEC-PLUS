@@ -546,6 +546,16 @@ function fusaoRetornoDisaRowHtml(quantidadePanelas, quantidadeKg) {
       <td></td>
     </tr>`;
 }
+// Panela retirada do Holding — mesma ideia da "Retorno Disa", só que é
+// saída (vermelho) em vez de entrada. Pedido explícito: sair do cabeçalho
+// e virar linha na tabela de materiais, igual transferência/retorno.
+function fusaoPanelasRetiradasRowHtml(quantidadePanelas, quantidadeKg) {
+  return `<tr class="fusao-transferencia-row fusao-transferencia-saida">
+      <td colspan="3">PANELAS RETIRADAS (${quantidadePanelas} panela${quantidadePanelas === 1 ? "" : "s"})</td>
+      <td>${fNumber(quantidadeKg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
+      <td></td>
+    </tr>`;
+}
 // Panelas rejeitadas aguardando retorno — o operador escolhe o forno de
 // destino e confirma; credita o saldo daquele forno (mantendo vínculo com
 // a panela original, corrida e produto — nada some sem rastro). Reaproveitada
@@ -646,7 +656,7 @@ function fusaoTabelaTotalRowHtml(itens) {
       <td class="fusao-total-progresso">${fusaoProgressoHtml(realizado, planejado)}</td>
     </tr>`;
 }
-function fusaoTabelasCargaHtml(itens, transferencias, retornosDisa = []) {
+function fusaoTabelasCargaHtml(itens, transferencias, retornosDisa = [], panelasRetiradas = []) {
   const carregamentoConcluido = itens.length > 0 && itens.every((item) =>
     fNumber(item.quantidade_realizada_kg) > 0 && fNumber(item.quantidade_realizada_kg) >= fNumber(item.quantidade_planejada_kg)
   );
@@ -654,9 +664,11 @@ function fusaoTabelasCargaHtml(itens, transferencias, retornosDisa = []) {
   const saidaLinhas = (transferencias?.saidas || []).map((t) => fusaoTransferenciaCardRowHtml("saida", t));
   const retornoKgTotal = retornosDisa.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
   const retornoLinhas = retornosDisa.length ? [fusaoRetornoDisaRowHtml(retornosDisa.length, retornoKgTotal)] : [];
-  if (!itens.length && !entradaLinhas.length && !saidaLinhas.length && !retornoLinhas.length) return { carregamentoConcluido, html: "" };
+  const panelasRetiradasKg = panelasRetiradas.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
+  const panelasRetiradasLinhas = panelasRetiradas.length ? [fusaoPanelasRetiradasRowHtml(panelasRetiradas.length, panelasRetiradasKg)] : [];
+  if (!itens.length && !entradaLinhas.length && !saidaLinhas.length && !retornoLinhas.length && !panelasRetiradasLinhas.length) return { carregamentoConcluido, html: "" };
   const html = `<table class="products-table"><thead><tr><th>Material</th><th>Carregamento</th><th>Planejado (kg)</th><th>Real (kg)</th><th>Progresso</th></tr></thead>
-      <tbody>${entradaLinhas.join("")}${retornoLinhas.join("")}${itens.map(fusaoCardRowHtml).join("")}${saidaLinhas.join("")}</tbody>
+      <tbody>${entradaLinhas.join("")}${retornoLinhas.join("")}${itens.map(fusaoCardRowHtml).join("")}${saidaLinhas.join("")}${panelasRetiradasLinhas.join("")}</tbody>
       ${itens.length ? `<tfoot>${fusaoTabelaTotalRowHtml(itens)}</tfoot>` : ""}</table>`;
   return { carregamentoConcluido, html };
 }
@@ -699,11 +711,11 @@ function corridaCardHtml(corrida, volumeAtualKg, retornosDisa = []) {
   };
   const mensagens = corrida.corridas_fusao_mensagens || [];
   const retornadoKg = retornosDisa.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
-  const { carregamentoConcluido, html: tabelasHtml } = fusaoTabelasCargaHtml(todosItens, transferencias, retornosDisa);
-  const produto = fusaoState.produtos.find((p) => p.id === corrida.produto_id) || corrida.produtos;
-  const forno = fusaoState.fornos.find((f) => f.id === corrida.forno_id);
   const panelasHoldingLista = corrida.panelas_holding || [];
   const panelasHoldingKg = panelasHoldingLista.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
+  const { carregamentoConcluido, html: tabelasHtml } = fusaoTabelasCargaHtml(todosItens, transferencias, retornosDisa, panelasHoldingLista);
+  const produto = fusaoState.produtos.find((p) => p.id === corrida.produto_id) || corrida.produtos;
+  const forno = fusaoState.fornos.find((f) => f.id === corrida.forno_id);
   return `<div class="fusao-corrida-inline" data-corrida-id="${corrida.id}" data-versao="${corrida.versao}" data-forno-id="${corrida.forno_id}">
       <p><span class="fusao-status-step ${fusaoCorridaStatusBadgeClass(corrida.status)}">${FUSAO_STATUS_NOMES[corrida.status] || corrida.status}</span>
         ${fusaoNumeroCorridaHtml(corrida)} — ${corrida.turno}
@@ -711,8 +723,7 @@ function corridaCardHtml(corrida, volumeAtualKg, retornosDisa = []) {
       <p class="fusao-corrida-meta">${fusaoProdutoEditavelHtml(corrida, produto)}
         <span class="fusao-corrida-horarios">Início: <strong>${corrida.inicio ? new Date(corrida.inicio).toLocaleString("pt-BR") : "—"}</strong>
         ${corrida.fim ? ` · Fim: <strong>${new Date(corrida.fim).toLocaleString("pt-BR")}</strong>` : ""}
-        ${forno?.tipo === "HOLDING" ? fusaoTemperaturaProgramadaHtml(corrida) : ""}
-        ${forno?.tipo === "HOLDING" ? ` · Panelas retiradas: <strong>${panelasHoldingLista.length}</strong> (${fusaoKg(panelasHoldingKg)} kg)` : ""}</span></p>
+        ${forno?.tipo === "HOLDING" ? fusaoTemperaturaProgramadaHtml(corrida) : ""}</span></p>
       ${fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtualKg, panelasHoldingKg, retornadoKg)}
       <div class="fusao-tabelas-carga">${tabelasHtml}</div>
       <div class="fusao-add-item-area">
@@ -1222,7 +1233,8 @@ async function renderFornoCard(forno) {
   const volumeAtualKg = fusaoState.volumeAtual[forno.id] ?? 0;
   const corridaHtml = corridaAberta ? corridaCardHtml(corridaAberta, volumeAtualKg, retornosDisa) : null;
   if (fusaoRenderTokenPorForno[forno.id] !== token) return; // uma chamada mais nova já assumiu
-  card.innerHTML = `<h3>${fEsc(forno.nome)}</h3>`;
+  const tipoChipClasse = forno.tipo === "HOLDING" ? "holding" : "fusor";
+  card.innerHTML = `<h3>${fEsc(forno.nome)} <span class="fusao-forno-chip fusao-forno-chip--${tipoChipClasse}">${fEsc(forno.codigo)}</span></h3>`;
   if (corridaAberta) {
     card.insertAdjacentHTML("beforeend", corridaHtml);
     bindCorridaCard(card, forno, corridaAberta);
@@ -1241,7 +1253,9 @@ async function initializeFusaoIndex() {
     dataInput.value = shift.dataOperacional;
   }
   const grid = fq("#fornos-grid");
-  grid.innerHTML = fusaoState.fornos.map((forno) => `<article class="panel fusao-forno-card" data-forno-card="${forno.id}"></article>`).join("");
+  grid.innerHTML = fusaoState.fornos.map((forno) =>
+    `<article class="panel fusao-forno-card" data-forno-card="${forno.id}"></article>`
+  ).join("");
   // "Corridas recentes" carrega junto com os cards, não depois — não
   // depende deles, então não precisa esperar (era uma viagem a mais em
   // série no carregamento da tela).
@@ -1382,15 +1396,15 @@ function cargaRowHtml(item, podeEditar) {
 // Realizado do total soma também as transferências (entrada soma, saída
 // abate) — senão uma corrida só com transferência (comum no Holding)
 // ficava sem total nenhum, mesmo tendo linhas na tabela.
-function cargaTotalRealizado(itens, transferencias, retornoKg = 0) {
+function cargaTotalRealizado(itens, transferencias, retornoKg = 0, panelasRetiradasKg = 0) {
   return itens.reduce((soma, i) => soma + fNumber(i.quantidade_realizada_kg), 0)
     + (transferencias?.entradas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0)
     - (transferencias?.saidas || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0)
-    + fNumber(retornoKg);
+    + fNumber(retornoKg) - fNumber(panelasRetiradasKg);
 }
-function cargaTotalRowHtml(itens, transferencias, retornoKg = 0) {
+function cargaTotalRowHtml(itens, transferencias, retornoKg = 0, panelasRetiradasKg = 0) {
   const planejado = itens.reduce((soma, i) => soma + fNumber(i.quantidade_planejada_kg), 0);
-  const realizado = cargaTotalRealizado(itens, transferencias, retornoKg);
+  const realizado = cargaTotalRealizado(itens, transferencias, retornoKg, panelasRetiradasKg);
   return `<tr class="fusao-tabela-total-row" id="carga-total-row">
       <td><strong>Total</strong></td>
       <td><strong class="fusao-total-planejado">${fusaoKg(planejado)}</strong></td>
@@ -1402,8 +1416,9 @@ function atualizarTotalCarga(itens) {
   const totalRow = fq("#carga-total-row");
   if (!totalRow) return;
   const retornoKg = (fusaoCorridaCache.retornosDisa || []).reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
+  const panelasRetiradasKg = (fusaoCorridaCache.panelasHolding || []).reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
   const planejado = itens.reduce((soma, i) => soma + fNumber(i.quantidade_planejada_kg), 0);
-  const realizado = cargaTotalRealizado(itens, fusaoCorridaCache.transferencias, retornoKg);
+  const realizado = cargaTotalRealizado(itens, fusaoCorridaCache.transferencias, retornoKg, panelasRetiradasKg);
   totalRow.querySelector(".fusao-total-planejado").textContent = fusaoKg(planejado);
   totalRow.querySelector(".fusao-total-realizado").textContent = fusaoKg(realizado);
   totalRow.querySelector(".fusao-saldo-cell").innerHTML = fusaoSaldoCell(planejado, realizado);
@@ -1447,6 +1462,14 @@ function retornoDisaRowCorridaHtml(quantidadePanelas, quantidadeKg) {
       <td>—</td>
     </tr>`;
 }
+// Mesma ideia, só que saída (vermelho) — panela retirada do Holding.
+function panelasRetiradasRowCorridaHtml(quantidadePanelas, quantidadeKg) {
+  return `<tr class="fusao-transferencia-row fusao-transferencia-saida">
+      <td colspan="2">PANELAS RETIRADAS (${quantidadePanelas} panela${quantidadePanelas === 1 ? "" : "s"})</td>
+      <td>${fNumber(quantidadeKg).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
+      <td>—</td>
+    </tr>`;
+}
 async function renderCargaTable(itens, corrida) {
   const podeEditar = fusaoState.permissions.has("producao_fusao.lancar") && corrida.status === "ABERTA";
   const transferencias = fusaoCorridaCache.transferencias;
@@ -1455,9 +1478,12 @@ async function renderCargaTable(itens, corrida) {
   const retornosDisa = fusaoCorridaCache.retornosDisa || [];
   const retornoKg = retornosDisa.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
   const retornoLinhas = retornosDisa.length ? [retornoDisaRowCorridaHtml(retornosDisa.length, retornoKg)] : [];
-  const temAlgumaLinha = itens.length || entradaLinhas.length || saidaLinhas.length || retornoLinhas.length;
-  fq("#carga-rows").innerHTML = entradaLinhas.join("") + retornoLinhas.join("") + itens.map((item) => cargaRowHtml(item, podeEditar)).join("") + saidaLinhas.join("")
-    + (temAlgumaLinha ? cargaTotalRowHtml(itens, transferencias, retornoKg) : "");
+  const panelasRetiradas = fusaoCorridaCache.panelasHolding || [];
+  const panelasRetiradasKg = panelasRetiradas.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
+  const panelasRetiradasLinhas = panelasRetiradas.length ? [panelasRetiradasRowCorridaHtml(panelasRetiradas.length, panelasRetiradasKg)] : [];
+  const temAlgumaLinha = itens.length || entradaLinhas.length || saidaLinhas.length || retornoLinhas.length || panelasRetiradasLinhas.length;
+  fq("#carga-rows").innerHTML = entradaLinhas.join("") + retornoLinhas.join("") + itens.map((item) => cargaRowHtml(item, podeEditar)).join("") + saidaLinhas.join("") + panelasRetiradasLinhas.join("")
+    + (temAlgumaLinha ? cargaTotalRowHtml(itens, transferencias, retornoKg, panelasRetiradasKg) : "");
   if (!podeEditar) return;
   bindEditableCells(fq("#carga-rows"), fusaoCorridaId(), cargaOnSaved(itens));
 }
