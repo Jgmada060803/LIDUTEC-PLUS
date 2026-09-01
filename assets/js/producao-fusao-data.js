@@ -173,12 +173,23 @@
     // Fila do Vazamento — panelas que já saíram do Holding e ainda não
     // foram vazadas nem rejeitadas, mais antigas primeiro (FIFO).
     panelasAguardandoVazamento: () => result(client().from("panelas_holding")
-      .select("id,sequencial,hora_retirada,peso_kg,temperatura_c,carbono_equivalente,ce_medido_nesta_panela,status,produto_id,produtos(codigo,nome)," +
+      .select("id,sequencial,hora_retirada,peso_kg,temperatura_c,status,produto_id,produtos(codigo,nome)," +
+        "carbono_equivalente_vazamento,carbono_vazamento,delta_t_vazamento,temp_liquidus_vazamento,temp_solidus_vazamento," +
+        "temp_recalescencia_eutetica_vazamento,temp_final_vazamento,analise_vazamento_em," +
         "corridas_fusao!holding_corrida_id(codigo,forno_id,fornos_fusao(codigo,nome))")
       .in("status", ["SAIDA_HOLDING", "EM_TRANSITO"]).order("hora_retirada", { ascending: true })),
-    apontarVazamentoPanela: (panelaId, inicioIso, fimIso, temperaturaC, moldeInicial, moldeFinal, ceMedido) => result(client().rpc("apontar_vazamento_panela", {
+    apontarVazamentoPanela: (panelaId, inicioIso, fimIso, temperaturaC, moldeInicial, moldeFinal, inoculador, inoculanteGS) => result(client().rpc("apontar_vazamento_panela", {
       p_panela_id: panelaId, p_inicio: inicioIso, p_fim: fimIso, p_temperatura_c: temperaturaC,
-      p_molde_inicial: moldeInicial, p_molde_final: moldeFinal, p_ce_medido: ceMedido
+      p_molde_inicial: moldeInicial, p_molde_final: moldeFinal,
+      p_inoculador: inoculador, p_inoculante_g_s: inoculanteGS
+    }), null),
+    // Análise térmica do Vazamento — ação por panela (não "vale pra
+    // frente"): o operador escolhe a linha da fila e o valor fica só ali,
+    // pra não aparecer em panela nenhuma que não foi de fato analisada.
+    registrarAnaliseTermicaPanelaVazamento: (panelaId, ce, carbono, deltaT, liquidus, solidus, recalescenciaEutetica, tempFinal) => result(client().rpc("registrar_analise_termica_panela_vazamento", {
+      p_panela_id: panelaId, p_carbono_equivalente: ce, p_carbono: carbono, p_delta_t: deltaT,
+      p_temp_liquidus: liquidus, p_temp_solidus: solidus,
+      p_temp_recalescencia_eutetica: recalescenciaEutetica, p_temp_final: tempFinal
     }), null),
     atualizarProdutoPanelaHolding: (panelaId, produtoId) => result(client().rpc("atualizar_produto_panela_holding", {
       p_panela_id: panelaId, p_produto_id: produtoId
@@ -198,7 +209,9 @@
     // precisa continuar visível pra quem só acessa a tela do Vazamento
     // (perfil restrito não entra no Holding nem na corrida).
     panelasVazadasRecentes: (limite = 20) => result(client().from("panelas_holding")
-      .select("id,sequencial,sequencial_vazamento,peso_kg,hora_inicio_vazamento,hora_fim_vazamento,molde_inicial,molde_final,quantidade_moldes,carbono_equivalente,ce_medido_nesta_panela,produtos(codigo,nome),corridas_fusao!holding_corrida_id(codigo,fornos_fusao(codigo,nome))")
+      .select("id,sequencial,sequencial_vazamento,peso_kg,hora_retirada,hora_inicio_vazamento,hora_fim_vazamento,molde_inicial,molde_final,quantidade_moldes," +
+        "carbono_equivalente_vazamento,temp_liquidus_vazamento,temp_solidus_vazamento,temp_recalescencia_eutetica_vazamento,temp_final_vazamento,analise_vazamento_em," +
+        "inoculador_vazamento,inoculante_vazamento_g_s,produtos(codigo,nome),corridas_fusao!holding_corrida_id(codigo,fornos_fusao(codigo,nome))")
       .eq("status", "VAZADA").order("hora_fim_vazamento", { ascending: false }).limit(limite)),
     // Metal de panela rejeitada ("Retorno Disa") que voltou pra este forno
     // — credita o saldo (volume_atual_forno_fusao) e também vira linha na
@@ -210,14 +223,6 @@
     panelasRetornadasParaCorrida: (corridaId) => result(client().from("panelas_holding")
       .select("id,sequencial,peso_kg,corridas_fusao!holding_corrida_id(codigo,fornos_fusao(codigo))")
       .eq("status", "RETORNADA").eq("retorno_corrida_destino_id", corridaId)),
-    // Análise térmica do Vazamento — mesmo modelo do Holding, sem forno
-    // (uma estação só); "última" é sempre a mais recente.
-    ultimaAnaliseTermicaVazamento: () => result(client().from("analises_termicas_vazamento")
-      .select("carbono_equivalente,carbono,delta_t,temp_liquidus,temp_solidus,medido_em")
-      .order("medido_em", { ascending: false }).limit(1).maybeSingle(), null),
-    registrarAnaliseTermicaVazamento: (ce, carbono, deltaT, liquidus, solidus) => result(client().rpc("registrar_analise_termica_vazamento", {
-      p_carbono_equivalente: ce, p_carbono: carbono, p_delta_t: deltaT, p_temp_liquidus: liquidus, p_temp_solidus: solidus
-    }), null),
     atualizarProduto: (corridaId, produtoId) => result(client().rpc("atualizar_produto_corrida_fusao", {
       p_corrida_id: corridaId, p_produto_id: produtoId
     }), null),

@@ -61,18 +61,20 @@
    linha, sem janela/linha separada (pedido explícito) — colunas estreitas
    pra caber tudo numa linha só, com rolagem horizontal como reforço. */
 .fusao-vazamento-tabela { white-space: nowrap; }
-.fusao-vazamento-tabela th, .fusao-vazamento-tabela td { padding: 6px 6px; }
-.fusao-vazamento-input { width: 64px; min-height: 30px; padding: 2px 4px; border: 1px solid var(--color-border); border-radius: 6px; }
-.fusao-vazamento-input[type="time"] { width: 76px; }
-.fusao-vazamento-input-num { width: 56px; }
-.fusao-vazamento-tabela .fusao-combobox-input { width: 150px; min-height: 30px; }
+.fusao-vazamento-tabela th, .fusao-vazamento-tabela td { padding: 4px 3px; }
+.fusao-vazamento-input { width: 80px; min-height: 38px; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 6px; font-size: .92rem; }
+.fusao-vazamento-input[type="time"] { width: 92px; }
+.fusao-vazamento-input-num { width: 68px; }
+.fusao-vazamento-tabela .fusao-combobox-input { width: 150px; min-height: 38px; }
 .fusao-vazamento-produto-cel .fusao-produto-editavel { display: inline-flex; align-items: center; gap: 4px; }
 .fusao-vazamento-acoes-cel { display: flex; flex-direction: row; gap: 4px; }
+.fusao-vazamento-analise-row td { background: #f7f8fa; padding: 8px; }
 
 /* Análise térmica do Vazamento — mesmo mini-form (5 campos) já usado no
    Holding, reaproveitando a mesma classe genérica de grade. */
 @media (min-width: 701px) {
   .fusao-nova-analise-campos { grid-template-columns: repeat(5, 1fr) auto; }
+  .fusao-nova-analise-campos.fusao-nova-analise-campos--vazamento { grid-template-columns: repeat(7, 1fr) auto; }
 }
 /* Responsivo pra tablet/smartphone: 2 colunas viram 1, tabela larga rola
    por dentro (sem estourar a página), e a fonte/preenchimento encolhem um
@@ -86,7 +88,7 @@
   .fusao-holding-table th, .fusao-holding-table td { padding: 5px 6px; }
   .fusao-holding-campo-input { width: 62px; }
 }
-.fusao-forno-card h3 { margin: 0 0 12px; font-size: 1.3rem; font-weight: 900; text-align: center; }
+.fusao-forno-card h3 { margin: 0 0 12px; font-size: 1.3rem; font-weight: 900; text-align: left; }
 .fusao-forno-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .7rem; font-weight: 800; vertical-align: middle; }
 .fusao-forno-chip--fusor { background: #fff1de; color: #9a5b00; }
 .fusao-forno-chip--holding { background: #e3ecff; color: #1f45a8; }
@@ -282,6 +284,8 @@ body[data-production-page="vazamento"] .app-shell { width: 100%; margin-left: 0;
    da tabela de retirada de metal (panelas do Holding) em vermelho. */
 .fusao-cabecalho-carregamento th { background: var(--color-success); color: #fff; }
 .fusao-cabecalho-retirada th { background: var(--color-danger); color: #fff; }
+.fusao-cabecalho-aguardando th { background: #f0b400; color: #3a2a00; }
+.fusao-cabecalho-historico th { background: var(--color-primary); color: #fff; }
 
 /* Linha de total no fim da tabela de materiais do card. */
 .fusao-tabela-total-row td { border-top: 2px solid var(--color-border); background: #eef1f4; font-weight: 700; }
