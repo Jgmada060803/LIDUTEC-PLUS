@@ -62,7 +62,7 @@
         "corridas_fusao_mensagens(id,mensagem,criado_em,origem,usuarios(nome))," +
         "saidas:transferencias_fusao!corrida_origem_id(id,quantidade_kg,corridas_fusao!corrida_destino_id(codigo))," +
         "entradas:transferencias_fusao!corrida_destino_id(id,quantidade_kg,corridas_fusao!corrida_origem_id(codigo))," +
-        "panelas_holding(peso_kg)")
+        "panelas_holding!holding_corrida_id(peso_kg)")
       .eq("forno_id", fornoId).eq("status", "ABERTA")
       .order("id", { foreignTable: "corridas_fusao_carga_itens" })
       .order("criado_em", { foreignTable: "corridas_fusao_mensagens" })
@@ -144,7 +144,7 @@
     // uma panela nova (o resto dos campos herdados fica por conta da RPC).
     ultimaPanelaHolding: async (fornoId) => {
       const response = await client().from("panelas_holding")
-        .select("fesimg_liga1_kg,fesimg_liga4_kg,corridas_fusao!inner(forno_id)")
+        .select("fesimg_liga1_kg,fesimg_liga4_kg,corridas_fusao!holding_corrida_id!inner(forno_id)")
         .eq("corridas_fusao.forno_id", fornoId).neq("status", "REJEITADA")
         .order("criado_em", { ascending: false }).limit(1).maybeSingle();
       if (response.error) throw response.error;
