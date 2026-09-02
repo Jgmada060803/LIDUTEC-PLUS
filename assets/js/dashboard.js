@@ -24,6 +24,7 @@ const sum = (rows, selector) => rows.reduce((total, row) => total + number(selec
 const formatTime = value => value ? new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—";
 const durationLabel = minutes => `${Math.floor(minutes / 60)}h ${String(Math.round(minutes % 60)).padStart(2, "0")}min`;
 const displayDate = value => new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+const displayDateFull = value => new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
 function today() {
   const date = new Date();
@@ -191,8 +192,8 @@ function render() {
     document.querySelector(body).innerHTML = summaryRows(rows, type);
     document.querySelector(foot).innerHTML = summaryTotal(rows);
   }
-  document.querySelector("#stop-details").innerHTML = stops.length ? stops.map(row => `<tr><td>${escapeHtml(shiftLabels[row.turno] || row.turno)}</td><td>${formatTime(row.inicio)}</td><td>${formatTime(row.fim)}</td><td>${formatNumber(row.duracao_minutos)}</td><td>${escapeHtml(row.setores_responsaveis_parada?.nome || "—")}</td><td>${escapeHtml(row.categorias_parada_producao?.nome || row.motivo || "—")}</td><td>${escapeHtml(row.observacao || "—")}</td></tr>`).join("") : '<tr><td colspan="7" class="empty-state">Sem ocorrências no período.</td></tr>';
-  document.querySelector("#stop-details-total").innerHTML = `<tr><th colspan="3">Total</th><th>${formatNumber(stoppedMinutes)}</th><th colspan="3"></th></tr>`;
+  document.querySelector("#stop-details").innerHTML = stops.length ? stops.map(row => `<tr><td class="col-data-operacional">${displayDateFull(row.data_operacional)}</td><td>${escapeHtml(shiftLabels[row.turno] || row.turno)}</td><td>${formatTime(row.inicio)}</td><td>${formatTime(row.fim)}</td><td>${formatNumber(row.duracao_minutos)}</td><td>${escapeHtml(row.setores_responsaveis_parada?.nome || "—")}</td><td>${escapeHtml(row.categorias_parada_producao?.nome || row.motivo || "—")}</td><td>${escapeHtml(row.observacao || "—")}</td></tr>`).join("") : '<tr><td colspan="8" class="empty-state">Sem ocorrências no período.</td></tr>';
+  document.querySelector("#stop-details-total").innerHTML = `<tr><th colspan="4">Total</th><th>${formatNumber(stoppedMinutes)}</th><th colspan="3"></th></tr>`;
   renderDonut(sectors); renderTimeline(stops); renderFilters();
 }
 
