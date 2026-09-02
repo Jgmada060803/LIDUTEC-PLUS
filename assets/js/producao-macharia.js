@@ -1332,9 +1332,9 @@ function renderMachariaStopsQuery() {
   aq("#stop-records").innerHTML = rows.map((x) => `<tr>
       <td>${displayDate(x.data_operacional)}</td><td>${aesc(x.turno)}</td>
       <td>${formatDateTime(x.inicio)}</td><td>${formatDateTime(x.fim)}</td>
-      <td>${formatMinutes(x.duracao_minutos)}</td>
+      <td>${Math.round(anumber(x.duracao_minutos))}</td>
       <td>${aesc(machariaStopConditionLabel(x))}</td>
-      <td>${formatMinutes(x.tempo_perdido_equivalente_minutos ?? x.duracao_minutos)}</td>
+      <td>${Math.round(anumber(x.tempo_perdido_equivalente_minutos ?? x.duracao_minutos))}</td>
       <td>${aesc(x.linhas_maquinas_producao?.nome || "—")}</td>
       <td>${aesc(x.setores_responsaveis_parada?.nome || "—")}</td>
       <td>${aesc(x.categorias_parada_producao?.nome || x.motivo || "—")}</td>

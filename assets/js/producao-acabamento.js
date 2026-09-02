@@ -1412,9 +1412,9 @@ function renderAcabamentoStops() {
       <td>${aesc(x.turno)}</td>
       <td>${aFormatDateTime(x.inicio)}</td>
       <td>${aFormatDateTime(x.fim)}</td>
-      <td>${aFormatMinutes(x.duracao_minutos)}</td>
+      <td>${Math.round(anumber(x.duracao_minutos))}</td>
       <td>${aesc(acabamentoStopConditionLabel(x))}</td>
-      <td>${aFormatMinutes(x.tempo_perdido_equivalente_minutos ?? x.duracao_minutos)}</td>
+      <td>${Math.round(anumber(x.tempo_perdido_equivalente_minutos ?? x.duracao_minutos))}</td>
       <td>${aesc(x.postos_equipamentos_acabamento?.nome || "—")}</td>
       <td>${aesc(x.setores_responsaveis_parada?.nome || "—")}</td>
       <td>${aesc(x.categorias_parada_producao?.nome || "—")}</td>
