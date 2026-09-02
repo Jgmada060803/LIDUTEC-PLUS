@@ -4,20 +4,30 @@
 // fusaoHoraAgora/fusaoMontarDataHora/fusaoProdutoComboboxHtml/
 // bindProdutoCombobox/fusaoProdutoDoInput/fusaoProdutoTexto, todos globais
 // em producao-fusao.js (carregado antes deste arquivo).
-// Continuidade do vazamento: o fim de uma panela (ou o horário de uma
-// devolução) vira a sugestão de início da próxima — pedido explícito, pra
-// não redigitar a mesma hora toda vez. Início/Fim começam vazios; só essa
-// sugestão pré-preenche o Início (continua editável). O molde inicial da
-// próxima sugere o final da anterior + 1, e o inoculador lembra a última
-// escolha — tudo editável, só reduz redigitação.
-let fusaoUltimoFimVazamento = null;
-let fusaoUltimoMoldeFinal = null;
-let fusaoUltimoInoculador = null;
+// Uma panela vaza até o início da próxima (ou até o lingotamento) — o
+// operador não informa "Fim", só o Início; o servidor fecha sozinho a
+// panela que estava em aberto. Início já vem preenchido com a hora
+// atual (continua editável). Molde inicial/Inoculador/g-s sugerem os
+// valores da ÚLTIMA PANELA VAZADA DO MESMO PRODUTO (histórico real, não
+// memória da sessão) — pedido explícito: com só 1 panela por vez na
+// fila, uma variável de sessão fica vazia assim que a panela some da
+// lista e a próxima entra sem nenhuma referência.
 
-// Colunas da fila hoje (sem o "+A.N"): Vazamento, Produto, Peso, Temp.
-// origem, Início, Fim, Temp.(°C), Molde ini., Molde fim, Inoculador,
-// g/s — usado pro colspan da linha de análise abaixo de cada panela.
-const FUSAO_VAZAMENTO_FILA_COLUNAS = 12;
+// Colunas da fila hoje: Vazamento, Produto, Peso, Temp. origem, Início,
+// Temp.(°C), Molde ini., Molde fim, Inoculador, g/s, ações — usado pro
+// colspan das caixas de análise/devolução abaixo de cada panela.
+const FUSAO_VAZAMENTO_FILA_COLUNAS = 11;
+
+// Motivos de devolução — lista fechada (pedido explícito, era texto livre).
+const FUSAO_MOTIVOS_REJEICAO = [
+  "MÁQUINA PARADA",
+  "COMPOSIÇÃO QUÍMICA FORA DO ESPECIFICADO",
+  "TEMPERATURA BAIXA",
+  "TEMPO DE FADING ESGOTADO"
+];
+// Lingotamento reaproveita os mesmos motivos da devolução, mais "Setup de
+// metal" (pedido explícito).
+const FUSAO_MOTIVOS_LINGOTAMENTO = [...FUSAO_MOTIVOS_REJEICAO, "SETUP DE METAL"];
 
 // Análise térmica do Vazamento — ação por panela (pedido explícito: só
 // aparece na panela onde foi de fato registrada, não "vale pra frente"
@@ -67,6 +77,44 @@ function bindAnalisePanelaRow(tbody, panela) {
 }
 function toggleAnalisePanelaRow(tbody, panelaId) {
   const row = tbody.querySelector(`tr.fusao-vazamento-analise-row[data-panela-id="${panelaId}"]`);
+  if (row) row.hidden = !row.hidden;
+}
+
+// Devolução — mesma ideia da caixa de análise térmica: escondida até
+// clicar "Devolver", com o motivo (lista fechada) e a confirmação ali
+// dentro, em vez de uma coluna fixa ocupando espaço na fila inteira.
+function devolverPanelaRowHtml(panela) {
+  return `<tr class="fusao-vazamento-devolver-row" data-panela-id="${panela.id}" hidden>
+      <td colspan="${FUSAO_VAZAMENTO_FILA_COLUNAS}">
+        <div class="fusao-item-row fusao-devolver-campos">
+          <select name="motivo_rejeicao">
+            <option value="">Selecione o motivo</option>
+            ${FUSAO_MOTIVOS_REJEICAO.map((motivo) => `<option value="${fEsc(motivo)}">${fEsc(motivo)}</option>`).join("")}
+          </select>
+          <button type="button" class="button button-danger" data-confirmar-devolucao>Confirmar devolução</button>
+        </div>
+      </td>
+    </tr>`;
+}
+function bindDevolverPanelaRow(tbody, panela) {
+  const row = tbody.querySelector(`tr.fusao-vazamento-devolver-row[data-panela-id="${panela.id}"]`);
+  if (!row) return;
+  const confirmar = row.querySelector("[data-confirmar-devolucao]");
+  confirmar.addEventListener("click", async () => {
+    const motivo = row.querySelector('[name="motivo_rejeicao"]').value;
+    if (!motivo) { alert("Selecione o motivo da devolução."); return; }
+    try {
+      confirmar.disabled = true;
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.rejeitarPanelaHolding(panela.id, motivo);
+      await renderFilaVazamento();
+    } catch (error) {
+      alert(error.message);
+      confirmar.disabled = false;
+    }
+  });
+}
+function toggleDevolverPanelaRow(tbody, panelaId) {
+  const row = tbody.querySelector(`tr.fusao-vazamento-devolver-row[data-panela-id="${panelaId}"]`);
   if (row) row.hidden = !row.hidden;
 }
 
@@ -120,18 +168,35 @@ function bindPanelaProdutoEditavel(cell, panelaId) {
 // e CE medido (opcional, pré-preenchido com a última análise térmica do
 // Vazamento) já ficam nas últimas colunas, com um botão "OK" só pra
 // confirmar essa panela.
-function filaRowHtml(panela) {
+function filaRowHtml(panela, ehAPrimeira, ultimasVazadas) {
   const corridaCodigo = panela.corridas_fusao?.codigo;
   const kg1 = (valor) => valor != null ? fNumber(valor).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—";
-  const moldeInicialSugerido = fusaoUltimoMoldeFinal != null ? fusaoUltimoMoldeFinal + 1 : "";
-  const opcaoSelecionada = (valor) => fusaoUltimoInoculador === valor ? " selected" : "";
+  // Referência = última panela vazada do MESMO produto (ultimasVazadas já
+  // vem ordenada da mais recente pra mais antiga) — não a última vazada
+  // de qualquer produto, senão sugeriria molde/inoculador errado quando
+  // o produto muda de uma panela pra outra.
+  const referencia = (ultimasVazadas || []).find((v) => v.produto_id === panela.produto_id);
+  const moldeInicialSugerido = referencia?.molde_final != null ? referencia.molde_final + 1 : "";
+  const opcaoSelecionada = (valor) => referencia?.inoculador_vazamento === valor ? " selected" : "";
+  // Início sugerido = fim da última panela vazada (qualquer produto) + 1
+  // minuto — pedido explícito. Só cai pra "agora" quando essa última
+  // ainda está em aberto (sem fim ainda) e não tem o que sugerir.
+  const ultimaQualquerProduto = (ultimasVazadas || [])[0];
+  let inicioSugerido = fusaoHoraAgora();
+  if (ultimaQualquerProduto?.hora_fim_vazamento) {
+    const maisUmMinuto = new Date(ultimaQualquerProduto.hora_fim_vazamento);
+    maisUmMinuto.setMinutes(maisUmMinuto.getMinutes() + 1);
+    inicioSugerido = `${String(maisUmMinuto.getHours()).padStart(2, "0")}:${String(maisUmMinuto.getMinutes()).padStart(2, "0")}`;
+  }
+  // FIFO: a panela retirada mais cedo do Holding tem que ser vazada
+  // primeiro — pedido explícito, reforçado também no servidor.
+  const vazarDesabilitado = ehAPrimeira ? "" : ' disabled title="Vaze primeiro a panela mais antiga aguardando"';
   return `<tr data-panela-id="${panela.id}" data-data-operacional="${panela.hora_retirada.slice(0, 10)}">
       <td>${fEsc(fusaoIdentificacaoVazamento(corridaCodigo, panela.sequencial_vazamento))}</td>
       <td class="fusao-vazamento-produto-cel">${panelaProdutoCelHtml(panela)}</td>
       <td>${fusaoKg(panela.peso_kg)}</td>
       <td>${kg1(panela.temperatura_c)}</td>
-      <td><input type="time" class="fusao-vazamento-input" name="inicio" value="${fusaoUltimoFimVazamento ?? ""}"></td>
-      <td><input type="time" class="fusao-vazamento-input" name="fim"></td>
+      <td><input type="time" class="fusao-vazamento-input" name="inicio" value="${inicioSugerido}"></td>
       <td><input type="number" step="0.01" class="fusao-vazamento-input fusao-vazamento-input-num" name="temperatura"></td>
       <td><input type="number" step="1" class="fusao-vazamento-input fusao-vazamento-input-num" name="molde_inicial" value="${moldeInicialSugerido}"></td>
       <td><input type="number" step="1" class="fusao-vazamento-input fusao-vazamento-input-num" name="molde_final"></td>
@@ -140,74 +205,65 @@ function filaRowHtml(panela) {
         <option value="MV01"${opcaoSelecionada("MV01")}>MV01</option>
         <option value="MV02"${opcaoSelecionada("MV02")}>MV02</option>
       </select></td>
-      <td><input type="number" step="0.01" class="fusao-vazamento-input fusao-vazamento-input-num" name="inoculante_g_s" placeholder="g/s"></td>
+      <td><input type="number" step="0.01" class="fusao-vazamento-input fusao-vazamento-input-num" name="inoculante_g_s" placeholder="g/s" value="${referencia?.inoculante_vazamento_g_s ?? ""}"></td>
       <td class="fusao-vazamento-acoes-cel">
-        <button type="button" class="button button-primary" data-confirmar-vazamento>Vazar</button>
-        <button type="button" class="button button-danger" data-rejeitar-panela>Devolver</button>
+        <button type="button" class="button button-primary" data-confirmar-vazamento${vazarDesabilitado}>Vazar</button>
+        <button type="button" class="button button-danger" data-toggle-devolver>Devolver</button>
         <button type="button" class="button button-secondary" data-toggle-analise title="Análise térmica desta panela">+A.N</button>
       </td>
-    </tr>${analisePanelaRowHtml(panela)}`;
+    </tr>${analisePanelaRowHtml(panela)}${devolverPanelaRowHtml(panela)}`;
 }
 function bindFilaRow(tbody, panela) {
   const row = tbody.querySelector(`tr[data-panela-id="${panela.id}"]`);
   if (!row) return;
   bindPanelaProdutoEditavel(row.querySelector(".fusao-vazamento-produto-cel"), panela.id);
   bindAnalisePanelaRow(tbody, panela);
+  bindDevolverPanelaRow(tbody, panela);
+  row.querySelector("[data-toggle-devolver]").addEventListener("click", () => toggleDevolverPanelaRow(tbody, panela.id));
   row.querySelector("[data-toggle-analise]").addEventListener("click", () => toggleAnalisePanelaRow(tbody, panela.id));
   const botao = row.querySelector("[data-confirmar-vazamento]");
   botao.addEventListener("click", async () => {
     const valor = (nome) => row.querySelector(`[name="${nome}"]`).value;
     try {
       const inicio = valor("inicio");
-      const fim = valor("fim");
       const moldeInicial = valor("molde_inicial");
       const moldeFinal = valor("molde_final");
-      if (!inicio || !fim || !moldeInicial || !moldeFinal) {
-        throw new Error("Informe início, fim e os moldes inicial/final.");
+      if (!inicio || !moldeInicial || !moldeFinal) {
+        throw new Error("Informe início e os moldes inicial/final.");
       }
       const temperatura = valor("temperatura");
       const inoculador = valor("inoculador");
       const inoculanteGS = valor("inoculante_g_s");
-      botao.disabled = true;
       const dataOperacional = row.dataset.dataOperacional;
+      const inicioIso = fusaoMontarDataHora(dataOperacional, inicio);
+      fusaoValidarHorarioNaoFuturo(inicioIso, "início do vazamento");
+      botao.disabled = true;
+      // "Vn" reinicia às 06:00, não à meia-noite — mesma regra do dia
+      // operacional já usada nos turnos (window.LIDUTEC_TURNOS).
+      const diaOperacionalVazamento = window.LIDUTEC_TURNOS.determineShift(new Date(inicioIso)).dataOperacional;
       await window.LIDUTEC_PRODUCAO_FUSAO_DATA.apontarVazamentoPanela(
         panela.id,
-        fusaoMontarDataHora(dataOperacional, inicio),
-        fusaoMontarDataHora(dataOperacional, fim),
+        inicioIso,
         temperatura === "" ? null : Number(temperatura),
         Number(moldeInicial), Number(moldeFinal),
         inoculador === "" ? null : inoculador,
-        inoculanteGS === "" ? null : Number(inoculanteGS)
+        inoculanteGS === "" ? null : Number(inoculanteGS),
+        diaOperacionalVazamento
       );
-      fusaoUltimoFimVazamento = fim;
-      fusaoUltimoMoldeFinal = Number(moldeFinal);
-      fusaoUltimoInoculador = inoculador === "" ? null : inoculador;
       await renderFilaVazamento();
       await renderPanelasVazadasRecentes();
+      await atualizarSaldoNegativoFlutuante().catch(() => {});
     } catch (error) {
       alert(error.message);
       botao.disabled = false;
     }
   });
-  const rejeitar = row.querySelector("[data-rejeitar-panela]");
-  rejeitar.addEventListener("click", async () => {
-    const motivo = prompt("Motivo da rejeição:", "");
-    if (motivo === null) return;
-    if (!motivo.trim()) { alert("Informe o motivo da rejeição."); return; }
-    try {
-      rejeitar.disabled = true;
-      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.rejeitarPanelaHolding(panela.id, motivo.trim());
-      fusaoUltimoFimVazamento = fusaoHoraAgora();
-      await renderFilaVazamento();
-      await renderRejeitadasAguardandoRetorno();
-    } catch (error) {
-      alert(error.message);
-      rejeitar.disabled = false;
-    }
-  });
 }
 async function renderFilaVazamento() {
-  const panelas = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasAguardandoVazamento();
+  const [panelas, ultimasVazadas] = await Promise.all([
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasAguardandoVazamento(),
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasVazadasRecentes(10)
+  ]);
   const container = fq("#vazamento-fila");
   fq("#vazamento-vazio").hidden = panelas.length > 0;
   if (!panelas.length) { container.innerHTML = ""; return; }
@@ -216,9 +272,9 @@ async function renderFilaVazamento() {
       <thead><tr class="fusao-cabecalho-aguardando">
         <th>Vazamento</th><th>Produto</th>
         <th>Peso (kg)</th><th>Temp. origem</th>
-        <th>Início</th><th>Fim</th><th>Temp. (°C)</th><th>Molde ini.</th><th>Molde fim</th><th>Inoculador</th><th>g/s</th><th></th>
+        <th>Início</th><th>Temp. (°C)</th><th>Molde ini.</th><th>Molde fim</th><th>Inoculador</th><th>g/s</th><th></th>
       </tr></thead>
-      <tbody>${panelas.map(filaRowHtml).join("")}</tbody>
+      <tbody>${panelas.map((panela, index) => filaRowHtml(panela, index === 0, ultimasVazadas)).join("")}</tbody>
       <tfoot><tr class="fusao-tabela-total-row">
         <td colspan="2"><strong>Total</strong></td>
         <td><strong>${fusaoKg(totalPeso)}</strong></td>
@@ -228,22 +284,121 @@ async function renderFilaVazamento() {
   const tbody = container.querySelector("tbody");
   panelas.forEach((panela) => bindFilaRow(tbody, panela));
 }
-// Panelas rejeitadas aguardando retorno — a tabela em si (linha, bind e
-// render) agora mora em producao-fusao.js (fusaoRenderRejeitadasAguardandoRetorno),
-// reaproveitada também pelo painel flutuante do planejamento (índice).
-async function renderRejeitadasAguardandoRetorno() {
-  await fusaoRenderRejeitadasAguardandoRetorno("#vazamento-rejeitadas");
+// Lingotamento (Etapa 9) — não é por panela, é por CICLO: o operador do
+// Vazamento decide A HORA (quando um problema interrompe o ciclo
+// contínuo de panelas se misturando na vazadora). O servidor calcula
+// sozinho o peso teórico (enviado − consumo teórico desde o último
+// lingotamento) e avisa a Fusão, que depois define forno/BLOCO e o peso
+// real medido — isso aparece aqui só como histórico (leitura).
+function lingotamentoRowHtml(lingotamento) {
+  const hora = (v) => v ? new Date(v).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+  const definido = lingotamento.definido_em != null;
+  return `<tr>
+      <td>${hora(lingotamento.ciclo_inicio)}–${hora(lingotamento.ciclo_fim)}</td>
+      <td>${fEsc(lingotamento.motivo || "—")}</td>
+      <td>${fusaoKg(lingotamento.peso_teorico_kg)}</td>
+      <td>${definido ? fusaoKg(lingotamento.peso_real_kg) : "—"}</td>
+      <td>${definido ? fEsc(lingotamento.forno_destino_codigo || "BLOCO") : "Aguardando a Fusão"}</td>
+    </tr>`;
+}
+async function iniciarLingotamento(container) {
+  const botao = container.querySelector("[data-confirmar-lingotamento]");
+  const horario = container.querySelector("#lingotamento-horario").value;
+  const motivo = container.querySelector("#lingotamento-motivo").value;
+  if (!horario) { alert("Informe o horário do lingotamento."); return; }
+  if (!motivo) { alert("Selecione o motivo do lingotamento."); return; }
+  const horarioIso = fusaoMontarDataHora(fusaoDataHojeLocal(), horario);
+  try {
+    fusaoValidarHorarioNaoFuturo(horarioIso, "lingotamento");
+    botao.disabled = true;
+    const resultado = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.iniciarLingotamentoVazamento(horarioIso, motivo);
+    const lingotamento = Array.isArray(resultado) ? resultado[0] : resultado;
+    alert(`Lingotamento registrado — peso teórico enviado à Fusão: ${fusaoKg(lingotamento.peso_teorico_kg)} kg.`);
+    await renderLingotamentoVazamento();
+    await renderLingotamentoAcao();
+    await atualizarSaldoNegativoFlutuante().catch(() => {});
+  } catch (error) {
+    alert(error.message);
+    botao.disabled = false;
+  }
+}
+// Alerta flutuante: se o consumo teórico (moldes × peso do cacho) superar
+// o metal enviado desde o último lingotamento, o saldo teórico fica
+// negativo — sinal de que pode haver panela(s) vazada(s) e não
+// registrada(s) no sistema. Fica visível até o saldo voltar a ser >= 0.
+async function atualizarSaldoNegativoFlutuante() {
+  const painel = fq("#vazamento-saldo-negativo-flutuante");
+  if (!painel) return;
+  const [pendente] = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.resumoLingotamentoPendente();
+  const saldo = pendente ? fNumber(pendente.peso_enviado_kg) - fNumber(pendente.peso_consumido_teorico_kg) : 0;
+  if (!pendente || saldo >= 0) { painel.hidden = true; return; }
+  fq("#vazamento-saldo-negativo-flutuante-corpo").innerHTML =
+    `<p>O consumo teórico (${fusaoKg(pendente.peso_consumido_teorico_kg)} kg) está maior que o metal enviado (${fusaoKg(pendente.peso_enviado_kg)} kg) desde o último lingotamento — déficit de ${fusaoKg(Math.abs(saldo))} kg.</p>
+     <p>Isso pode indicar panela(s) vazada(s) e não registrada(s) no sistema. Verifique junto à Fusão.</p>`;
+  painel.hidden = false;
+}
+// Botão em cima do histórico de vazadas (pedido explícito) — só abre a
+// caixa de horário/motivo depois de clicado (mesmo padrão do "Devolver"),
+// junto com um resumo do último lingotamento; a lista completa fica numa
+// seção separada, abaixo do histórico.
+async function renderLingotamentoAcao() {
+  const container = fq("#vazamento-lingotar-acao");
+  if (!container) return;
+  const [[ultimo], [pendente]] = await Promise.all([
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.lingotamentosRecentes(1),
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.resumoLingotamentoPendente()
+  ]);
+  const hora = (v) => v ? new Date(v).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—";
+  const resumoUltimo = !ultimo ? "" : ultimo.definido_em
+    ? `Último: ${hora(ultimo.ciclo_fim)} — ${fusaoKg(ultimo.peso_real_kg)} kg → ${fEsc(ultimo.forno_destino_codigo || "BLOCO")}`
+    : `Último: ${hora(ultimo.ciclo_fim)} — aguardando a Fusão`;
+  // Prévia de quanto já acumulou desde o último lingotamento — ajuda o
+  // operador a decidir a hora de lingotar (pedido explícito). Fica na mesma
+  // linha do botão, mas em bloco separado (espaçado) do resumo do último.
+  const toTon = (kg) => (kg / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const resumoPendente = pendente && pendente.quantidade_panelas > 0
+    ? `Total de ${pendente.quantidade_panelas} panela${pendente.quantidade_panelas === 1 ? "" : "s"} desde o último lingotamento (${toTon(pendente.peso_enviado_kg)} ton) vs (${toTon(pendente.peso_consumido_teorico_kg)} ton) metal vazado = Saldo teórico (${toTon(Math.max(pendente.peso_enviado_kg - pendente.peso_consumido_teorico_kg, 0))} ton)`
+    : "Nenhuma panela vazada desde o último lingotamento";
+  container.innerHTML = `<div class="fusao-lingotar-campos">
+      <button type="button" class="button button-danger" data-toggle-lingotar>Lingotar</button>
+      ${resumoUltimo ? `<span class="fusao-lingotar-ultimo">${resumoUltimo}</span>` : ""}
+      <span class="fusao-lingotar-pendente">${resumoPendente}</span>
+    </div>
+    <div class="fusao-lingotar-definicao" hidden>
+      <label>Horário real do lingotamento<input type="time" id="lingotamento-horario" value="${fusaoHoraAgora()}"></label>
+      <select id="lingotamento-motivo">
+        <option value="">Selecione o motivo</option>
+        ${FUSAO_MOTIVOS_LINGOTAMENTO.map((motivo) => `<option value="${fEsc(motivo)}">${fEsc(motivo)}</option>`).join("")}
+      </select>
+      <button type="button" class="button button-danger" data-confirmar-lingotamento>Confirmar lingotamento</button>
+    </div>`;
+  const caixa = container.querySelector(".fusao-lingotar-definicao");
+  container.querySelector("[data-toggle-lingotar]").addEventListener("click", () => { caixa.hidden = !caixa.hidden; });
+  container.querySelector("[data-confirmar-lingotamento]").addEventListener("click", () => iniciarLingotamento(container));
+}
+async function renderLingotamentoVazamento() {
+  const container = fq("#vazamento-lingotamento");
+  if (!container) return;
+  const lingotamentos = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.lingotamentosRecentes(10);
+  if (!lingotamentos.length) { container.innerHTML = ""; return; }
+  container.innerHTML = `<div class="panel-header"><h3>Lingotamentos recentes</h3></div>
+    <div class="table-wrapper"><table class="products-table">
+      <thead><tr class="fusao-cabecalho-historico"><th>Ciclo (início–fim)</th><th>Motivo</th><th>Peso teórico (kg)</th><th>Peso real (kg)</th><th>Forno destino</th></tr></thead>
+      <tbody>${lingotamentos.map(lingotamentoRowHtml).join("")}</tbody>
+    </table></div>`;
 }
 // Histórico de vazadas — some da fila assim que confirmada, então precisa
 // continuar visível aqui (o perfil restrito do Vazamento não entra no
 // Holding nem na corrida pra ver de outro jeito).
 function vazadaRowHtml(panela) {
   const corridaCodigo = panela.corridas_fusao?.codigo;
-  const forno = panela.corridas_fusao?.fornos_fusao;
   const produto = panela.produtos;
   const identificacao = fusaoIdentificacaoVazamento(corridaCodigo, panela.sequencial_vazamento);
   const num = (v) => v != null ? fNumber(v).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—";
-  const hora = (v) => v ? new Date(v).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—";
+  const dataHora = (v) => v ? new Date(v).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+  const minutosEntre = (a, b) => a && b ? Math.round((new Date(b) - new Date(a)) / 60000) : null;
+  const turno = panela.hora_retirada ? window.LIDUTEC_TURNOS.determineShift(new Date(panela.hora_retirada)).nome : "—";
+  const materialBase = fusaoLimparFerroBase(fusaoState.tipoMaterialPorProduto[panela.produto_id]);
   const inoculador = panela.inoculador_vazamento
     ? `${fEsc(panela.inoculador_vazamento)} (${num(panela.inoculante_vazamento_g_s)} g/s)` : "—";
   // TL/CE/TSE/TRE/TF só aparecem na panela onde a análise foi realmente
@@ -254,15 +409,39 @@ function vazadaRowHtml(panela) {
   const tse = temAnalise ? num(panela.temp_solidus_vazamento) : "—";
   const tre = temAnalise ? num(panela.temp_recalescencia_eutetica_vazamento) : "—";
   const tf = temAnalise ? num(panela.temp_final_vazamento) : "—";
-  return `<tr>
+  const tempoAteInicio = minutosEntre(panela.hora_retirada, panela.hora_inicio_vazamento);
+  const fading = minutosEntre(panela.hora_inicio_vazamento, panela.hora_fim_vazamento);
+  // Sinal de tempo de vazamento — só pra Nodular (fading é crítico nele,
+  // Cinzento não tem esse problema). Enquanto em andamento, verde/
+  // amarelo/vermelho conforme o tempo já passado; depois de finalizado,
+  // só mantém vermelho se passou de 15 min — senão volta ao normal.
+  let classeTempo = "";
+  if (materialBase.toLowerCase() === "nodular") {
+    if (!panela.hora_fim_vazamento) {
+      const emAndamentoMin = minutosEntre(panela.hora_inicio_vazamento, new Date().toISOString());
+      if (emAndamentoMin != null) {
+        classeTempo = emAndamentoMin < 10 ? "fusao-vazamento-tempo-verde"
+          : emAndamentoMin <= 15 ? "fusao-vazamento-tempo-amarelo"
+          : "fusao-vazamento-tempo-vermelho";
+      }
+    } else if (fading != null && fading > 15) {
+      classeTempo = "fusao-vazamento-tempo-vermelho-texto";
+    }
+  }
+  return `<tr class="${classeTempo}">
       <td>${fEsc(identificacao || "—")}</td>
-      <td>${fEsc(forno?.codigo || "—")}</td>
-      <td>${hora(panela.hora_retirada)}</td>
+      <td>${turno}</td>
+      <td>${dataHora(panela.hora_retirada)}</td>
       <td>${fEsc(produto?.codigo || "—")}</td>
+      <td>${fEsc(produto?.nome || "—")}</td>
+      <td>${fEsc(materialBase)}</td>
       <td>${fusaoKg(panela.peso_kg)}</td>
-      <td>${hora(panela.hora_inicio_vazamento)}–${hora(panela.hora_fim_vazamento)}</td>
+      <td>${dataHora(panela.hora_inicio_vazamento)}</td>
+      <td>${tempoAteInicio != null ? `${tempoAteInicio} min` : "—"}</td>
       <td>${panela.molde_inicial ?? "—"}–${panela.molde_final ?? "—"} (${panela.quantidade_moldes ?? "—"})</td>
       <td>${inoculador}</td>
+      <td>${panela.hora_fim_vazamento ? dataHora(panela.hora_fim_vazamento) : "Em andamento"}</td>
+      <td>${fading != null ? `${fading} min` : "—"}</td>
       <td>${tl}</td>
       <td>${ce}</td>
       <td>${tse}</td>
@@ -282,25 +461,65 @@ async function renderPanelasVazadasRecentes() {
   container.innerHTML = `<div class="panel-header"><h3>Histórico de panelas vazadas</h3></div>
     <div class="table-wrapper"><table class="products-table">
       <thead><tr class="fusao-cabecalho-historico">
-        <th>Vazamento</th><th>Forno</th><th>Hora tratamento</th><th>Produto</th><th>Peso (kg)</th><th>Início–Fim</th><th>Moldes (qtd)</th>
-        <th>Inoculador</th><th>TL</th><th>CE</th><th>TSE</th><th>TRE</th><th>TF</th>
+        <th>Vazamento</th><th>Turno</th><th>Data/hora tratamento</th><th>Cód. produto</th><th>Nome produto</th><th>Material base</th><th>Peso tratado (kg)</th>
+        <th>Data/hora início</th><th>Tempo até início</th><th>Moldes (qtd)</th><th>Inoculador</th><th>Data/hora fim</th><th>Fading</th>
+        <th>TL</th><th>CE</th><th>TSE</th><th>TRE</th><th>TF</th>
       </tr></thead>
       <tbody>${panelas.map(vazadaRowHtml).join("")}</tbody>
       <tfoot><tr class="fusao-tabela-total-row">
-        <td colspan="4"><strong>Total / Média</strong></td>
+        <td colspan="6"><strong>Total / Média</strong></td>
         <td><strong>${fusaoKg(totalPeso)}</strong></td>
-        <td></td>
-        <td><strong>${totalMoldes}</strong></td>
         <td></td><td></td>
+        <td><strong>${totalMoldes}</strong></td>
+        <td></td><td></td><td></td>
+        <td></td>
         <td><strong>${mediaCe != null ? fNumber(mediaCe).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—"}</strong></td>
         <td></td><td></td><td></td>
       </tr></tfoot>
     </table></div>`;
 }
+// Histórico de panelas devolvidas — só leitura aqui (quem define o forno
+// destino é a Fusão, no painel flutuante do planejamento); serve pra quem
+// devolveu acompanhar se/pra onde já retornou.
+function devolvidaRowHtml(panela) {
+  const corridaCodigo = panela.corridas_fusao?.codigo;
+  const fornoDestino = panela.fornos_fusao;
+  const identificacao = fusaoIdentificacaoVazamento(corridaCodigo, null);
+  const hora = (v) => v ? new Date(v).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+  return `<tr>
+      <td>${fEsc(identificacao || "—")}</td>
+      <td>${fEsc(panela.produtos?.codigo || "—")}</td>
+      <td>${fusaoKg(panela.peso_kg)}</td>
+      <td>${fEsc(panela.motivo_rejeicao || "—")}</td>
+      <td>${panela.status === "RETORNADA" ? `Retornada — ${fEsc(fornoDestino?.codigo || "—")}` : "Aguardando definição"}</td>
+      <td>${panela.status === "RETORNADA" ? hora(panela.atualizado_em) : "—"}</td>
+    </tr>`;
+}
+async function renderPanelasDevolvidasRecentes() {
+  const panelas = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasDevolvidasRecentes(20);
+  const container = fq("#vazamento-devolvidas");
+  if (!container) return;
+  if (!panelas.length) { container.innerHTML = ""; return; }
+  container.innerHTML = `<div class="panel-header"><h3>Panelas devolvidas</h3></div>
+    <div class="table-wrapper"><table class="products-table">
+      <thead><tr class="fusao-cabecalho-retirada">
+        <th>Origem</th><th>Produto</th><th>Peso (kg)</th><th>Motivo</th><th>Status</th><th>Hora do retorno</th>
+      </tr></thead>
+      <tbody>${panelas.map(devolvidaRowHtml).join("")}</tbody>
+    </table></div>`;
+}
 async function initializeFusaoVazamento() {
   await renderFilaVazamento();
-  await renderRejeitadasAguardandoRetorno();
+  await renderLingotamentoAcao();
+  await renderLingotamentoVazamento();
   await renderPanelasVazadasRecentes();
+  await renderPanelasDevolvidasRecentes();
+  const saldoNegativoPainel = fq("#vazamento-saldo-negativo-flutuante");
+  if (saldoNegativoPainel) {
+    fusaoTornarArrastavel(saldoNegativoPainel, fq("#vazamento-saldo-negativo-flutuante-header"));
+    await atualizarSaldoNegativoFlutuante().catch(() => {});
+    setInterval(() => { atualizarSaldoNegativoFlutuante().catch(() => {}); }, 20000);
+  }
   // A fila é reconsultada de tempos em tempos (nova panela do Holding, ou
   // uma já apontada por outra pessoa) — mas nunca por cima de quem está
   // digitando um apontamento.
@@ -308,10 +527,8 @@ async function initializeFusaoVazamento() {
     const focoDentro = document.activeElement?.closest("#vazamento-fila");
     if (!focoDentro) renderFilaVazamento().catch(() => {});
   }, 20000);
-  setInterval(() => {
-    const focoDentro = document.activeElement?.closest("#vazamento-rejeitadas");
-    if (!focoDentro) renderRejeitadasAguardandoRetorno().catch(() => {});
-  }, 20000);
+  setInterval(() => { renderLingotamentoVazamento().catch(() => {}); }, 20000);
   setInterval(() => { renderPanelasVazadasRecentes().catch(() => {}); }, 20000);
+  setInterval(() => { renderPanelasDevolvidasRecentes().catch(() => {}); }, 20000);
 }
 window.initializeFusaoVazamento = initializeFusaoVazamento;

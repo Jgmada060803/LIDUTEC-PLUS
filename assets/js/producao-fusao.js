@@ -13,8 +13,24 @@ function fusaoHoraAgora() {
   const agora = new Date();
   return `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
 }
+// Data (calendário, local) de hoje — não confundir com "dia operacional"
+// do turno (esse é só pra agrupar/reiniciar contagem; antes das 06:00 ele
+// aponta pro dia anterior, o que é errado pra montar o horário digitado
+// de um evento que está acontecendo agora mesmo).
+function fusaoDataHojeLocal() {
+  const agora = new Date();
+  return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}-${String(agora.getDate()).padStart(2, "0")}`;
+}
 function fusaoMontarDataHora(dataOperacional, horaHHMM) {
   return new Date(`${dataOperacional}T${horaHHMM}:00`).toISOString();
+}
+// Trava horário digitado que estoure mais de 30 min no futuro (hora do
+// tratamento no Holding, início/fim do vazamento) — pedido explícito,
+// reforçado também no servidor (RPCs correspondentes).
+function fusaoValidarHorarioNaoFuturo(iso, rotulo) {
+  if (new Date(iso).getTime() > Date.now() + 30 * 60000) {
+    throw new Error(`O horário de ${rotulo} não pode ser mais de 30 minutos no futuro.`);
+  }
 }
 function fusaoKg(valor) {
   return fNumber(valor).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
@@ -645,6 +661,62 @@ async function fusaoAtualizarRetornoFlutuante() {
   const quantidade = await fusaoRenderRejeitadasAguardandoRetorno("#fusao-retorno-flutuante-corpo");
   painel.hidden = quantidade === 0;
 }
+// Lingotamento (Etapa 9) aguardando definição — não é por panela, é por
+// CICLO de vazamento (o operador do Vazamento decide a hora de lingotar,
+// quando um problema interrompe o ciclo contínuo de panelas se
+// misturando na vazadora; o peso teórico já vem calculado pelo
+// servidor). Quem decide o destino (forno ou "BLOCO") e informa o peso
+// REAL medido é o operador da Fusão — mesmo padrão do retorno de panela
+// rejeitada.
+function fusaoLingotamentoRowHtml(lingotamento) {
+  const opcoesFornos = fusaoState.fornos.map((f) => `<option value="${f.id}">${fEsc(f.codigo)} — ${fEsc(f.nome)}</option>`).join("");
+  const hora = (v) => v ? new Date(v).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—";
+  return `<tr data-lingotamento-id="${lingotamento.id}">
+      <td>${hora(lingotamento.ciclo_inicio)}–${hora(lingotamento.ciclo_fim)}</td>
+      <td>${fusaoKg(lingotamento.peso_teorico_kg)}</td>
+      <td><input type="number" step="0.01" name="peso_real" placeholder="Peso real (kg)"></td>
+      <td><select name="forno_destino"><option value="">BLOCO (sem forno)</option>${opcoesFornos}</select></td>
+      <td><button type="button" class="button button-primary" data-confirmar-lingotamento>Registrar</button></td>
+    </tr>`;
+}
+function fusaoBindLingotamentoRow(tbody, lingotamento, aoConcluir) {
+  const row = tbody.querySelector(`tr[data-lingotamento-id="${lingotamento.id}"]`);
+  if (!row) return;
+  const botao = row.querySelector("[data-confirmar-lingotamento]");
+  botao.addEventListener("click", async () => {
+    const pesoReal = row.querySelector('[name="peso_real"]').value;
+    if (pesoReal === "") { alert("Informe o peso real do lingote."); return; }
+    const fornoId = row.querySelector('[name="forno_destino"]').value;
+    try {
+      botao.disabled = true;
+      await window.LIDUTEC_PRODUCAO_FUSAO_DATA.registrarLingotamentoVazamento(lingotamento.id, Number(pesoReal), fornoId === "" ? null : Number(fornoId));
+      await aoConcluir();
+    } catch (error) {
+      alert(error.message);
+      botao.disabled = false;
+    }
+  });
+}
+async function fusaoRenderLingotamentoAguardandoDefinicao(containerSeletor) {
+  const lingotamentos = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.lingotamentosAguardandoDefinicao();
+  const container = fq(containerSeletor);
+  if (!container) return lingotamentos.length;
+  if (!lingotamentos.length) { container.innerHTML = ""; return 0; }
+  container.innerHTML = `<div class="panel-header"><h3>Lingotamento aguardando definição</h3></div>
+    <div class="table-wrapper"><table class="products-table">
+      <thead><tr class="fusao-cabecalho-retirada"><th>Ciclo (início–fim)</th><th>Peso teórico (kg)</th><th>Peso real (kg)</th><th>Forno destino</th><th></th></tr></thead>
+      <tbody>${lingotamentos.map(fusaoLingotamentoRowHtml).join("")}</tbody>
+    </table></div>`;
+  const tbody = container.querySelector("tbody");
+  lingotamentos.forEach((lingotamento) => fusaoBindLingotamentoRow(tbody, lingotamento, () => fusaoRenderLingotamentoAguardandoDefinicao(containerSeletor)));
+  return lingotamentos.length;
+}
+async function fusaoAtualizarLingotamentoFlutuante() {
+  const painel = fq("#fusao-lingotamento-flutuante");
+  if (!painel) return;
+  const quantidade = await fusaoRenderLingotamentoAguardandoDefinicao("#fusao-lingotamento-flutuante-corpo");
+  painel.hidden = quantidade === 0;
+}
 function fusaoTabelaTotalRowHtml(itens) {
   const planejado = itens.reduce((soma, item) => soma + fNumber(item.quantidade_planejada_kg), 0);
   const realizado = itens.reduce((soma, item) => soma + fNumber(item.quantidade_realizada_kg), 0);
@@ -1229,7 +1301,14 @@ async function renderFornoCard(forno) {
   if (focusWasInside) return; // não pisa em cima de quem está digitando
   const token = (fusaoRenderTokenPorForno[forno.id] = (fusaoRenderTokenPorForno[forno.id] || 0) + 1);
   const corridaAberta = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridaAbertaCompletaDoForno(forno.id);
-  const retornosDisa = corridaAberta ? await window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasRetornadasParaCorrida(corridaAberta.id) : [];
+  let retornosDisa = [];
+  if (corridaAberta) {
+    const [retornos, lingotes] = await Promise.all([
+      window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasRetornadasParaCorrida(corridaAberta.id),
+      window.LIDUTEC_PRODUCAO_FUSAO_DATA.lingotamentosParaCorrida(corridaAberta.id)
+    ]);
+    retornosDisa = [...retornos, ...lingotes];
+  }
   const volumeAtualKg = fusaoState.volumeAtual[forno.id] ?? 0;
   const corridaHtml = corridaAberta ? corridaCardHtml(corridaAberta, volumeAtualKg, retornosDisa) : null;
   if (fusaoRenderTokenPorForno[forno.id] !== token) return; // uma chamada mais nova já assumiu
@@ -1270,6 +1349,15 @@ async function initializeFusaoIndex() {
     setInterval(() => {
       const focoDentro = document.activeElement?.closest("#fusao-retorno-flutuante");
       if (!focoDentro) fusaoAtualizarRetornoFlutuante().catch(() => {});
+    }, 20000);
+  }
+  const lingotamentoPainel = fq("#fusao-lingotamento-flutuante");
+  if (lingotamentoPainel) {
+    fusaoTornarArrastavel(lingotamentoPainel, fq("#fusao-lingotamento-flutuante-header"));
+    await fusaoAtualizarLingotamentoFlutuante().catch(() => {});
+    setInterval(() => {
+      const focoDentro = document.activeElement?.closest("#fusao-lingotamento-flutuante");
+      if (!focoDentro) fusaoAtualizarLingotamentoFlutuante().catch(() => {});
     }, 20000);
   }
   // Corrida aberta atualiza sozinha (reflete o que a Ponte for registrando,
@@ -1689,7 +1777,11 @@ async function loadCorridaDetail() {
   fusaoCorridaCache.itens = itens;
   fusaoCorridaCache.transferencias = transferencias;
   fusaoCorridaCache.panelasHolding = panelasHolding;
-  fusaoCorridaCache.retornosDisa = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasRetornadasParaCorrida(corrida.id);
+  const [retornosDaCorrida, lingotesDaCorrida] = await Promise.all([
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasRetornadasParaCorrida(corrida.id),
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.lingotamentosParaCorrida(corrida.id)
+  ]);
+  fusaoCorridaCache.retornosDisa = [...retornosDaCorrida, ...lingotesDaCorrida];
   const panelasPanel = fq("#panelas-holding-panel");
   if (panelasPanel) {
     const ehHolding = corrida.fornos_fusao?.tipo === "HOLDING";

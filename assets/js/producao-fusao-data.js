@@ -178,10 +178,12 @@
         "temp_recalescencia_eutetica_vazamento,temp_final_vazamento,analise_vazamento_em," +
         "corridas_fusao!holding_corrida_id(codigo,forno_id,fornos_fusao(codigo,nome))")
       .in("status", ["SAIDA_HOLDING", "EM_TRANSITO"]).order("hora_retirada", { ascending: true })),
-    apontarVazamentoPanela: (panelaId, inicioIso, fimIso, temperaturaC, moldeInicial, moldeFinal, inoculador, inoculanteGS) => result(client().rpc("apontar_vazamento_panela", {
-      p_panela_id: panelaId, p_inicio: inicioIso, p_fim: fimIso, p_temperatura_c: temperaturaC,
+    // "Fim" não é digitado — uma panela vaza até o início da próxima (ou
+    // até o lingotamento); o servidor fecha sozinho a que estava aberta.
+    apontarVazamentoPanela: (panelaId, inicioIso, temperaturaC, moldeInicial, moldeFinal, inoculador, inoculanteGS, diaOperacional) => result(client().rpc("apontar_vazamento_panela", {
+      p_panela_id: panelaId, p_inicio: inicioIso, p_temperatura_c: temperaturaC,
       p_molde_inicial: moldeInicial, p_molde_final: moldeFinal,
-      p_inoculador: inoculador, p_inoculante_g_s: inoculanteGS
+      p_inoculador: inoculador, p_inoculante_g_s: inoculanteGS, p_dia_operacional: diaOperacional
     }), null),
     // Análise térmica do Vazamento — ação por panela (não "vale pra
     // frente"): o operador escolhe a linha da fila e o valor fica só ali,
@@ -205,14 +207,45 @@
     panelasRejeitadasAguardandoRetorno: () => result(client().from("panelas_holding")
       .select("id,sequencial,peso_kg,motivo_rejeicao,produtos(codigo,nome),corridas_fusao!holding_corrida_id(codigo,fornos_fusao(codigo,nome))")
       .eq("status", "REJEITADA").order("atualizado_em", { ascending: true })),
+    // Histórico de panelas devolvidas (rejeitadas) — só leitura na tela do
+    // Vazamento (quem decide o forno destino é a Fusão, não aqui); mostra
+    // tanto as que ainda aguardam quanto as já retornadas, pra quem devolveu
+    // acompanhar o que aconteceu depois.
+    panelasDevolvidasRecentes: (limite = 20) => result(client().from("panelas_holding")
+      .select("id,sequencial,peso_kg,motivo_rejeicao,status,atualizado_em,produtos(codigo,nome)," +
+        "corridas_fusao!holding_corrida_id(codigo,fornos_fusao(codigo,nome)),fornos_fusao!retorno_forno_id(codigo,nome)")
+      .in("status", ["REJEITADA", "RETORNADA"]).order("atualizado_em", { ascending: false }).limit(limite)),
     // Histórico de quem já foi vazada — some da fila de espera, mas
     // precisa continuar visível pra quem só acessa a tela do Vazamento
     // (perfil restrito não entra no Holding nem na corrida).
     panelasVazadasRecentes: (limite = 20) => result(client().from("panelas_holding")
       .select("id,sequencial,sequencial_vazamento,peso_kg,hora_retirada,hora_inicio_vazamento,hora_fim_vazamento,molde_inicial,molde_final,quantidade_moldes," +
         "carbono_equivalente_vazamento,temp_liquidus_vazamento,temp_solidus_vazamento,temp_recalescencia_eutetica_vazamento,temp_final_vazamento,analise_vazamento_em," +
-        "inoculador_vazamento,inoculante_vazamento_g_s,produtos(codigo,nome),corridas_fusao!holding_corrida_id(codigo,fornos_fusao(codigo,nome))")
-      .eq("status", "VAZADA").order("hora_fim_vazamento", { ascending: false }).limit(limite)),
+        "inoculador_vazamento,inoculante_vazamento_g_s,produto_id,produtos(codigo,nome),corridas_fusao!holding_corrida_id(codigo)")
+      .eq("status", "VAZADA").order("hora_inicio_vazamento", { ascending: false }).limit(limite)),
+    // Lingotamento (Etapa 9) — não é por panela, é por CICLO de vazamento
+    // (várias panelas se misturam na mesma panela vazadora, processo
+    // contínuo). O operador do Vazamento decide A HORA de lingotar (um
+    // problema interrompeu o ciclo); o servidor calcula sozinho o peso
+    // teórico que sobrou (enviado − consumo teórico desde o último
+    // lingotamento). A Fusão só depois define forno (ou "BLOCO") e o
+    // peso real medido.
+    iniciarLingotamentoVazamento: (horarioIso, motivo) => result(client().rpc("iniciar_lingotamento_vazamento", { p_horario: horarioIso, p_motivo: motivo }), null),
+    lingotamentosAguardandoDefinicao: () => result(client().rpc("lingotamentos_aguardando_definicao")),
+    registrarLingotamentoVazamento: (lingotamentoId, pesoReal, fornoDestinoId) => result(client().rpc("registrar_lingotamento_vazamento", {
+      p_lingotamento_id: lingotamentoId, p_peso_real: pesoReal, p_forno_destino_id: fornoDestinoId
+    }), null),
+    lingotamentosRecentes: (limite = 20) => result(client().rpc("lingotamentos_recentes", { p_limite: limite })),
+    // Prévia (só leitura) do que "Lingotar" calcularia agora — mesma
+    // consulta usada dentro do RPC de lingotar, sem gravar nada.
+    resumoLingotamentoPendente: () => result(client().rpc("resumo_lingotamento_pendente"), null),
+    // Igual panelasRetornadasParaCorrida, só que pro lingotamento — o
+    // peso já vem apelidado "peso_kg" pra reaproveitar direto a mesma
+    // linha "Retorno Disa" sem precisar mudar nada em quem já consome
+    // essa lista.
+    lingotamentosParaCorrida: (corridaId) => result(client().from("lingotamentos_vazamento")
+      .select("id,peso_kg:peso_real_kg")
+      .eq("corrida_destino_id", corridaId)),
     // Metal de panela rejeitada ("Retorno Disa") que voltou pra este forno
     // — credita o saldo (volume_atual_forno_fusao) e também vira linha na
     // tabela de materiais, igual transferência. Escopado pela corrida

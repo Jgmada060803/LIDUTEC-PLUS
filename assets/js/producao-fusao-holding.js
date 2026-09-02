@@ -171,9 +171,11 @@ async function criarLinhaNovaPanela(corridaId, dataOperacional, fornoId, onCriad
       const fesimgLiga1 = row.querySelector('[name="fesimg_liga1_kg"]').value;
       const fesimgLiga4 = row.querySelector('[name="fesimg_liga4_kg"]').value;
       if (!hora || !peso) throw new Error("Informe o horário e o peso da panela.");
+      const horaRetiradaIso = fusaoMontarDataHora(dataOperacional, hora);
+      fusaoValidarHorarioNaoFuturo(horaRetiradaIso, "retirada");
       confirmar.disabled = true;
       await window.LIDUTEC_PRODUCAO_FUSAO_DATA.criarPanelaHolding(
-        corridaId, peso, fusaoMontarDataHora(dataOperacional, hora),
+        corridaId, peso, horaRetiradaIso,
         fesimgLiga1 === "" ? null : Number(fesimgLiga1), fesimgLiga4 === "" ? null : Number(fesimgLiga4)
       );
       await onCriada();
@@ -256,7 +258,11 @@ async function renderHoldingCard(forno) {
     if (rowsContainer.hidden) {
       rowsContainer.hidden = false;
       rowsContainer.innerHTML = `<p class="production-muted">Carregando...</p>`;
-      const linha = await criarLinhaNovaPanela(corrida.id, corrida.data_operacional, forno.id, async () => {
+      // Data de hoje, não a de abertura da corrida (Holding pode ficar
+      // aberta por vários dias) — sem isso a retirada vira "ontem" e
+      // bagunça FIFO/lingotamento/Vn.
+      const dataHoje = fusaoDataHojeLocal();
+      const linha = await criarLinhaNovaPanela(corrida.id, dataHoje, forno.id, async () => {
         await atualizarSaldoExibido();
         await renderHoldingCard(forno);
       });
