@@ -191,7 +191,7 @@ function filaRowHtml(panela, ehAPrimeira, ultimasVazadas) {
   // FIFO: a panela retirada mais cedo do Holding tem que ser vazada
   // primeiro — pedido explícito, reforçado também no servidor.
   const vazarDesabilitado = ehAPrimeira ? "" : ' disabled title="Vaze primeiro a panela mais antiga aguardando"';
-  return `<tr data-panela-id="${panela.id}" data-data-operacional="${panela.hora_retirada.slice(0, 10)}">
+  return `<tr data-panela-id="${panela.id}" data-data-operacional="${fusaoDataLocalDe(panela.hora_retirada)}">
       <td>${fEsc(fusaoIdentificacaoVazamento(corridaCodigo, panela.sequencial_vazamento))}</td>
       <td class="fusao-vazamento-produto-cel">${panelaProdutoCelHtml(panela)}</td>
       <td>${fusaoKg(panela.peso_kg)}</td>

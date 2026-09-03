@@ -24,6 +24,15 @@ function fusaoDataHojeLocal() {
 function fusaoMontarDataHora(dataOperacional, horaHHMM) {
   return new Date(`${dataOperacional}T${horaHHMM}:00`).toISOString();
 }
+// Data (calendário, local) de um timestamp já existente — NÃO usar
+// `.slice(0, 10)` num timestamptz vindo do banco: ele chega em UTC, e
+// fatiar a string pega o dia em UTC, não o dia local. Perto da virada
+// (21h-23h59 no horário de Brasília) isso adianta o dia em 1, fazendo o
+// horário digitado depois parecer ~24h no futuro.
+function fusaoDataLocalDe(iso) {
+  const data = new Date(iso);
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
+}
 // Trava horário digitado que estoure mais de 30 min no futuro (hora do
 // tratamento no Holding, início/fim do vazamento) — pedido explícito,
 // reforçado também no servidor (RPCs correspondentes).
