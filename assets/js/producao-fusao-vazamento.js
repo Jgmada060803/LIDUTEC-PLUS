@@ -16,7 +16,7 @@
 // Colunas da fila hoje: Vazamento, Produto, Peso, Temp. origem, Início,
 // Temp.(°C), Molde ini., Molde fim, Inoculador, g/s, ações — usado pro
 // colspan das caixas de análise/devolução abaixo de cada panela.
-const FUSAO_VAZAMENTO_FILA_COLUNAS = 11;
+const FUSAO_VAZAMENTO_FILA_COLUNAS = 12;
 
 // Motivos de devolução — lista fechada (pedido explícito, era texto livre).
 const FUSAO_MOTIVOS_REJEICAO = [
@@ -127,7 +127,7 @@ function panelaProdutoCelHtml(panela) {
       <button type="button" class="fusao-editable-toggle" title="Trocar produto">...</button>
     </span>`;
 }
-function bindPanelaProdutoEditavel(cell, panelaId) {
+function bindPanelaProdutoEditavel(cell, panelaId, onSaved) {
   const el = cell.querySelector(".fusao-produto-editavel");
   if (!el || el.dataset.bound) return;
   el.dataset.bound = "1";
@@ -135,7 +135,7 @@ function bindPanelaProdutoEditavel(cell, panelaId) {
   toggle.dataset.mode = "editar";
   toggle.addEventListener("click", async () => {
     if (toggle.dataset.mode !== "salvar") {
-      const produtoAtual = fusaoState.produtos.find((p) => p.id === Number(toggle.dataset.produtoAtual));
+      const produtoAtual = fusaoState.produtos.find((p) => p.id === Number(el.dataset.produtoAtual));
       el.querySelector(".fusao-produto-display").outerHTML = fusaoProdutoComboboxHtml(fusaoProdutoTexto(produtoAtual), "");
       bindProdutoCombobox(el.querySelector(".fusao-combobox"));
       toggle.dataset.mode = "salvar";
@@ -149,9 +149,13 @@ function bindPanelaProdutoEditavel(cell, panelaId) {
     toggle.disabled = true; input.disabled = true;
     try {
       await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarProdutoPanelaHolding(panelaId, produto.id);
+      // No histórico (onSaved informado), a linha inteira é redesenhada —
+      // Nome produto, Material base e a cor da faixa de temperatura também
+      // dependem do produto, não dá pra só trocar o código na hora.
+      if (onSaved) { await onSaved(); return; }
       el.querySelector(".fusao-combobox").outerHTML = `<strong class="fusao-produto-display">${fEsc(produto.codigo)}</strong>`;
       toggle.dataset.mode = "editar";
-      toggle.dataset.produtoAtual = String(produto.id);
+      el.dataset.produtoAtual = String(produto.id);
       toggle.textContent = "...";
       toggle.title = "Trocar produto";
     } catch (error) {
@@ -191,8 +195,12 @@ function filaRowHtml(panela, ehAPrimeira, ultimasVazadas) {
   // FIFO: a panela retirada mais cedo do Holding tem que ser vazada
   // primeiro — pedido explícito, reforçado também no servidor.
   const vazarDesabilitado = ehAPrimeira ? "" : ' disabled title="Vaze primeiro a panela mais antiga aguardando"';
+  const horaTratamento = panela.hora_retirada
+    ? new Date(panela.hora_retirada).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+    : "—";
   return `<tr data-panela-id="${panela.id}" data-data-operacional="${fusaoDataLocalDe(panela.hora_retirada)}">
       <td>${fEsc(fusaoIdentificacaoVazamento(corridaCodigo, panela.sequencial_vazamento))}</td>
+      <td>${horaTratamento}</td>
       <td class="fusao-vazamento-produto-cel">${panelaProdutoCelHtml(panela)}</td>
       <td>${fusaoKg(panela.peso_kg)}</td>
       <td>${kg1(panela.temperatura_c)}</td>
@@ -270,13 +278,13 @@ async function renderFilaVazamento() {
   const totalPeso = panelas.reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
   container.innerHTML = `<div class="table-wrapper"><table class="products-table fusao-vazamento-tabela">
       <thead><tr class="fusao-cabecalho-aguardando">
-        <th>Vazamento</th><th>Produto</th>
+        <th>Vazamento</th><th>Hora tratamento</th><th>Produto</th>
         <th>Peso (kg)</th><th>Temp. origem</th>
         <th>Início</th><th>Temp. (°C)</th><th>Molde ini.</th><th>Molde fim</th><th>Inoculador</th><th>g/s</th><th></th>
       </tr></thead>
       <tbody>${panelas.map((panela, index) => filaRowHtml(panela, index === 0, ultimasVazadas)).join("")}</tbody>
       <tfoot><tr class="fusao-tabela-total-row">
-        <td colspan="2"><strong>Total</strong></td>
+        <td colspan="3"><strong>Total</strong></td>
         <td><strong>${fusaoKg(totalPeso)}</strong></td>
         <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
       </tr></tfoot>
@@ -390,6 +398,149 @@ async function renderLingotamentoVazamento() {
 // Histórico de vazadas — some da fila assim que confirmada, então precisa
 // continuar visível aqui (o perfil restrito do Vazamento não entra no
 // Holding nem na corrida pra ver de outro jeito).
+// Edição do histórico de panelas vazadas (pedido explícito) — reaproveita
+// as mesmas classes de célula editável já usadas no Holding
+// (.fusao-holding-campo-editavel/.fusao-editable-toggle), sem precisar de
+// CSS novo pros campos simples.
+function isoParaInputLocal(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function vazadaCampoNumericoHtml(panela, campo, valorExibido) {
+  return `<span class="fusao-holding-campo-editavel" data-panela-id="${panela.id}" data-campo="${campo}">
+      <span class="fusao-holding-campo-display" data-valor="${panela[campo] ?? ""}">${valorExibido}</span>
+      <button type="button" class="fusao-editable-toggle" title="Editar">...</button>
+    </span>`;
+}
+function vazadaMoldesCelHtml(panela) {
+  return `<span class="fusao-holding-campo-editavel fusao-vazado-moldes-editavel" data-panela-id="${panela.id}">
+      <span class="fusao-holding-campo-display">${panela.molde_inicial ?? "—"}–${panela.molde_final ?? "—"} (${panela.quantidade_moldes ?? "—"})</span>
+      <button type="button" class="fusao-editable-toggle" title="Editar">...</button>
+    </span>`;
+}
+function vazadaInoculadorCelHtml(panela) {
+  const num = (v) => v != null ? fNumber(v).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "—";
+  const texto = panela.inoculador_vazamento ? `${fEsc(panela.inoculador_vazamento)} (${num(panela.inoculante_vazamento_g_s)} g/s)` : "—";
+  return `<span class="fusao-holding-campo-editavel fusao-vazado-inoculador-editavel" data-panela-id="${panela.id}">
+      <span class="fusao-holding-campo-display">${texto}</span>
+      <button type="button" class="fusao-editable-toggle" title="Editar">...</button>
+    </span>`;
+}
+function vazadaHorarioCelHtml(panela, campo) {
+  const iso = campo === "inicio" ? panela.hora_inicio_vazamento : panela.hora_fim_vazamento;
+  const dataHora = (v) => v ? new Date(v).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+  // Fim só é editável depois de finalizado — enquanto em andamento, quem
+  // fecha é a próxima panela (automático) ou o lingotamento.
+  if (campo === "fim" && !iso) return `<span>Em andamento</span>`;
+  return `<span class="fusao-holding-campo-editavel fusao-vazado-horario-editavel" data-panela-id="${panela.id}" data-campo="${campo}">
+      <span class="fusao-holding-campo-display">${dataHora(iso)}</span>
+      <button type="button" class="fusao-editable-toggle" title="Editar">...</button>
+    </span>`;
+}
+function bindVazadaEdicao(tbody, panelas, onSaved) {
+  const porId = new Map(panelas.map((p) => [p.id, p]));
+  tbody.querySelectorAll(".fusao-holding-campo-editavel").forEach((cell) => {
+    if (cell.dataset.bound) return;
+    cell.dataset.bound = "1";
+    const panelaId = Number(cell.dataset.panelaId);
+    const panela = porId.get(panelaId);
+    const toggle = cell.querySelector(".fusao-editable-toggle");
+    const abrirEdicao = () => {
+      toggle.dataset.mode = "salvar"; toggle.textContent = "OK"; toggle.title = "Salvar";
+    };
+    const executarComTratamentoErro = async (acao) => {
+      try {
+        toggle.disabled = true;
+        cell.querySelectorAll("input, select").forEach((el) => { el.disabled = true; });
+        await acao();
+        await onSaved();
+      } catch (error) {
+        toggle.disabled = false;
+        cell.querySelectorAll("input, select").forEach((el) => { el.disabled = false; });
+        alert(error.message);
+      }
+    };
+    if (cell.dataset.campo) {
+      // Campo numérico simples: temperatura_vazamento_c ou (via
+      // vazadaCampoNumericoHtml) qualquer outro futuro campo.
+      toggle.addEventListener("click", () => {
+        if (toggle.dataset.mode !== "salvar") {
+          const display = cell.querySelector(".fusao-holding-campo-display");
+          display.outerHTML = `<input type="number" step="0.01" class="fusao-holding-campo-input" value="${display.dataset.valor}">`;
+          abrirEdicao();
+          cell.querySelector("input").focus();
+          return;
+        }
+        const input = cell.querySelector("input");
+        const novoValor = input.value === "" ? null : Number(input.value);
+        executarComTratamentoErro(() => window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarCampoVazamentoPanela(panelaId, cell.dataset.campo, novoValor));
+      });
+    } else if (cell.classList.contains("fusao-vazado-moldes-editavel")) {
+      toggle.addEventListener("click", () => {
+        if (toggle.dataset.mode !== "salvar") {
+          const display = cell.querySelector(".fusao-holding-campo-display");
+          display.outerHTML = `<span class="fusao-vazado-moldes-campos">
+              <input type="number" step="1" class="fusao-holding-campo-input" placeholder="inicial" value="${panela.molde_inicial ?? ""}">
+              <input type="number" step="1" class="fusao-holding-campo-input" placeholder="final" value="${panela.molde_final ?? ""}">
+            </span>`;
+          abrirEdicao();
+          cell.querySelector("input").focus();
+          return;
+        }
+        const [inicialInput, finalInput] = cell.querySelectorAll("input");
+        const novoInicial = inicialInput.value === "" ? null : Number(inicialInput.value);
+        const novoFinal = finalInput.value === "" ? null : Number(finalInput.value);
+        executarComTratamentoErro(async () => {
+          await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarCampoVazamentoPanela(panelaId, "molde_inicial", novoInicial);
+          await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarCampoVazamentoPanela(panelaId, "molde_final", novoFinal);
+        });
+      });
+    } else if (cell.classList.contains("fusao-vazado-inoculador-editavel")) {
+      toggle.addEventListener("click", () => {
+        if (toggle.dataset.mode !== "salvar") {
+          const display = cell.querySelector(".fusao-holding-campo-display");
+          const opcaoSelecionada = (v) => panela.inoculador_vazamento === v ? " selected" : "";
+          display.outerHTML = `<span class="fusao-vazado-inoculador-campos">
+              <select class="fusao-holding-campo-input">
+                <option value=""${opcaoSelecionada("")}>—</option>
+                <option value="MV01"${opcaoSelecionada("MV01")}>MV01</option>
+                <option value="MV02"${opcaoSelecionada("MV02")}>MV02</option>
+              </select>
+              <input type="number" step="0.01" class="fusao-holding-campo-input" placeholder="g/s" value="${panela.inoculante_vazamento_g_s ?? ""}">
+            </span>`;
+          abrirEdicao();
+          cell.querySelector("select").focus();
+          return;
+        }
+        const select = cell.querySelector("select");
+        const input = cell.querySelector("input");
+        const novoInoculante = input.value === "" ? null : Number(input.value);
+        executarComTratamentoErro(async () => {
+          await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarInoculadorVazamentoPanela(panelaId, select.value);
+          await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarCampoVazamentoPanela(panelaId, "inoculante_vazamento_g_s", novoInoculante);
+        });
+      });
+    } else if (cell.classList.contains("fusao-vazado-horario-editavel")) {
+      const campo = cell.dataset.campo;
+      toggle.addEventListener("click", () => {
+        if (toggle.dataset.mode !== "salvar") {
+          const display = cell.querySelector(".fusao-holding-campo-display");
+          const isoAtual = campo === "inicio" ? panela.hora_inicio_vazamento : panela.hora_fim_vazamento;
+          display.outerHTML = `<input type="datetime-local" class="fusao-holding-campo-input" value="${isoParaInputLocal(isoAtual)}">`;
+          abrirEdicao();
+          cell.querySelector("input").focus();
+          return;
+        }
+        const input = cell.querySelector("input");
+        if (!input.value) { alert("Informe data e hora."); return; }
+        const horarioIso = new Date(input.value).toISOString();
+        executarComTratamentoErro(() => window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarHorarioVazamentoPanela(panelaId, campo, horarioIso));
+      });
+    }
+  });
+}
 function vazadaRowHtml(panela) {
   const corridaCodigo = panela.corridas_fusao?.codigo;
   const produto = panela.produtos;
@@ -399,8 +550,6 @@ function vazadaRowHtml(panela) {
   const minutosEntre = (a, b) => a && b ? Math.round((new Date(b) - new Date(a)) / 60000) : null;
   const turno = panela.hora_retirada ? window.LIDUTEC_TURNOS.determineShift(new Date(panela.hora_retirada)).nome : "—";
   const materialBase = fusaoLimparFerroBase(fusaoState.tipoMaterialPorProduto[panela.produto_id]);
-  const inoculador = panela.inoculador_vazamento
-    ? `${fEsc(panela.inoculador_vazamento)} (${num(panela.inoculante_vazamento_g_s)} g/s)` : "—";
   // TL/CE/TSE/TRE/TF só aparecem na panela onde a análise foi realmente
   // registrada — sem "herdar" da última análise feita em outra panela.
   const temAnalise = panela.analise_vazamento_em != null;
@@ -428,19 +577,34 @@ function vazadaRowHtml(panela) {
       classeTempo = "fusao-vazamento-tempo-vermelho-texto";
     }
   }
-  return `<tr class="${classeTempo}">
+  // Temperatura de vazamento vs faixa de liberação da ficha técnica
+  // (parâmetro "Liberação Panela de Vazamento") — pedido explícito: até
+  // 5°C do limite (dentro da faixa) = amarelo negrito; fora da faixa =
+  // vermelho.
+  let classeTemperatura = "";
+  const limiteTemperatura = fusaoState.limiteTemperaturaVazamentoPorProduto?.[panela.produto_id];
+  if (limiteTemperatura?.min != null && limiteTemperatura?.max != null && panela.temperatura_vazamento_c != null) {
+    const valor = fNumber(panela.temperatura_vazamento_c);
+    if (valor < limiteTemperatura.min || valor > limiteTemperatura.max) {
+      classeTemperatura = "fusao-temp-vazamento-fora";
+    } else if (valor - limiteTemperatura.min <= 5 || limiteTemperatura.max - valor <= 5) {
+      classeTemperatura = "fusao-temp-vazamento-proximo";
+    }
+  }
+  return `<tr class="${classeTempo}" data-panela-id="${panela.id}">
       <td>${fEsc(identificacao || "—")}</td>
       <td>${turno}</td>
       <td>${dataHora(panela.hora_retirada)}</td>
-      <td>${fEsc(produto?.codigo || "—")}</td>
+      <td class="fusao-vazamento-produto-cel">${panelaProdutoCelHtml(panela)}</td>
       <td>${fEsc(produto?.nome || "—")}</td>
       <td>${fEsc(materialBase)}</td>
       <td>${fusaoKg(panela.peso_kg)}</td>
-      <td>${dataHora(panela.hora_inicio_vazamento)}</td>
+      <td>${vazadaHorarioCelHtml(panela, "inicio")}</td>
+      <td class="${classeTemperatura}">${vazadaCampoNumericoHtml(panela, "temperatura_vazamento_c", num(panela.temperatura_vazamento_c))}</td>
       <td>${tempoAteInicio != null ? `${tempoAteInicio} min` : "—"}</td>
-      <td>${panela.molde_inicial ?? "—"}–${panela.molde_final ?? "—"} (${panela.quantidade_moldes ?? "—"})</td>
-      <td>${inoculador}</td>
-      <td>${panela.hora_fim_vazamento ? dataHora(panela.hora_fim_vazamento) : "Em andamento"}</td>
+      <td>${vazadaMoldesCelHtml(panela)}</td>
+      <td>${vazadaInoculadorCelHtml(panela)}</td>
+      <td>${vazadaHorarioCelHtml(panela, "fim")}</td>
       <td>${fading != null ? `${fading} min` : "—"}</td>
       <td>${tl}</td>
       <td>${ce}</td>
@@ -462,7 +626,7 @@ async function renderPanelasVazadasRecentes() {
     <div class="table-wrapper"><table class="products-table">
       <thead><tr class="fusao-cabecalho-historico">
         <th>Vazamento</th><th>Turno</th><th>Data/hora tratamento</th><th>Cód. produto</th><th>Nome produto</th><th>Material base</th><th>Peso tratado (kg)</th>
-        <th>Data/hora início</th><th>Tempo até início</th><th>Moldes (qtd)</th><th>Inoculador</th><th>Data/hora fim</th><th>Fading</th>
+        <th>Data/hora início</th><th>Temp. vazamento (°C)</th><th>Tempo até início</th><th>Moldes (qtd)</th><th>Inoculador</th><th>Data/hora fim</th><th>Fading</th>
         <th>TL</th><th>CE</th><th>TSE</th><th>TRE</th><th>TF</th>
       </tr></thead>
       <tbody>${panelas.map(vazadaRowHtml).join("")}</tbody>
@@ -477,6 +641,12 @@ async function renderPanelasVazadasRecentes() {
         <td></td><td></td><td></td>
       </tr></tfoot>
     </table></div>`;
+  const tbody = container.querySelector("tbody");
+  bindVazadaEdicao(tbody, panelas, renderPanelasVazadasRecentes);
+  panelas.forEach((p) => {
+    const row = tbody.querySelector(`tr[data-panela-id="${p.id}"]`);
+    bindPanelaProdutoEditavel(row.querySelector(".fusao-vazamento-produto-cel"), p.id, renderPanelasVazadasRecentes);
+  });
 }
 // Histórico de panelas devolvidas — só leitura aqui (quem define o forno
 // destino é a Fusão, no painel flutuante do planejamento); serve pra quem
@@ -528,7 +698,12 @@ async function initializeFusaoVazamento() {
     if (!focoDentro) renderFilaVazamento().catch(() => {});
   }, 20000);
   setInterval(() => { renderLingotamentoVazamento().catch(() => {}); }, 20000);
-  setInterval(() => { renderPanelasVazadasRecentes().catch(() => {}); }, 20000);
+  // Mesma proteção da fila — não redesenha por cima de uma edição em
+  // andamento no histórico (agora tem célula editável).
+  setInterval(() => {
+    const focoDentro = document.activeElement?.closest("#vazamento-historico");
+    if (!focoDentro) renderPanelasVazadasRecentes().catch(() => {});
+  }, 20000);
   setInterval(() => { renderPanelasDevolvidasRecentes().catch(() => {}); }, 20000);
 }
 window.initializeFusaoVazamento = initializeFusaoVazamento;

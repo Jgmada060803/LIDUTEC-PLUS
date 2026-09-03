@@ -23,6 +23,7 @@
     produtos: () => result(client().from("produtos").select("id,codigo,nome").eq("status", "ATIVO").order("codigo")),
     volumeAtualFornos: () => result(client().from("fornos_fusao_volume_atual").select("forno_id,volume_atual_kg")),
     tiposMaterialProdutos: () => result(client().rpc("tipos_material_produtos_fusao")),
+    limitesTemperaturaVazamentoProdutos: () => result(client().rpc("limites_temperatura_vazamento_produtos")),
     // CE/temperatura min-max (já existiam na ficha técnica, só faltava
     // ler) e peso metálico por molde — usado pelos gráficos e pelo
     // balanço de massa (etapas seguintes do roadmap).
@@ -219,10 +220,21 @@
     // precisa continuar visível pra quem só acessa a tela do Vazamento
     // (perfil restrito não entra no Holding nem na corrida).
     panelasVazadasRecentes: (limite = 20) => result(client().from("panelas_holding")
-      .select("id,sequencial,sequencial_vazamento,peso_kg,hora_retirada,hora_inicio_vazamento,hora_fim_vazamento,molde_inicial,molde_final,quantidade_moldes," +
+      .select("id,sequencial,sequencial_vazamento,peso_kg,hora_retirada,hora_inicio_vazamento,hora_fim_vazamento,temperatura_vazamento_c,molde_inicial,molde_final,quantidade_moldes," +
         "carbono_equivalente_vazamento,temp_liquidus_vazamento,temp_solidus_vazamento,temp_recalescencia_eutetica_vazamento,temp_final_vazamento,analise_vazamento_em," +
         "inoculador_vazamento,inoculante_vazamento_g_s,produto_id,produtos(codigo,nome),corridas_fusao!holding_corrida_id(codigo)")
       .eq("status", "VAZADA").order("hora_inicio_vazamento", { ascending: false }).limit(limite)),
+    // Edição do histórico de panelas vazadas (pedido explícito) — três
+    // RPCs por tipo de campo (ver migration 202609030002).
+    atualizarCampoVazamentoPanela: (panelaId, campo, valor) => result(client().rpc("atualizar_campo_vazamento_panela", {
+      p_panela_id: panelaId, p_campo: campo, p_valor: valor
+    }), null),
+    atualizarInoculadorVazamentoPanela: (panelaId, inoculador) => result(client().rpc("atualizar_inoculador_vazamento_panela", {
+      p_panela_id: panelaId, p_inoculador: inoculador
+    }), null),
+    atualizarHorarioVazamentoPanela: (panelaId, campo, horarioIso) => result(client().rpc("atualizar_horario_vazamento_panela", {
+      p_panela_id: panelaId, p_campo: campo, p_horario: horarioIso
+    }), null),
     // Lingotamento (Etapa 9) — não é por panela, é por CICLO de vazamento
     // (várias panelas se misturam na mesma panela vazadora, processo
     // contínuo). O operador do Vazamento decide A HORA de lingotar (um

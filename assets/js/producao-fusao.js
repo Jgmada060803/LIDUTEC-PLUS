@@ -33,6 +33,38 @@ function fusaoDataLocalDe(iso) {
   const data = new Date(iso);
   return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
 }
+// Botão "Atualizar" (pedido explícito) — os tablets do chão de fábrica
+// ficam com a tela aberta por horas e o navegador segura versão antiga em
+// cache; um F5/pull-to-refresh comum nem sempre busca os arquivos de novo.
+// Aqui força de verdade: limpa Cache Storage e Service Worker (se algum
+// dia existirem) e navega pra uma URL com marca de tempo, garantindo que o
+// HTML em si não venha do cache do navegador.
+async function fusaoForcarAtualizacao() {
+  try {
+    if (window.caches?.keys) {
+      const chaves = await caches.keys();
+      await Promise.all(chaves.map((chave) => caches.delete(chave)));
+    }
+    if (navigator.serviceWorker?.getRegistrations) {
+      const registros = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registros.map((registro) => registro.unregister()));
+    }
+  } catch (error) {
+    // Segue pra recarregar mesmo se a limpeza de cache falhar.
+  }
+  const url = new URL(location.href);
+  url.searchParams.set("_att", Date.now().toString());
+  location.replace(url.toString());
+}
+(function fusaoLigarBotaoAtualizar() {
+  const botao = document.getElementById("fusao-atualizar-pagina");
+  if (!botao) return;
+  botao.addEventListener("click", () => {
+    botao.disabled = true;
+    botao.textContent = "Atualizando...";
+    fusaoForcarAtualizacao();
+  });
+})();
 // Trava horário digitado que estoure mais de 30 min no futuro (hora do
 // tratamento no Holding, início/fim do vazamento) — pedido explícito,
 // reforçado também no servidor (RPCs correspondentes).
@@ -62,12 +94,13 @@ function fusaoIdentificacaoVazamento(codigoCorrida, sequencialVazamento) {
 }
 
 async function loadFusaoSupport() {
-  const [materiais, fornos, produtos, volumeRows, tiposMaterial] = await Promise.all([
+  const [materiais, fornos, produtos, volumeRows, tiposMaterial, limitesTemperaturaVazamento] = await Promise.all([
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.materiais(true),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.fornos(),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.produtos(),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.volumeAtualFornos(),
-    window.LIDUTEC_PRODUCAO_FUSAO_DATA.tiposMaterialProdutos()
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.tiposMaterialProdutos(),
+    window.LIDUTEC_PRODUCAO_FUSAO_DATA.limitesTemperaturaVazamentoProdutos()
   ]);
   fusaoState.materiais = materiais;
   fusaoState.produtos = produtos;
@@ -75,6 +108,12 @@ async function loadFusaoSupport() {
   // "Ferro base" no cabeçalho do card da Ponte — Tipo de material da ficha
   // técnica vigente do produto (Cinzento/Nodular).
   fusaoState.tipoMaterialPorProduto = Object.fromEntries(tiposMaterial.map((row) => [row.produto_id, row.tipo_material]));
+  // Faixa de temperatura de liberação da panela de vazamento (ficha
+  // técnica vigente) — usada pra colorir a coluna "Temp. vazamento" no
+  // histórico do Vazamento.
+  fusaoState.limiteTemperaturaVazamentoPorProduto = Object.fromEntries(
+    limitesTemperaturaVazamento.map((row) => [row.produto_id, { min: row.temp_minima, max: row.temp_maxima }])
+  );
   // Fusão em cima, Holding embaixo — os dois elaboram corrida própria.
   fusaoState.fornos = [...fornos].sort((a, b) => a.tipo === b.tipo ? a.codigo.localeCompare(b.codigo) : a.tipo === "FUSAO" ? -1 : 1);
 }

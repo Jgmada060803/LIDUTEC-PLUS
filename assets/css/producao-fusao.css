@@ -74,6 +74,18 @@
    linha, sem janela/linha separada (pedido explícito) — colunas estreitas
    pra caber tudo numa linha só, com rolagem horizontal como reforço. */
 .fusao-vazamento-tabela { white-space: nowrap; }
+/* Histórico de vazadas — mesma lógica da fila: célula sem quebra de linha,
+   tabela larga rola por dentro do .table-wrapper (pedido explícito). */
+#vazamento-historico .products-table th, #vazamento-historico .products-table td { white-space: nowrap; }
+/* Edição inline do histórico (pedido explícito) — reaproveita
+   .fusao-holding-campo-editavel/.fusao-editable-toggle do Holding; aqui só
+   os pares (moldes, inoculador+g/s) e o campo de data/hora precisam de
+   largura própria. */
+.fusao-vazado-moldes-campos, .fusao-vazado-inoculador-campos { display: inline-flex; align-items: center; gap: 4px; }
+.fusao-vazado-moldes-campos input { width: 56px; }
+.fusao-vazado-inoculador-campos select { width: 70px; }
+.fusao-vazado-inoculador-campos input { width: 56px; }
+.fusao-vazado-horario-editavel input[type="datetime-local"] { width: auto; min-width: 172px; }
 .fusao-vazamento-tabela th, .fusao-vazamento-tabela td { padding: 4px 3px; }
 .fusao-vazamento-input { width: 80px; min-height: 38px; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 6px; font-size: .92rem; }
 .fusao-vazamento-input[type="time"] { width: 92px; }
@@ -88,17 +100,17 @@
 .fusao-vazamento-acoes-cel [data-toggle-devolver] { background: #f0b400; border-color: #f0b400; color: #3a2a00; }
 .fusao-vazamento-analise-row td { background: #f7f8fa; padding: 8px; }
 .fusao-vazamento-devolver-row td { background: #fdeeee; padding: 8px; }
-.fusao-devolver-campos { display: flex; align-items: center; gap: 8px; white-space: normal; }
-.fusao-devolver-campos select { min-height: 38px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; width: 260px; }
-.fusao-lingotar-campos { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
+.fusao-devolver-campos { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; white-space: normal; }
+.fusao-devolver-campos select { min-height: 38px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; width: 260px; max-width: 100%; }
+.fusao-lingotar-campos { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .fusao-lingotar-campos label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; font-weight: 700; color: var(--color-text-muted); }
 .fusao-lingotar-campos input { min-height: 38px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; }
 .fusao-lingotar-ultimo { font-size: .82rem; font-weight: 700; color: var(--color-text-muted); }
 .fusao-lingotar-pendente { margin-left: 28px; padding-left: 28px; border-left: 1px solid var(--color-border); font-size: .82rem; color: var(--color-text-muted); }
-.fusao-lingotar-definicao { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
+.fusao-lingotar-definicao { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .fusao-lingotar-definicao label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; font-weight: 700; color: var(--color-text-muted); }
 .fusao-lingotar-definicao input { min-height: 38px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; }
-.fusao-lingotar-definicao select { min-height: 38px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; width: 260px; }
+.fusao-lingotar-definicao select { min-height: 38px; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; width: 260px; max-width: 100%; }
 
 /* Sinal de tempo de vazamento — só panela de Nodular (fading é crítico
    nele). Enquanto em andamento: verde/amarelo/vermelho conforme o tempo
@@ -109,6 +121,12 @@
 /* Finalizada e passou de 15 min — fundo normal, só o texto em vermelho
    vivo (pedido explícito, diferente do "em andamento" que pinta o fundo). */
 .fusao-vazamento-tempo-vermelho-texto td { color: #ff0000; font-weight: 700; }
+
+/* Temperatura de vazamento vs faixa da ficha técnica (Liberação Panela de
+   Vazamento) — até 5°C do limite (ainda dentro da faixa) = amarelo
+   negrito; fora da faixa = vermelho. */
+#vazamento-historico td.fusao-temp-vazamento-proximo { color: #a37a00; font-weight: 700; }
+#vazamento-historico td.fusao-temp-vazamento-fora { color: #ff0000; font-weight: 700; }
 
 /* Análise térmica do Vazamento — mesmo mini-form (5 campos) já usado no
    Holding, reaproveitando a mesma classe genérica de grade. */
@@ -127,6 +145,29 @@
   .fusao-holding-table { font-size: .74rem; }
   .fusao-holding-table th, .fusao-holding-table td { padding: 5px 6px; }
   .fusao-holding-campo-input { width: 62px; }
+}
+/* Tela do Vazamento em tablet/smartphone — as tabelas (fila e histórico)
+   continuam largas e rolam por dentro (.table-wrapper já cuida disso);
+   aqui o ajuste é encolher fonte/campos pra caber mais coluna antes de
+   precisar rolar, e impedir que as caixas de ação (Devolver/Lingotar)
+   estourem a largura da tela num aparelho estreito. */
+@media (max-width: 900px) {
+  .fusao-lingotar-pendente { margin-left: 0; padding-left: 0; border-left: none; border-top: 1px solid var(--color-border); padding-top: 8px; width: 100%; }
+}
+@media (max-width: 700px) {
+  .fusao-vazamento-tabela th, .fusao-vazamento-tabela td { padding: 4px 2px; font-size: .82rem; }
+  .fusao-vazamento-input { width: 62px; min-height: 40px; font-size: .86rem; }
+  .fusao-vazamento-input[type="time"] { width: 76px; }
+  .fusao-vazamento-input-num { width: 52px; }
+  .fusao-vazamento-tabela .fusao-combobox-input { width: 110px; }
+  .fusao-vazamento-acoes-cel { flex-wrap: wrap; }
+  #vazamento-historico .products-table, #vazamento-devolvidas .products-table { font-size: .78rem; }
+  /* .fusao-devolver-campos também é .fusao-item-row (grid) — já empilha em
+     coluna única na regra de .fusao-item-row logo abaixo; aqui só falta
+     impedir que o select de largura fixa estoure a coluna. */
+  .fusao-devolver-campos select { max-width: 100%; }
+  .fusao-lingotar-campos, .fusao-lingotar-definicao { flex-direction: column; align-items: stretch; }
+  .fusao-lingotar-campos input, .fusao-lingotar-definicao input, .fusao-lingotar-definicao select { width: 100%; }
 }
 .fusao-forno-card h3 { margin: 0 0 12px; font-size: 1.3rem; font-weight: 900; text-align: left; }
 .fusao-forno-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .7rem; font-weight: 800; vertical-align: middle; }
