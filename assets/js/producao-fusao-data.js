@@ -5,6 +5,16 @@
     if (response.error) throw response.error;
     return response.data ?? fallback;
   };
+  // meta_vigente(...) é genérica por área — cacheia o id da área Fusão
+  // (mesmo padrão de producao-data.js, que faz isso pra área MOLDAGEM).
+  let fusaoAreaIdCache = null;
+  const fusaoAreaId = async () => {
+    if (fusaoAreaIdCache) return fusaoAreaIdCache;
+    const response = await client().from("areas_checklist").select("id").eq("codigo", "FUSAO").single();
+    if (response.error) throw response.error;
+    fusaoAreaIdCache = response.data.id;
+    return fusaoAreaIdCache;
+  };
   root.LIDUTEC_PRODUCAO_FUSAO_DATA = {
     materiais: (somenteAtivos = true) => {
       let query = client().from("materiais_fusao").select("id,nome,tipo,ativo,modo_pesagem").order("nome");
@@ -321,6 +331,28 @@
         .order("codigo");
       if (response.error) throw response.error;
       return response.data ?? [];
-    }
+    },
+    // Dashboard mensal (gráficos.html) — corridas do mês com a carga
+    // detalhada por material (pra compor a "Composição da carga" e as
+    // razões de gusa/energia), e panelas do Holding/Vazamento do mês
+    // (pra FeSiMg e metal enviado à Disa). Tudo por leitura direta com
+    // embed do PostgREST, sem RPC nova — nenhuma dessas métricas precisa
+    // de agregação no servidor.
+    corridasParaGraficosMes: (dataInicio, dataFim) => result(client().from("corridas_fusao")
+      .select("id,data_operacional,energia_kwh,produto_id,fornos_fusao(tipo),corridas_fusao_carga_itens(quantidade_realizada_kg,estado_fisico,materiais_fusao(nome,tipo))")
+      .gte("data_operacional", dataInicio).lte("data_operacional", dataFim)),
+    panelasRetiradasParaGraficosMes: (horaInicioIso, horaFimIso) => result(client().from("panelas_holding")
+      .select("peso_kg,fesimg_liga1_kg,fesimg_liga4_kg,hora_retirada")
+      .gte("hora_retirada", horaInicioIso).lt("hora_retirada", horaFimIso)),
+    panelasVazadasParaGraficosMes: (horaInicioIso, horaFimIso) => result(client().from("panelas_holding")
+      .select("peso_kg,produto_id,hora_inicio_vazamento")
+      .eq("status", "VAZADA").gte("hora_inicio_vazamento", horaInicioIso).lt("hora_inicio_vazamento", horaFimIso)),
+    // Metas dos 5 gráficos diários — indicadores cadastrados em
+    // indicadores_metas (área Fusão), configuráveis pela tela de
+    // Administração > Metas Gerenciais que já existe.
+    metaFusaoMes: async (indicadorCodigo, data) => result(client().rpc("meta_vigente", {
+      p_area_id: await fusaoAreaId(), p_linha_maquina_id: null, p_turno: null,
+      p_indicador_codigo: indicadorCodigo, p_data: data
+    }), null)
   };
 })(window);

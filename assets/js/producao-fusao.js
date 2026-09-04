@@ -2411,6 +2411,8 @@ async function initializeFusaoProduction() {
   // Mesmo esquema do Holding: a tela do Vazamento vive no próprio arquivo
   // producao-fusao-vazamento.js.
   if (fusaoPage === "vazamento" && window.initializeFusaoVazamento) await window.initializeFusaoVazamento();
+  // Dashboard mensal vive no próprio arquivo producao-fusao-graficos.js.
+  if (fusaoPage === "graficos" && window.initializeFusaoGraficos) await window.initializeFusaoGraficos();
 
   fq("#menu-button")?.addEventListener("click", () => fq("#sidebar").classList.toggle("open"));
   fq("#logout-button")?.addEventListener("click", () => window.LIDUTEC_APP.signOut());

@@ -1,0 +1,28 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gráficos Fusão | Metalsider</title><link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8"><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/producao-fusao.css?v=4"></head>
+<body class="app-page" data-production-page="graficos"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+<div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Dashboard Fusão</h1><p>Indicadores mensais da Fusão</p></div><button type="button" id="fusao-atualizar-pagina" class="topbar-return-shift" title="Busca a versão mais recente da página, ignorando o cache do navegador">⟳ Atualizar</button><a href="../inicio.html" class="topbar-return-shift">Voltar ao menu</a><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+<main class="main-content">
+  <div id="production-loading" class="loading-state">Carregando...</div>
+
+  <section class="page-heading fusao-graficos-heading" data-permission="producao_fusao.visualizar">
+    <a href="./index.html" class="button button-secondary">Fusão</a>
+    <a href="./holding.html" class="button button-secondary">Holding</a>
+    <a href="./vazamento.html" class="button button-secondary">Vazamento</a>
+    <label class="fusao-graficos-mes-label">Mês<input type="month" id="fusao-graficos-mes"></label>
+  </section>
+
+  <div class="fusao-graficos-topo">
+    <section class="panel fusao-donut-panel">
+      <h2>Composição da carga</h2>
+      <div id="fusao-donut-composicao"></div>
+    </section>
+    <section class="panel fusao-kpi-panel">
+      <h2>Indicadores do mês</h2>
+      <table class="products-table fusao-kpi-tabela"><tbody id="fusao-kpi-tbody"></tbody></table>
+    </section>
+    <div id="fusao-grafico-energia" class="fusao-grafico-destaque"></div>
+  </div>
+
+  <div id="fusao-graficos-diarios" class="fusao-graficos-diarios-grid"></div>
+</main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-fusao-data.js"></script><script src="../../assets/js/producao-fusao.js"></script><script src="../../assets/js/producao-fusao-graficos.js"></script></body></html>
