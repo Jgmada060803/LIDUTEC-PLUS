@@ -462,7 +462,27 @@ function bindVazadaEdicao(tbody, panelas, onSaved) {
         alert(error.message);
       }
     };
-    if (cell.dataset.campo) {
+    if (cell.classList.contains("fusao-vazado-horario-editavel")) {
+      // Vem antes da checagem genérica de "cell.dataset.campo" logo
+      // abaixo — essa célula TAMBÉM tem data-campo ("inicio"/"fim"), então
+      // sem essa ordem ela caía no branch numérico por engano (abria
+      // input type="number" em vez de datetime-local).
+      const campo = cell.dataset.campo;
+      toggle.addEventListener("click", () => {
+        if (toggle.dataset.mode !== "salvar") {
+          const display = cell.querySelector(".fusao-holding-campo-display");
+          const isoAtual = campo === "inicio" ? panela.hora_inicio_vazamento : panela.hora_fim_vazamento;
+          display.outerHTML = `<input type="datetime-local" class="fusao-holding-campo-input" value="${isoParaInputLocal(isoAtual)}">`;
+          abrirEdicao();
+          cell.querySelector("input").focus();
+          return;
+        }
+        const input = cell.querySelector("input");
+        if (!input.value) { alert("Informe data e hora."); return; }
+        const horarioIso = new Date(input.value).toISOString();
+        executarComTratamentoErro(() => window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarHorarioVazamentoPanela(panelaId, campo, horarioIso));
+      });
+    } else if (cell.dataset.campo) {
       // Campo numérico simples: temperatura_vazamento_c ou (via
       // vazadaCampoNumericoHtml) qualquer outro futuro campo.
       toggle.addEventListener("click", () => {
@@ -521,22 +541,6 @@ function bindVazadaEdicao(tbody, panelas, onSaved) {
           await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarInoculadorVazamentoPanela(panelaId, select.value);
           await window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarCampoVazamentoPanela(panelaId, "inoculante_vazamento_g_s", novoInoculante);
         });
-      });
-    } else if (cell.classList.contains("fusao-vazado-horario-editavel")) {
-      const campo = cell.dataset.campo;
-      toggle.addEventListener("click", () => {
-        if (toggle.dataset.mode !== "salvar") {
-          const display = cell.querySelector(".fusao-holding-campo-display");
-          const isoAtual = campo === "inicio" ? panela.hora_inicio_vazamento : panela.hora_fim_vazamento;
-          display.outerHTML = `<input type="datetime-local" class="fusao-holding-campo-input" value="${isoParaInputLocal(isoAtual)}">`;
-          abrirEdicao();
-          cell.querySelector("input").focus();
-          return;
-        }
-        const input = cell.querySelector("input");
-        if (!input.value) { alert("Informe data e hora."); return; }
-        const horarioIso = new Date(input.value).toISOString();
-        executarComTratamentoErro(() => window.LIDUTEC_PRODUCAO_FUSAO_DATA.atualizarHorarioVazamentoPanela(panelaId, campo, horarioIso));
       });
     }
   });
