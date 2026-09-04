@@ -860,7 +860,6 @@ function corridaCardHtml(corrida, volumeAtualKg, retornosDisa = []) {
         <button type="button" class="button button-primary fusao-salvar-saidas" data-salvar-saidas hidden>OK</button>
         <label>Lingote (kg)<input type="number" min="0" step="0.01" class="fusao-saida-lingote" value="${corrida.lingote_kg ?? ""}"></label>
         <label>Energia (kWh)<input type="number" min="0" step="0.01" class="fusao-saida-energia" value="${corrida.energia_kwh ?? ""}"></label>
-        <button type="button" class="button button-danger" data-acao="excluir">Excluir</button>
         <button type="button" class="button button-primary" data-acao="fechar">Fechar corrida</button>
       </div>
     </div>`;
@@ -1083,7 +1082,6 @@ function bindCorridaCard(container, forno, corrida) {
   container.querySelectorAll("[data-acao]").forEach((button) => {
     button.addEventListener("click", async () => {
       const acao = button.dataset.acao;
-      if (acao === "excluir" && !confirm("Excluir esta corrida? Essa ação não pode ser desfeita.")) return;
       const mensagemAntiga = container.querySelector(".fusao-forno-message");
       if (mensagemAntiga) mensagemAntiga.hidden = true;
       button.disabled = true;
@@ -1112,7 +1110,6 @@ function bindCorridaCard(container, forno, corrida) {
           );
           await window.LIDUTEC_PRODUCAO_FUSAO_DATA.fecharCorrida(atual.id, atual.versao, fimIso);
         }
-        if (acao === "excluir") await window.LIDUTEC_PRODUCAO_FUSAO_DATA.excluirCorrida(atual.id, atual.versao);
         await refreshVolumeAtual();
         await renderFornoCard(forno);
         await loadCorridasList();
