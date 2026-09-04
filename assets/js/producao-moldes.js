@@ -685,4 +685,21 @@ async function initializeProduction(){
   if(productionPage==="entry"){if(!permissions.has("producao_moldes.lancar"))throw new Error("Usuário sem permissão para lançar produção.");await initializeShiftEntry();}
 }
 q("#menu-button")?.addEventListener("click",()=>q("#sidebar").classList.toggle("open"));q("#logout-button")?.addEventListener("click",()=>window.LIDUTEC_APP.signOut());
+// Botão "Atualizar" (mesmo problema já visto na Fusão) — celular/tablet
+// segura versão antiga em cache e um F5 comum às vezes nem busca os
+// arquivos de novo. Aqui limpa Cache Storage/Service Worker (se algum dia
+// existirem) e navega pra uma URL com marca de tempo, garantindo que o
+// HTML em si não venha do cache do navegador.
+(function ligarBotaoAtualizar(){
+  const botao=q("#moldes-atualizar-pagina");
+  if(!botao)return;
+  botao.addEventListener("click",async()=>{
+    botao.disabled=true;botao.textContent="Atualizando...";
+    try{
+      if(window.caches?.keys){const chaves=await caches.keys();await Promise.all(chaves.map(chave=>caches.delete(chave)))}
+      if(navigator.serviceWorker?.getRegistrations){const registros=await navigator.serviceWorker.getRegistrations();await Promise.all(registros.map(registro=>registro.unregister()))}
+    }catch(error){/* segue pra recarregar mesmo se a limpeza falhar */}
+    const url=new URL(location.href);url.searchParams.set("_att",Date.now().toString());location.replace(url.toString());
+  });
+})();
 initializeProduction().catch(error=>{console.error(error);q("#production-loading").textContent=`Erro: ${error.message}`});
