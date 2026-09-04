@@ -8,6 +8,39 @@
 .production-action-entry{--action-color:#185abd;--action-hover:#124a9f;--action-border:#10458f}
 .production-action-stops{--action-color:#c62828;--action-hover:#a91f1f;--action-border:#941b1b}
 .production-action-charts{--action-color:#218c4b;--action-hover:#19743d;--action-border:#156535}
+.production-action-daily{--action-color:#6a4fb0;--action-hover:#5a3f9d;--action-border:#4d3488;border:none;font:inherit;cursor:pointer;text-align:left;width:100%}
+
+/* Controle de Produção Diária (pedido explícito) — resumo por hora de
+   início/fim de cada produto, no mesmo formato da folha de chão de
+   fábrica, com fusão de registros contínuos que atravessam a troca de
+   turno (mesmo produto, fim de um = início do próximo). */
+.controle-diario-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgb(15 23 42 / 55%);padding:8px}
+/* Janela ocupa praticamente a tela toda (pedido explícito — precisa
+   mostrar a tabela inteira sem cortar) — cabeçalho/data ficam fixos no
+   topo, só a tabela rola por dentro se sobrar mais linhas do que cabe. */
+.controle-diario-caixa{width:99vw;max-width:1700px;height:99vh;display:flex;flex-direction:column;background:#fff;border-radius:12px;box-shadow:0 20px 50px rgb(0 0 0 / 30%);padding:16px 20px;box-sizing:border-box}
+.controle-diario-cabecalho{flex:0 0 auto;display:flex;align-items:center;gap:16px;margin-bottom:10px}
+.controle-diario-cabecalho h2{margin:0 auto 0 0;font-size:1.9rem}
+.controle-diario-fechar{border:none;background:transparent;font-size:2.6rem;line-height:1;cursor:pointer;color:var(--color-text-muted);padding:4px 10px}
+.controle-diario-fechar:hover{color:var(--color-text)}
+/* Alinhada à direita, na mesma linha do título (pedido explícito) —
+   rótulo e campo lado a lado, não mais empilhados. */
+.controle-diario-data-label{flex:0 0 auto;display:flex;flex-direction:row;align-items:center;gap:8px;font-size:1.15rem;font-weight:700;color:var(--color-text-muted);white-space:nowrap}
+.controle-diario-data-label input{min-height:44px;padding:6px 12px;border:2px solid var(--color-border);border-radius:8px;font-weight:400;font-size:1.1rem}
+@media(max-width:700px){.controle-diario-cabecalho{flex-wrap:wrap}.controle-diario-data-label{flex:1 1 100%;order:3;justify-content:flex-end}}
+.controle-diario-caixa .table-wrapper{flex:1 1 auto;overflow:auto;min-height:0}
+.controle-diario-tabela{font-weight:700;border-collapse:collapse;width:100%}
+/* Font-size posto direto em th/td (thead/tbody/tfoot), sem depender de
+   herdar da <table> — assim thead, tbody e tfoot ficam sempre no mesmo
+   tamanho, nada de um ficar desproporcional em relação ao outro. */
+.controle-diario-tabela th,.controle-diario-tabela td{white-space:nowrap;padding:6px 20px;border-bottom:2px solid #e4dff5;font-size:1.53rem}
+.controle-diario-tabela thead th{background:#6a4fb0;color:#fff;text-align:left}
+.controle-diario-tabela tbody tr:nth-child(odd){background:#f4f1fb}
+.controle-diario-tabela td:nth-child(4){color:#19743d}
+.controle-diario-tabela td:nth-child(5){color:#a91f1f}
+.controle-diario-tabela tfoot td{border-top:5px solid #6a4fb0;border-bottom:none;background:#ece7f9}
+@media(max-width:900px){.controle-diario-tabela th,.controle-diario-tabela td{font-size:1.02rem;padding:5px 14px}}
+@media(max-width:600px){.controle-diario-caixa{padding:10px}.controle-diario-tabela th,.controle-diario-tabela td{font-size:.7rem;padding:4px 10px}.controle-diario-cabecalho h2{font-size:1.5rem}}
 .production-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
 .production-form label{display:flex;flex-direction:column;gap:6px;font-size:.76rem;font-weight:800}
 .production-form input,.production-form select,.production-form textarea{width:100%;min-height:42px;padding:8px 10px;border:1px solid var(--color-border);border-radius:8px;background:#fff}

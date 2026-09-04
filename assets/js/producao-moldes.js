@@ -312,6 +312,75 @@ function renderProductionQuery(){
   productionState.visibleProductionRows=rows;body.innerHTML=rows.map(item=>`<tr><td>${displayDate(item.data_operacional)}</td><td>${esc(item.turno)}</td><td>${formatDateTime(item.inicio)}</td><td>${formatDateTime(item.fim)}</td><td><strong>${esc(item.produtos?.codigo||"—")}</strong> — ${esc(item.produtos?.nome||"")}</td><td>${esc(productionMaterial(item))}</td><td>${esc(item.produtos?.clientes?.nome||"—")}</td><td>${esc(item.rastreabilidade||"—")}</td><td>${number(item.moldes_vazados)}</td><td>${number(item.moldes_quebrados)}</td><td>${number(item.moldes_vazados)+number(item.moldes_quebrados)}</td><td>${number(item.toneladas_produzidas).toLocaleString("pt-BR",{minimumFractionDigits:3,maximumFractionDigits:3})}</td><td>${number(item.total_pecas).toLocaleString("pt-BR")}</td></tr>`).join("");q("#dashboard-production-empty").hidden=rows.length>0;updateProductionSortHeaders();updateProductionExportControls();
 }
 async function reloadProductionQuery(){const form=q("#production-query-filters");productionState.records=await window.LIDUTEC_PRODUCAO_DATA.records(productionFilters(form));renderProductionQuery()}
+
+// Controle de Produção Diária (pedido explícito) — resumo cronológico por
+// hora de início/fim de cada produto, no formato da folha de chão de
+// fábrica. Quando um produto começa num turno e termina no seguinte (dois
+// lançamentos separados, mas contínuos na prática), mescla em uma única
+// linha em vez de mostrar as duas partes separadas.
+function mesclarProducaoContinua(registros) {
+  const ordenados = [...registros].sort((a, b) => new Date(a.inicio) - new Date(b.inicio));
+  const mescladas = [];
+  for (const registro of ordenados) {
+    const anterior = mescladas[mescladas.length - 1];
+    const continuacao = anterior && anterior.produto_id === registro.produto_id
+      && Math.abs(new Date(registro.inicio) - new Date(anterior.fim)) <= 60000;
+    if (continuacao) {
+      anterior.fim = registro.fim;
+      anterior.moldes_vazados = number(anterior.moldes_vazados) + number(registro.moldes_vazados);
+      anterior.moldes_quebrados = number(anterior.moldes_quebrados) + number(registro.moldes_quebrados);
+    } else {
+      mescladas.push({ ...registro });
+    }
+  }
+  return mescladas;
+}
+function controleDiarioRowHtml(registro) {
+  const hora = (v) => v ? new Date(v).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—";
+  return `<tr>
+      <td>${hora(registro.inicio)}</td>
+      <td>${hora(registro.fim)}</td>
+      <td>${esc(registro.produtos?.codigo || "—")}</td>
+      <td>${number(registro.moldes_vazados)}</td>
+      <td>${number(registro.moldes_quebrados)}</td>
+    </tr>`;
+}
+async function carregarControleDiario() {
+  const data = q("#controle-diario-data")?.value;
+  const tbody = q("#controle-diario-tbody");
+  if (!data || !tbody) return;
+  const registros = await window.LIDUTEC_PRODUCAO_DATA.records({ from: data, to: data, limit: 500 });
+  const validos = registros.filter((r) => r.inicio && r.fim);
+  const mescladas = mesclarProducaoContinua(validos);
+  q("#controle-diario-vazio").hidden = mescladas.length > 0;
+  tbody.innerHTML = mescladas.map(controleDiarioRowHtml).join("");
+  const totalVazados = mescladas.reduce((soma, r) => soma + number(r.moldes_vazados), 0);
+  const totalQuebrados = mescladas.reduce((soma, r) => soma + number(r.moldes_quebrados), 0);
+  q("#controle-diario-total").innerHTML = mescladas.length
+    ? `<tr><td colspan="3"><strong>Total</strong></td><td><strong>${totalVazados}</strong></td><td><strong>${totalQuebrados}</strong></td></tr>`
+    : "";
+}
+function initializeControleDiario() {
+  const botaoAbrir = q("#controle-diario-abrir");
+  if (!botaoAbrir) return;
+  const modal = q("#controle-diario-modal");
+  const dataInput = q("#controle-diario-data");
+  const fechar = () => { modal.hidden = true; };
+  botaoAbrir.addEventListener("click", () => {
+    if (!dataInput.value) {
+      // Padrão é ontem (pedido explícito) — é o dia que já fechou por
+      // completo quando o usuário costuma consultar esse resumo.
+      const ontem = new Date();
+      ontem.setDate(ontem.getDate() - 1);
+      dataInput.value = `${ontem.getFullYear()}-${String(ontem.getMonth() + 1).padStart(2, "0")}-${String(ontem.getDate()).padStart(2, "0")}`;
+    }
+    modal.hidden = false;
+    carregarControleDiario().catch((error) => message(error.message, "error"));
+  });
+  q("#controle-diario-fechar").addEventListener("click", fechar);
+  modal.addEventListener("click", (event) => { if (event.target === modal) fechar(); });
+  dataInput.addEventListener("change", () => carregarControleDiario().catch((error) => message(error.message, "error")));
+}
 function renderBars(rows,selector,keyFn,valueFn){
   const container=q(selector);if(!container)return;const grouped=new Map();for(const row of rows)grouped.set(keyFn(row),(grouped.get(keyFn(row))||0)+number(valueFn(row)));
   const max=Math.max(1,...grouped.values());container.innerHTML=[...grouped].map(([key,value])=>`<div class="production-bar"><strong>${esc(key.replaceAll("_"," "))}</strong><div class="production-bar-track"><div class="production-bar-fill" style="width:${value/max*100}%"></div></div><span>${value}</span></div>`).join("")||'<p class="production-muted">Sem dados no período.</p>';
@@ -612,6 +681,7 @@ async function initializeProduction(){
   q("#production-query-filters")?.addEventListener("input",()=>scheduleReload(reloadProductionQuery));q(".production-query-table")?.addEventListener("click",event=>{const button=event.target.closest(".table-sort");if(!button)return;if(productionPage==="stops"){const same=productionState.stopSort.key===button.dataset.sort;productionState.stopSort={key:button.dataset.sort,direction:same&&productionState.stopSort.direction==="asc"?"desc":"asc"};renderStops();return}const same=productionState.querySort.key===button.dataset.sort;productionState.querySort={key:button.dataset.sort,direction:same&&productionState.querySort.direction==="asc"?"desc":"asc"};renderProductionQuery()});q("#stop-query-filters")?.addEventListener("input",()=>scheduleReload(reloadStops));
   q("#production-export-button")?.addEventListener("click",exportVisibleProductions);
   q("#stop-export-button")?.addEventListener("click",exportVisibleStops);
+  initializeControleDiario();
   if(productionPage==="entry"){if(!permissions.has("producao_moldes.lancar"))throw new Error("Usuário sem permissão para lançar produção.");await initializeShiftEntry();}
 }
 q("#menu-button")?.addEventListener("click",()=>q("#sidebar").classList.toggle("open"));q("#logout-button")?.addEventListener("click",()=>window.LIDUTEC_APP.signOut());
