@@ -21,6 +21,7 @@ const acabamentoState = {
   editingClosed: false,
   originalShiftData: null,
   statusRequestId: 0,
+  contextLoading: false,
   draftSaveTimer: null,
   draftSaveInFlight: false,
   stopSort: { key: null, direction: "asc" },
@@ -519,7 +520,7 @@ function serializeShift() {
 
 function saveShiftDraft() {
   const form = aq("#shift-entry-form");
-  if (!form || !acabamentoState.user || acabamentoState.currentShift?.status === "FECHADO" || acabamentoState.editingClosed) return;
+  if (!form || !acabamentoState.user || acabamentoState.currentShift?.status === "FECHADO" || acabamentoState.editingClosed || acabamentoState.contextLoading) return;
   const draft = {
     savedAt: Date.now(),
     data_operacional: form.elements.data_operacional.value,
@@ -820,64 +821,69 @@ async function checkShiftStatus() {
   const turno = form.elements.turno.value;
   if (!date || !turno) return;
   const requestId = ++acabamentoState.statusRequestId;
-  const blockingShift = await findBlockingOpenShift(turno, date);
-  if (requestId !== acabamentoState.statusRequestId) return;
-  if (blockingShift) { showShiftBlocked(blockingShift.data_operacional, turno); return; }
-  hideShiftBlocked();
-  acabamentoState.absenteeismCollapsed = { l1: false, l2: false };
-  cancelAbsenteeismAutoHide("l1");
-  cancelAbsenteeismAutoHide("l2");
-  acabamentoState.linha2Ativa = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.linha2Ativa(date, turno);
-  if (requestId !== acabamentoState.statusRequestId) return;
-  applyLinha2Visibility();
-  await updatePlannedOperators();
-  const data = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shift(date, turno);
-  if (requestId !== acabamentoState.statusRequestId) return;
-  const previousVersion = acabamentoState.currentShift?.versao ?? -1;
-  const previousKey = acabamentoState.currentShift ? `${acabamentoState.currentShift.data_operacional}|${acabamentoState.currentShift.turno}` : "";
-  acabamentoState.currentShift = data ? { ...data, data_operacional: date, turno } : null;
-  acabamentoState.editingClosed = false;
-  const closed = data?.status === "FECHADO";
-
-  if (closed) {
-    const [productions, stops] = await Promise.all([
-      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shiftProductions(data.id),
-      window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shiftStops(data.id)
-    ]);
+  acabamentoState.contextLoading = true;
+  try {
+    const blockingShift = await findBlockingOpenShift(turno, date);
     if (requestId !== acabamentoState.statusRequestId) return;
-    acabamentoState.originalShiftData = { productions, stops, linhas: data.turnos_acabamento_linhas };
-    populateShiftRows(productions, stops, data.turnos_acabamento_linhas);
-  } else {
-    acabamentoState.originalShiftData = null;
-    const key = `${date}|${turno}`;
-    const hasNewSharedDraft = data && (previousKey !== key || Number(data.versao) > Number(previousVersion));
-    if (hasNewSharedDraft && !acabamentoState.draftSaveInFlight) {
-      populateShiftRows(data.rascunho_producoes || [], data.rascunho_paradas || [], data.rascunho_linhas || []);
-    } else if (!data) {
-      if (!restoreShiftDraft()) resetShiftEntryRows();
-    }
-  }
+    if (blockingShift) { showShiftBlocked(blockingShift.data_operacional, turno); return; }
+    hideShiftBlocked();
+    acabamentoState.absenteeismCollapsed = { l1: false, l2: false };
+    cancelAbsenteeismAutoHide("l1");
+    cancelAbsenteeismAutoHide("l2");
+    acabamentoState.linha2Ativa = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.linha2Ativa(date, turno);
+    if (requestId !== acabamentoState.statusRequestId) return;
+    applyLinha2Visibility();
+    await updatePlannedOperators();
+    const data = await window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shift(date, turno);
+    if (requestId !== acabamentoState.statusRequestId) return;
+    const previousVersion = acabamentoState.currentShift?.versao ?? -1;
+    const previousKey = acabamentoState.currentShift ? `${acabamentoState.currentShift.data_operacional}|${acabamentoState.currentShift.turno}` : "";
+    acabamentoState.currentShift = data ? { ...data, data_operacional: date, turno } : null;
+    acabamentoState.editingClosed = false;
+    const closed = data?.status === "FECHADO";
 
-  const canEdit = closed && acabamentoState.permissions.has("producao_acabamento.editar");
-  const canDelete = closed && acabamentoState.permissions.has("producao_acabamento.excluir_turno");
-  const updatedBy = data?.usuarios?.nome;
-  const updatedAt = data?.atualizado_em ? new Date(data.atualizado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
-  form.classList.toggle("shift-readonly", closed);
-  aq("#shift-status").textContent = closed ? "Fechado" : (updatedBy ? `Em apontamento · ${updatedBy} às ${updatedAt}` : "Em apontamento");
-  aq("#close-shift-button").hidden = closed;
-  aq("#close-shift-button").disabled = closed;
-  aq("#close-shift-button").textContent = "Gravar Informação";
-  aq("#edit-shift-button").hidden = !canEdit;
-  aq("#delete-shift-button").hidden = !canDelete;
-  aq("#delete-shift-button").disabled = false;
-  for (const control of form.querySelectorAll("tbody input,tbody select,tbody button,.row-add-button,[name^=\"operadores_presentes\"]")) {
-    control.disabled = closed;
+    if (closed) {
+      const [productions, stops] = await Promise.all([
+        window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shiftProductions(data.id),
+        window.LIDUTEC_PRODUCAO_ACABAMENTO_DATA.shiftStops(data.id)
+      ]);
+      if (requestId !== acabamentoState.statusRequestId) return;
+      acabamentoState.originalShiftData = { productions, stops, linhas: data.turnos_acabamento_linhas };
+      populateShiftRows(productions, stops, data.turnos_acabamento_linhas);
+    } else {
+      acabamentoState.originalShiftData = null;
+      const key = `${date}|${turno}`;
+      const hasNewSharedDraft = data && (previousKey !== key || Number(data.versao) > Number(previousVersion));
+      if (hasNewSharedDraft && !acabamentoState.draftSaveInFlight) {
+        populateShiftRows(data.rascunho_producoes || [], data.rascunho_paradas || [], data.rascunho_linhas || []);
+      } else if (!data) {
+        if (!restoreShiftDraft()) resetShiftEntryRows();
+      }
+    }
+
+    const canEdit = closed && acabamentoState.permissions.has("producao_acabamento.editar");
+    const canDelete = closed && acabamentoState.permissions.has("producao_acabamento.excluir_turno");
+    const updatedBy = data?.usuarios?.nome;
+    const updatedAt = data?.atualizado_em ? new Date(data.atualizado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+    form.classList.toggle("shift-readonly", closed);
+    aq("#shift-status").textContent = closed ? "Fechado" : (updatedBy ? `Em apontamento · ${updatedBy} às ${updatedAt}` : "Em apontamento");
+    aq("#close-shift-button").hidden = closed;
+    aq("#close-shift-button").disabled = closed;
+    aq("#close-shift-button").textContent = "Gravar Informação";
+    aq("#edit-shift-button").hidden = !canEdit;
+    aq("#delete-shift-button").hidden = !canDelete;
+    aq("#delete-shift-button").disabled = false;
+    for (const control of form.querySelectorAll("tbody input,tbody select,tbody button,.row-add-button,[name^=\"operadores_presentes\"]")) {
+      control.disabled = closed;
+    }
+    lockAutoAbsenteeismoRows();
+    if (data?.id && closed) await loadShiftHistory(data.id); else aq("#shift-edit-history").hidden = true;
+    renderAcabamentoIllustrations();
+    updateAbsenteeismBoxes();
+    updateChecklistLink();
+  } finally {
+    if (requestId === acabamentoState.statusRequestId) acabamentoState.contextLoading = false;
   }
-  lockAutoAbsenteeismoRows();
-  if (data?.id && closed) await loadShiftHistory(data.id); else aq("#shift-edit-history").hidden = true;
-  renderAcabamentoIllustrations();
-  updateAbsenteeismBoxes();
-  updateChecklistLink();
 }
 
 async function loadShiftHistory(turnId) {
