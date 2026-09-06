@@ -24,6 +24,21 @@ function getLoginPath() {
     : "./login.html";
 }
 
+function showGithubPagesMigrationNotice() {
+  if (!window.location.hostname.endsWith("github.io")) return;
+  if (document.getElementById("github-pages-migration-notice")) return;
+  const banner = document.createElement("div");
+  banner.id = "github-pages-migration-notice";
+  banner.style.cssText =
+    "position:sticky;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;" +
+    "padding:10px 16px;text-align:center;font:600 14px/1.4 system-ui,-apple-system,sans-serif;";
+  banner.innerHTML =
+    'Este endereço vai deixar de funcionar definitivamente a partir de <strong>10/09/2026</strong>. ' +
+    'Acesse o novo endereço e salve nos favoritos: ' +
+    '<a href="https://lidutec-plus.pages.dev" style="color:#fff;text-decoration:underline;">lidutec-plus.pages.dev</a>';
+  document.body.prepend(banner);
+}
+
 async function requireAuthenticatedUser() {
   const {
     data: { session },
@@ -39,6 +54,7 @@ async function requireAuthenticatedUser() {
     return null;
   }
 
+  showGithubPagesMigrationNotice();
   return session.user;
 }
 
