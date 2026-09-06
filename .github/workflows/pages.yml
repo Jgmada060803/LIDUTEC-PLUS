@@ -33,6 +33,12 @@ jobs:
           cp index.html _site/
           cp -R assets pages _site/
           touch _site/.nojekyll
+          # index.html redireciona com caminho absoluto ("/pages/login.html"),
+          # correto para o Cloudflare Pages (serve na raiz do dominio). O
+          # GitHub Pages serve num subcaminho (/LIDUTEC-PLUS/), entao aqui
+          # (so nesta copia, nunca no index.html do repositorio) reescreve
+          # o alvo do redirecionamento para incluir o subcaminho do projeto.
+          sed -i 's#"/pages/login.html"#"/LIDUTEC-PLUS/pages/login.html"#' _site/index.html
 
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
