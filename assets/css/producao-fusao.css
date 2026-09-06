@@ -22,18 +22,28 @@
 .fusao-graficos-heading.page-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .fusao-graficos-mes-label { display: inline-flex; flex-direction: column; gap: 2px; font-size: .78rem; font-weight: 700; color: var(--color-text-muted); margin-left: auto; }
 .fusao-graficos-mes-label input { min-height: 34px; padding: 3px 8px; border: 1px solid var(--color-border); border-radius: 6px; font-weight: 400; }
+.fusao-graficos-turno-filtro { display: flex; align-items: center; gap: 10px; border: 1px solid var(--color-border); border-radius: 6px; padding: 6px 12px; margin: 0; font-size: .78rem; font-weight: 700; color: var(--color-text-muted); }
+.fusao-graficos-turno-filtro legend { font-size: .78rem; font-weight: 700; padding: 0 4px; }
+.fusao-graficos-turno-filtro label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; white-space: nowrap; }
 
 .fusao-graficos-topo { display: grid; grid-template-columns: .9fr 1fr 1.6fr; gap: 12px; align-items: stretch; margin-bottom: 12px; }
 .fusao-graficos-topo .panel, .fusao-grafico-destaque .fusao-grafico-bloco { padding: 12px 14px; height: 100%; box-sizing: border-box; }
+/* Gráfico de Energia (combinado) usa a mesma faixa fixa dos outros 4
+   gráficos (240px), em vez de esticar pra acompanhar a altura variável
+   do donut/KPIs — evita distorcer o desenho. */
+.fusao-grafico-destaque .fusao-grafico-svg-wrap { height: 240px; }
 .fusao-donut-panel h2, .fusao-kpi-panel h2 { margin: 0 0 8px; font-size: .86rem; }
-.fusao-donut { position: relative; width: 128px; height: 128px; margin: 0 auto 10px; border-radius: 50%; background: conic-gradient(var(--donut-segments)); display: flex; align-items: center; justify-content: center; }
+/* Rosca lado a lado com a legenda (em vez de empilhado), ocupando o
+   máximo de altura/largura que o painel tiver disponível. */
+#fusao-donut-composicao { display: flex; align-items: center; justify-content: center; gap: 20px; height: calc(100% - 28px); }
+.fusao-donut { position: relative; width: min(180px, 40%); aspect-ratio: 1; margin: 0; flex: 0 0 auto; border-radius: 50%; background: conic-gradient(var(--donut-segments)); display: flex; align-items: center; justify-content: center; }
 .fusao-donut::before { content: ""; position: absolute; inset: 22%; background: #fff; border-radius: 50%; }
 .fusao-donut > div { position: relative; z-index: 1; text-align: center; }
-.fusao-donut strong { display: block; font-size: .84rem; }
-.fusao-donut span { font-size: .62rem; color: var(--color-text-muted); }
-.fusao-donut-legend { display: flex; flex-direction: column; gap: 3px; max-width: 220px; margin: 0 auto; }
-.fusao-donut-legend > div { display: flex; align-items: center; gap: 6px; font-size: .74rem; }
-.fusao-donut-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; background: var(--legend-color); flex: 0 0 auto; }
+.fusao-donut strong { display: block; font-size: 1.05rem; }
+.fusao-donut span { font-size: .72rem; color: var(--color-text-muted); }
+.fusao-donut-legend { display: flex; flex-direction: column; gap: 7px; margin: 0; flex: 1 1 auto; }
+.fusao-donut-legend > div { display: flex; align-items: center; gap: 7px; font-size: .84rem; }
+.fusao-donut-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 2px; background: var(--legend-color); flex: 0 0 auto; }
 .fusao-donut-legend strong { margin-left: auto; }
 .fusao-kpi-tabela { font-size: .74rem; }
 .fusao-kpi-tabela td { padding: 3px 4px; }
@@ -47,17 +57,18 @@
    empilhada. */
 .fusao-graficos-diarios-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .fusao-grafico-bloco { padding: 12px 16px; border: 1px solid var(--color-border); border-radius: 10px; background: #fff; }
-.fusao-grafico-cabecalho { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-.fusao-grafico-cabecalho h3 { margin: 0; font-size: .86rem; line-height: 1.2; }
+.fusao-grafico-cabecalho { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.fusao-grafico-cabecalho h3 { margin: 0; font-size: 1.25rem; font-weight: 800; line-height: 1.25; }
 .fusao-grafico-meta-label { font-size: .74rem; font-weight: 800; color: var(--color-danger); white-space: nowrap; }
 .fusao-grafico-svg-wrap { width: 100%; height: 240px; }
 .fusao-grafico-svg-wrap svg { display: block; width: 100%; height: 100%; }
-/* Energia fica compacto, na fileira de cima junto do donut/KPIs — só os 4
-   gráficos de baixo (2x2) ganham a altura maior. */
-.fusao-grafico-destaque .fusao-grafico-svg-wrap { height: 170px; }
 .fusao-grafico-grid { stroke: #e2e8f0; stroke-width: 1; }
 .fusao-grafico-eixo { fill: #64748b; font: 700 10px system-ui, sans-serif; }
 .fusao-grafico-meta-line { fill: none; stroke: #b90e2c; stroke-width: 2; stroke-dasharray: 8 5; }
+.fusao-grafico-legenda { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 4px; font-size: .68rem; font-weight: 700; color: var(--color-text-muted); }
+.fusao-grafico-legenda span { display: inline-flex; align-items: center; gap: 5px; }
+.fusao-grafico-legenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.fusao-grafico-legenda i.is-line { width: 14px; height: 3px; border-radius: 2px; }
 @media (max-width: 1300px) {
   .fusao-graficos-topo { grid-template-columns: 1fr 1fr; }
   .fusao-grafico-destaque { grid-column: 1 / -1; }
@@ -66,6 +77,45 @@
   .fusao-graficos-topo { grid-template-columns: 1fr; }
   .fusao-graficos-diarios-grid { grid-template-columns: 1fr; }
 }
+
+/* Modo escuro do Dashboard Fusão (pedido explícito, só nesta página) —
+   alternado pelo botão no topo, lembrado em localStorage. Escopado
+   inteiramente a body[data-production-page="graficos"] pra não afetar
+   nenhuma outra tela do sistema. Redefine as mesmas variáveis de cor já
+   usadas nos componentes desta página; dashboard.css usa cor fixa (não
+   variável) no topbar/panel/botão, por isso esses ganham override à parte. */
+body[data-production-page="graficos"][data-tema="escuro"] {
+  --color-background: #12161c;
+  --color-surface: #1b212b;
+  --color-text: #e6ebf1;
+  --color-text-muted: #93a1b3;
+  --color-border: #2c3644;
+  --color-primary-light: #1c2b4d;
+  /* .app-page é o próprio <body> (mesma tag, não um filho) — por isso o
+     fundo tem que ir direto aqui, "body[...] .app-page" (descendente)
+     nunca ia bater com o elemento nele mesmo. Esse era o motivo do fundo
+     continuar claro. */
+  background: var(--color-background);
+  color: var(--color-text);
+}
+body[data-production-page="graficos"][data-tema="escuro"] .topbar { background: var(--color-surface); border-bottom-color: var(--color-border); color: var(--color-text); }
+body[data-production-page="graficos"][data-tema="escuro"] .topbar-title p { color: var(--color-text-muted); }
+body[data-production-page="graficos"][data-tema="escuro"] .user-box strong { color: var(--color-text); }
+body[data-production-page="graficos"][data-tema="escuro"] .user-box span { color: var(--color-text-muted); }
+body[data-production-page="graficos"][data-tema="escuro"] .panel,
+body[data-production-page="graficos"][data-tema="escuro"] .fusao-grafico-bloco { background: var(--color-surface); border-color: var(--color-border); color: var(--color-text); }
+body[data-production-page="graficos"][data-tema="escuro"] .button-secondary { background: #262f3b; color: var(--color-text); border-color: var(--color-border); }
+body[data-production-page="graficos"][data-tema="escuro"] .button-secondary:hover { background: #303a48; }
+body[data-production-page="graficos"][data-tema="escuro"] .fusao-graficos-mes-label input { background: #262f3b; color: var(--color-text); border-color: var(--color-border); }
+body[data-production-page="graficos"][data-tema="escuro"] .fusao-donut::before { background: var(--color-surface); }
+body[data-production-page="graficos"][data-tema="escuro"] .fusao-grafico-grid { stroke: var(--color-border); }
+body[data-production-page="graficos"][data-tema="escuro"] .fusao-grafico-eixo { fill: var(--color-text-muted); }
+/* Linha/legenda de meta em amarelo fluorescente no escuro (pedido
+   explícito) — o vermelho de --color-danger fica pouco visível no fundo
+   escuro; aqui é cor fixa, não variável, porque só faz sentido no tema
+   escuro (no claro continua vermelho). */
+body[data-production-page="graficos"][data-tema="escuro"] .fusao-grafico-meta-line { stroke: #ffea00; }
+body[data-production-page="graficos"][data-tema="escuro"] .fusao-grafico-meta-label { color: #ffea00; }
 
 /* Painel flutuante de "panelas rejeitadas aguardando retorno" no
    planejamento — sobrepõe o carregamento (pedido explícito) até o
@@ -559,3 +609,23 @@ body[data-production-page="graficos"] .app-shell { width: 100%; margin-left: 0; 
 @media (max-width: 1100px) {
   .fusao-ponte-grid { grid-template-columns: 1fr; }
 }
+
+/* Filtros da tela de Histórico do Vazamento e da tabela de Corridas
+   recentes (mesmo padrão visual). */
+.fusao-historico-filtros { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 18px; margin-bottom: 14px; }
+.fusao-historico-filtros label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; font-weight: 700; color: var(--color-text-muted); }
+.fusao-historico-filtros input, .fusao-historico-filtros select { font: inherit; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; min-width: 160px; }
+.fusao-historico-filtros .fusao-combobox { min-width: 220px; }
+
+/* Cabeçalho da tabela de Corridas recentes — mesma cor de destaque já
+   usada no cabeçalho da tabela de materiais do card (var(--color-primary)),
+   pedido explícito. Colunas com data-sort são clicáveis (ordenação). */
+.fusao-corridas-tabela thead th {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 800;
+}
+.fusao-corridas-tabela thead th[data-sort] { cursor: pointer; user-select: none; white-space: nowrap; }
+.fusao-corridas-tabela thead th[data-sort]::after { content: "⇅"; margin-left: 5px; opacity: .55; font-size: .8em; }
+.fusao-corridas-tabela thead th[data-sort].is-asc::after { content: "↑"; opacity: 1; }
+.fusao-corridas-tabela thead th[data-sort].is-desc::after { content: "↓"; opacity: 1; }

@@ -12,3 +12,44 @@
 .dashboard-page .sidebar{overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:thin}.dashboard-page .sidebar::-webkit-scrollbar{width:6px}.dashboard-page .sidebar::-webkit-scrollbar-thumb{border-radius:999px;background:rgba(255,255,255,.3)}.dashboard-page .sidebar::-webkit-scrollbar-track{background:transparent}
 @media(min-width:1351px){.dashboard-page .report-content-grid{display:grid;grid-template-columns:minmax(260px,1.15fr) minmax(190px,.65fr) minmax(310px,1.05fr) minmax(330px,1.1fr);align-items:start;border-bottom:1px solid #bbb}.dashboard-page .report-content-grid>.report-overview,.dashboard-page .report-content-grid>.report-details{display:contents}.dashboard-page .report-overview>.report-block:nth-child(1){grid-column:1;grid-row:1}.dashboard-page .report-overview>.report-block:nth-child(2){grid-column:2;grid-row:1}.dashboard-page .report-overview>.report-block:nth-child(3){grid-column:3;grid-row:1}.dashboard-page .report-overview>.report-block:nth-child(4){grid-column:4;grid-row:1/span 2}.dashboard-page .report-details>.report-block:first-child{grid-column:1/4;grid-row:2;border-top:1px solid #ddd}.dashboard-page .report-details>.report-donut-block{grid-column:4;grid-row:3;border-top:1px solid #ddd}.dashboard-page .report-content-grid .report-block{height:100%}}
 .dashboard-page .col-data-operacional{width:1%;white-space:nowrap}
+
+/* Modo escuro (pedido explícito, só nesta página) — alternado pelo botão
+   no topo, lembrado em localStorage. Escopado inteiramente a
+   body.dashboard-page[data-tema="escuro"] pra não afetar nenhuma outra
+   tela; esse CSS é todo cor fixa (sem variável), então os overrides
+   também são cor fixa, não dá pra só redefinir uma variável aqui. */
+body.dashboard-page[data-tema="escuro"]{background:#12161c;color:#e6ebf1}
+body.dashboard-page[data-tema="escuro"] .topbar{background:#1b212b;border-bottom-color:#2c3644;color:#e6ebf1}
+body.dashboard-page[data-tema="escuro"] .dashboard-report{background:#12161c;color:#e6ebf1}
+body.dashboard-page[data-tema="escuro"] .report-timeline-section,
+body.dashboard-page[data-tema="escuro"] .report-overview,
+body.dashboard-page[data-tema="escuro"] .report-content-grid{border-color:#2c3644}
+body.dashboard-page[data-tema="escuro"] .report-block{border-right-color:#2c3644}
+body.dashboard-page[data-tema="escuro"] .report-details>.report-block:first-child,
+body.dashboard-page[data-tema="escuro"] .report-details>.report-donut-block,
+body.dashboard-page[data-tema="escuro"] .report-content-grid .report-details>.report-block:first-child,
+body.dashboard-page[data-tema="escuro"] .report-content-grid .report-details>.report-donut-block{border-top-color:#2c3644}
+body.dashboard-page[data-tema="escuro"] .report-block h2,
+body.dashboard-page[data-tema="escuro"] .report-timeline-heading h2{color:#e6ebf1}
+body.dashboard-page[data-tema="escuro"] .report-loading,
+body.dashboard-page[data-tema="escuro"] .report-horizontal-bar>span,
+body.dashboard-page[data-tema="escuro"] .report-totals dt,
+body.dashboard-page[data-tema="escuro"] .report-vertical-bar span,
+body.dashboard-page[data-tema="escuro"] .report-timeline-totals dt,
+body.dashboard-page[data-tema="escuro"] .report-legend span,
+body.dashboard-page[data-tema="escuro"] .report-dates label{color:#93a1b3}
+body.dashboard-page[data-tema="escuro"] .report-table th,
+body.dashboard-page[data-tema="escuro"] .report-table td{color:#e6ebf1;border-bottom-color:#2c3644}
+body.dashboard-page[data-tema="escuro"] .report-table thead th{border-bottom-color:#4a5568}
+body.dashboard-page[data-tema="escuro"] .report-striped tbody tr:nth-child(even){background:#1b212b}
+body.dashboard-page[data-tema="escuro"] .report-horizontal-bar>i{background:#232b36}
+body.dashboard-page[data-tema="escuro"] .report-vertical-bars{border-bottom-color:#3a4452}
+body.dashboard-page[data-tema="escuro"] .report-donut:after{background:#12161c}
+body.dashboard-page[data-tema="escuro"] .report-dates input,
+body.dashboard-page[data-tema="escuro"] .report-dates button,
+body.dashboard-page[data-tema="escuro"] #dashboard-clear-filters{background:#1b212b;color:#e6ebf1;border-color:#2c3644}
+body.dashboard-page[data-tema="escuro"] .report-active-filters{background:#1b212b;border-bottom-color:#2c3644}
+body.dashboard-page[data-tema="escuro"] .report-filter-chip{background:#232b36;color:#e6ebf1;border-color:#3a4452}
+body.dashboard-page[data-tema="escuro"] .report-timeline-day-label,
+body.dashboard-page[data-tema="escuro"] .report-timeline-cell-label{background:transparent;color:#e6ebf1;border-color:#2c3644}
+body.dashboard-page[data-tema="escuro"] .report-timeline-day{background:transparent;border-color:#3a4452}

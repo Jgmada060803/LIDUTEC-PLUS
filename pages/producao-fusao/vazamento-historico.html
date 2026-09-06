@@ -1,0 +1,22 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Histórico do Vazamento | Metalsider</title><link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8"><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"><link rel="stylesheet" href="../../assets/css/producao-fusao.css?v=12"></head>
+<body class="app-page" data-production-page="vazamento-historico"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
+<div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Histórico do Vazamento</h1><p>Consulta com filtro — sem edição</p></div><a href="./vazamento.html" class="topbar-return-shift">Voltar ao Vazamento</a><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
+<main class="main-content">
+  <div id="production-loading" class="loading-state">Carregando...</div>
+
+  <section class="panel">
+    <div class="panel-header"><h3>Filtros</h3></div>
+    <div class="fusao-historico-filtros">
+      <label>Data inicial<input type="date" id="vazamento-historico-data-inicio"></label>
+      <label>Data final<input type="date" id="vazamento-historico-data-fim"></label>
+      <label>Turno<select id="vazamento-historico-turno"></select></label>
+      <label>Produto<span id="vazamento-historico-produto"></span></label>
+      <label>Corrida<input type="text" id="vazamento-historico-corrida" placeholder="Ex.: H1.052.085"></label>
+      <button type="button" id="vazamento-historico-filtrar" class="button button-primary">Filtrar</button>
+      <button type="button" id="vazamento-historico-limpar" class="button button-secondary">Limpar</button>
+    </div>
+  </section>
+
+  <section class="panel" id="vazamento-historico-resultado"></section>
+</main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../../assets/js/config.js"></script><script src="../../assets/js/supabase.js"></script><script src="../../assets/js/app.js"></script><script src="../../assets/js/turnos.js"></script><script src="../../assets/js/producao-fusao-data.js"></script><script src="../../assets/js/producao-fusao.js"></script><script src="../../assets/js/producao-fusao-vazamento-historico.js"></script></body></html>

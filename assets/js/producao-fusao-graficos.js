@@ -26,6 +26,18 @@ function fusaoGraficosLimitesMes(mesValue) {
   };
 }
 
+// Cinzento/Nodular da PANELA (pós-tratamento): prioridade é a ficha técnica
+// do produto (fonte principal); só cai pra regra de FeSiMg aplicado quando
+// a ficha não tem essa classificação ou tem algo que não bate com nenhuma
+// das duas opções (cadastro incompleto ou com erro de digitação, ex.:
+// "Cinzeto" já achado num produto).
+function fusaoMaterialBaseDaPanela(panela) {
+  const materialPorProduto = fusaoState.tipoMaterialPorProduto || {};
+  const daFicha = fusaoLimparFerroBase(materialPorProduto[panela.produto_id]).toLowerCase();
+  if (daFicha === "nodular" || daFicha === "cinzento") return daFicha;
+  return (fNumber(panela.fesimg_liga1_kg) > 0 || fNumber(panela.fesimg_liga4_kg) > 0) ? "nodular" : "cinzento";
+}
+
 function fusaoCalcularIndicadoresMes(corridas, panelasRetiradas, panelasVazadas) {
   const materialPorProduto = fusaoState.tipoMaterialPorProduto || {};
   const materialBaseDoProduto = (produtoId) => fusaoLimparFerroBase(materialPorProduto[produtoId]).toLowerCase();
@@ -74,9 +86,8 @@ function fusaoCalcularIndicadoresMes(corridas, panelasRetiradas, panelasVazadas)
 
   let cinzentoVazadoKg = 0, nodularVazadoKg = 0;
   for (const panela of panelasVazadas) {
-    const materialBase = materialBaseDoProduto(panela.produto_id);
-    if (materialBase === "nodular") nodularVazadoKg += fNumber(panela.peso_kg);
-    else if (materialBase === "cinzento") cinzentoVazadoKg += fNumber(panela.peso_kg);
+    if (fusaoMaterialBaseDaPanela(panela) === "nodular") nodularVazadoKg += fNumber(panela.peso_kg);
+    else cinzentoVazadoKg += fNumber(panela.peso_kg);
   }
 
   return {
@@ -162,15 +173,20 @@ function fusaoCalcularSeriesDiarias(dias, corridas, panelasRetiradas, panelasVaz
   const gusaLiquidoPorDia = mapaZerado(), gusaSolidoPorDia = mapaZerado();
   const gusaUtgFusoresPorDia = mapaZerado(), gusaSiderFusoresPorDia = mapaZerado();
   const corridasCinzentoFusoresPorDia = mapaZerado(), corridasNodularFusoresPorDia = mapaZerado();
+  // Carga fundida nos Fusores, separada por ferro base — pro gráfico de
+  // barras empilhadas (Cinzento/Nodular) + linha de energia.
+  const cargaCinzentoFusoresPorDia = mapaZerado(), cargaNodularFusoresPorDia = mapaZerado();
 
   for (const corrida of corridas) {
     const dia = corrida.data_operacional;
     if (!energiaFusoresPorDia.has(dia)) continue;
     const ehFusor = corrida.fornos_fusao?.tipo === "FUSAO";
     if (ehFusor) energiaFusoresPorDia.set(dia, energiaFusoresPorDia.get(dia) + fNumber(corrida.energia_kwh));
+    const materialBase = materialBaseDoProduto(corrida.produto_id);
+    let cargaCorridaKg = 0;
     for (const item of corrida.corridas_fusao_carga_itens || []) {
       const kg = fNumber(item.quantidade_realizada_kg);
-      if (ehFusor) cargaFusoresPorDia.set(dia, cargaFusoresPorDia.get(dia) + kg);
+      if (ehFusor) { cargaFusoresPorDia.set(dia, cargaFusoresPorDia.get(dia) + kg); cargaCorridaKg += kg; }
       if ((item.materiais_fusao?.tipo || "OUTRO") === "GUSA") {
         if (item.estado_fisico === "LIQUIDO") gusaLiquidoPorDia.set(dia, gusaLiquidoPorDia.get(dia) + kg);
         else gusaSolidoPorDia.set(dia, gusaSolidoPorDia.get(dia) + kg);
@@ -182,9 +198,14 @@ function fusaoCalcularSeriesDiarias(dias, corridas, panelasRetiradas, panelasVaz
       }
     }
     if (ehFusor) {
-      const materialBase = materialBaseDoProduto(corrida.produto_id);
-      if (materialBase === "cinzento") corridasCinzentoFusoresPorDia.set(dia, corridasCinzentoFusoresPorDia.get(dia) + 1);
-      if (materialBase === "nodular") corridasNodularFusoresPorDia.set(dia, corridasNodularFusoresPorDia.get(dia) + 1);
+      if (materialBase === "cinzento") {
+        corridasCinzentoFusoresPorDia.set(dia, corridasCinzentoFusoresPorDia.get(dia) + 1);
+        cargaCinzentoFusoresPorDia.set(dia, cargaCinzentoFusoresPorDia.get(dia) + cargaCorridaKg);
+      }
+      if (materialBase === "nodular") {
+        corridasNodularFusoresPorDia.set(dia, corridasNodularFusoresPorDia.get(dia) + 1);
+        cargaNodularFusoresPorDia.set(dia, cargaNodularFusoresPorDia.get(dia) + cargaCorridaKg);
+      }
     }
   }
 
@@ -196,13 +217,15 @@ function fusaoCalcularSeriesDiarias(dias, corridas, panelasRetiradas, panelasVaz
   const nodularVazadoPorDia = mapaZerado();
   for (const panela of panelasVazadas) {
     const dia = fusaoDataLocalDe(panela.hora_inicio_vazamento);
-    if (nodularVazadoPorDia.has(dia) && materialBaseDoProduto(panela.produto_id) === "nodular") {
+    if (nodularVazadoPorDia.has(dia) && fusaoMaterialBaseDaPanela(panela) === "nodular") {
       nodularVazadoPorDia.set(dia, nodularVazadoPorDia.get(dia) + fNumber(panela.peso_kg));
     }
   }
 
   return {
     energiaPorDia: dias.map((d) => cargaFusoresPorDia.get(d) > 0 ? energiaFusoresPorDia.get(d) / (cargaFusoresPorDia.get(d) / 1000) : null),
+    cargaCinzentoTonPorDia: dias.map((d) => cargaCinzentoFusoresPorDia.get(d) / 1000),
+    cargaNodularTonPorDia: dias.map((d) => cargaNodularFusoresPorDia.get(d) / 1000),
     gusaLiquidoPctPorDia: dias.map((d) => {
       const total = gusaLiquidoPorDia.get(d) + gusaSolidoPorDia.get(d);
       return total > 0 ? gusaLiquidoPorDia.get(d) / total * 100 : null;
@@ -211,6 +234,79 @@ function fusaoCalcularSeriesDiarias(dias, corridas, panelasRetiradas, panelasVaz
     gusaSiderPorCorridaPorDia: dias.map((d) => corridasCinzentoFusoresPorDia.get(d) > 0 ? (gusaSiderFusoresPorDia.get(d) / 1000) / corridasCinzentoFusoresPorDia.get(d) : null),
     gusaUtgPorCorridaPorDia: dias.map((d) => corridasNodularFusoresPorDia.get(d) > 0 ? (gusaUtgFusoresPorDia.get(d) / 1000) / corridasNodularFusoresPorDia.get(d) : null)
   };
+}
+
+// Combinado: barras empilhadas (eixo 1, esquerda) + linha em eixo próprio
+// (eixo 2, direita) — pedido explícito pro gráfico de Energia: produção
+// de ferro base Cinzento/Nodular em barra (ton), consumo de energia
+// (KWH/t) em linha, cada um com sua escala.
+function fusaoGraficoBarraEmpilhadaLinhaHtml(opcoes) {
+  const { titulo, dias, series, linha, formatarBarra = (v) => v.toLocaleString("pt-BR", { maximumFractionDigits: 1 }), altura = 170 } = opcoes;
+  const width = 900, height = altura;
+  const margin = { top: 20, right: 44, bottom: 26, left: 44 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const groupWidth = plotWidth / dias.length;
+  const barWidth = Math.max(2, groupWidth * 0.55);
+
+  const totaisBarra = dias.map((_, i) => series.reduce((soma, serie) => soma + (serie.valores[i] || 0), 0));
+  const maxEixo1 = Math.max(1, ...totaisBarra) * 1.15;
+  const yFor1 = (v) => margin.top + (1 - v / maxEixo1) * plotHeight;
+
+  const valoresLinhaValidos = linha.valores.filter((v) => v != null);
+  const maxEixo2 = Math.max(1, ...valoresLinhaValidos, linha.meta != null ? linha.meta : 0) * 1.15;
+  const yFor2 = (v) => margin.top + (1 - v / maxEixo2) * plotHeight;
+
+  const ticks = 4;
+  const gridEsquerda = Array.from({ length: ticks + 1 }, (_, i) => {
+    const valor = maxEixo1 / ticks * i;
+    const y = yFor1(valor);
+    return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" class="fusao-grafico-grid"/>
+      <text x="${margin.left - 6}" y="${y + 4}" class="fusao-grafico-eixo" text-anchor="end">${Math.round(valor).toLocaleString("pt-BR")}</text>`;
+  }).join("");
+  const eixoDireita = Array.from({ length: ticks + 1 }, (_, i) => {
+    const valor = maxEixo2 / ticks * i;
+    const y = yFor2(valor);
+    return `<text x="${width - margin.right + 6}" y="${y + 4}" class="fusao-grafico-eixo" text-anchor="start">${Math.round(valor).toLocaleString("pt-BR")}</text>`;
+  }).join("");
+
+  const barras = dias.map((dia, index) => {
+    const x = margin.left + index * groupWidth + (groupWidth - barWidth) / 2;
+    let acumulado = 0;
+    const segmentos = series.map((serie) => {
+      const valor = serie.valores[index] || 0;
+      if (!valor) return "";
+      const yTopo = yFor1(acumulado + valor);
+      const yBase = yFor1(acumulado);
+      acumulado += valor;
+      return `<rect x="${x}" y="${yTopo}" width="${barWidth}" height="${Math.max(0, yBase - yTopo)}" fill="${serie.cor}"><title>${fEsc(dia.slice(8, 10))} — ${fEsc(serie.nome)}: ${formatarBarra(valor)}</title></rect>`;
+    }).join("");
+    const rotulo = `<text x="${x + barWidth / 2}" y="${height - 8}" class="fusao-grafico-eixo" text-anchor="middle">${dia.slice(8, 10)}</text>`;
+    return segmentos + rotulo;
+  }).join("");
+
+  const centroX = (index) => margin.left + index * groupWidth + groupWidth / 2;
+  const pontosLinha = dias.map((_, index) => linha.valores[index] != null ? `${centroX(index)},${yFor2(linha.valores[index])}` : null).filter(Boolean);
+  const caminhoLinha = pontosLinha.length ? `<path d="M${pontosLinha.join(" L")}" fill="none" stroke="${linha.cor}" stroke-width="2.4"/>` : "";
+  const circulosLinha = dias.map((dia, index) => {
+    const valor = linha.valores[index];
+    if (valor == null) return "";
+    return `<circle cx="${centroX(index)}" cy="${yFor2(valor)}" r="3" fill="${linha.cor}"><title>${fEsc(dia.slice(8, 10))} — ${fEsc(linha.nome)}: ${linha.formatarValor(valor)}</title></circle>`;
+  }).join("");
+  const linhaMeta = linha.meta != null
+    ? `<line x1="${margin.left}" y1="${yFor2(linha.meta)}" x2="${width - margin.right}" y2="${yFor2(linha.meta)}" class="fusao-grafico-meta-line"/>`
+    : "";
+
+  const legenda = `<div class="fusao-grafico-legenda">
+      ${series.map((s) => `<span><i style="background:${s.cor}"></i>${fEsc(s.nome)}</span>`).join("")}
+      <span><i class="is-line" style="background:${linha.cor}"></i>${fEsc(linha.nome)}</span>
+    </div>`;
+
+  return `<div class="fusao-grafico-bloco">
+      <div class="fusao-grafico-cabecalho"><h3>${fEsc(titulo)}</h3>${linha.meta != null ? `<span class="fusao-grafico-meta-label">Meta &lt; ${linha.formatarValor(linha.meta)}</span>` : ""}</div>
+      <div class="fusao-grafico-svg-wrap"><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${fEsc(titulo)}">${gridEsquerda}${eixoDireita}${barras}${caminhoLinha}${circulosLinha}${linhaMeta}</svg></div>
+      ${legenda}
+    </div>`;
 }
 
 // Uma barra por dia + linha tracejada de meta; barra fica vermelha nos
@@ -283,22 +379,67 @@ async function fusaoRenderGraficosDiarios(mesValue, corridas, panelasRetiradas, 
   // Energia fica em destaque na linha de cima, junto do donut/KPIs (mesmo
   // lugar de honra da planilha de referência); os outros 4 formam uma
   // segunda fileira só — tudo cabe na tela sem rolar.
-  containerEnergia.innerHTML = fusaoGraficoBarraMetaHtml({ titulo: "Produção vs consumo de energia elétrica (KWH/t)", dias, valores: series.energiaPorDia, meta: metaEnergia, metaComparacao: "menor", altura: 170 });
+  containerEnergia.innerHTML = fusaoGraficoBarraEmpilhadaLinhaHtml({
+    titulo: "Produção vs consumo de energia elétrica (KWH/t)",
+    dias,
+    series: [
+      { nome: "Cinzento (ton)", cor: "#b0b8bf", valores: series.cargaCinzentoTonPorDia },
+      { nome: "Nodular (ton)", cor: "#4a4a4a", valores: series.cargaNodularTonPorDia }
+    ],
+    linha: { nome: "Energia (KWH/t)", cor: "#e67e22", valores: series.energiaPorDia, meta: metaEnergia, formatarValor: (v) => v.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) },
+    formatarBarra: fmtT,
+    altura: 260
+  });
   container.innerHTML = [
-    fusaoGraficoBarraMetaHtml({ titulo: "Gusa líquido vs Gusa sólido (%)", dias, valores: series.gusaLiquidoPctPorDia, meta: metaGusaLiquido, metaComparacao: "maior", formatarValor: fmtPct }),
-    fusaoGraficoBarraMetaHtml({ titulo: "Consumo de FeSiMg (%)", dias, valores: series.fesimgPctPorDia, meta: metaFesimg, metaComparacao: "menor", formatarValor: fmtPct }),
-    fusaoGraficoBarraMetaHtml({ titulo: "Gusa Siderurgia / corrida Cinzento (t/corrida)", dias, valores: series.gusaSiderPorCorridaPorDia, meta: metaGusaSider, metaComparacao: "menor", formatarValor: fmtT }),
-    fusaoGraficoBarraMetaHtml({ titulo: "Gusa UTG / corrida Nodular (t/corrida)", dias, valores: series.gusaUtgPorCorridaPorDia, meta: metaGusaUtg, metaComparacao: "menor", formatarValor: fmtT })
+    fusaoGraficoBarraMetaHtml({ titulo: "Gusa líquido vs Gusa sólido (%)", dias, valores: series.gusaLiquidoPctPorDia, meta: metaGusaLiquido, metaComparacao: "maior", formatarValor: fmtPct, corBarra: "#f7c188" }),
+    fusaoGraficoBarraMetaHtml({ titulo: "Consumo de FeSiMg (%)", dias, valores: series.fesimgPctPorDia, meta: metaFesimg, metaComparacao: "menor", formatarValor: fmtPct, corBarra: "#8e44ad" }),
+    fusaoGraficoBarraMetaHtml({ titulo: "Gusa Siderurgia / corrida Cinzento (t/corrida)", dias, valores: series.gusaSiderPorCorridaPorDia, meta: metaGusaSider, metaComparacao: "menor", formatarValor: fmtT, corBarra: "#f0932b" }),
+    fusaoGraficoBarraMetaHtml({ titulo: "Gusa UTG / corrida Nodular (t/corrida)", dias, valores: series.gusaUtgPorCorridaPorDia, meta: metaGusaUtg, metaComparacao: "menor", formatarValor: fmtT, corBarra: "#f0932b" })
   ].join("");
 }
 
+// Turno não é coluna própria em panelas_holding (calculado a partir do
+// horário, igual ao resto do módulo) -- por isso o filtro de turno é
+// aplicado aqui no JS, depois de buscar o mês inteiro, em vez de mandar
+// pro servidor (que só filtraria corridas, deixando panela sem filtro).
+function fusaoTurnosSelecionados() {
+  return ["manha", "tarde", "noite"]
+    .map((sufixo) => fq(`#fusao-graficos-turno-${sufixo}`))
+    .filter((el) => el?.checked)
+    .map((el) => el.value);
+}
+function fusaoFiltrarPorTurno(corridas, panelasRetiradas, panelasVazadas, turnos) {
+  const turnoDe = (dataIso) => dataIso ? window.LIDUTEC_TURNOS.determineShift(new Date(dataIso)).codigo : null;
+  return {
+    corridas: corridas.filter((c) => turnos.includes(c.turno)),
+    panelasRetiradas: panelasRetiradas.filter((p) => turnos.includes(turnoDe(p.hora_retirada))),
+    panelasVazadas: panelasVazadas.filter((p) => turnos.includes(turnoDe(p.hora_inicio_vazamento)))
+  };
+}
+
 async function fusaoRenderGraficosMes(mesValue) {
+  const conteudo = fq("#fusao-graficos-conteudo");
+  const diarios = fq("#fusao-graficos-diarios");
+  const vazio = fq("#fusao-graficos-turno-vazio");
+  const turnos = fusaoTurnosSelecionados();
+  if (!turnos.length) {
+    if (conteudo) conteudo.hidden = true;
+    if (diarios) diarios.hidden = true;
+    if (vazio) vazio.hidden = false;
+    return;
+  }
+  if (conteudo) conteudo.hidden = false;
+  if (diarios) diarios.hidden = false;
+  if (vazio) vazio.hidden = true;
+
   const { dataInicio, dataFim, horaInicioIso, horaFimIso } = fusaoGraficosLimitesMes(mesValue);
-  const [corridas, panelasRetiradas, panelasVazadas] = await Promise.all([
+  const [corridasTodas, panelasRetiradasTodas, panelasVazadasTodas] = await Promise.all([
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridasParaGraficosMes(dataInicio, dataFim),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasRetiradasParaGraficosMes(horaInicioIso, horaFimIso),
     window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasVazadasParaGraficosMes(horaInicioIso, horaFimIso)
   ]);
+  const { corridas, panelasRetiradas, panelasVazadas } = fusaoFiltrarPorTurno(corridasTodas, panelasRetiradasTodas, panelasVazadasTodas, turnos);
+
   const indicadores = fusaoCalcularIndicadoresMes(corridas, panelasRetiradas, panelasVazadas);
   fusaoRenderDonutComposicaoCarga(fq("#fusao-donut-composicao"), indicadores.cargaPorTipo, indicadores.totalCargaKg);
   fusaoRenderKpisMes(indicadores);
@@ -308,6 +449,11 @@ async function fusaoRenderGraficosMes(mesValue) {
 async function initializeFusaoGraficos() {
   const mesInput = fq("#fusao-graficos-mes");
   if (!mesInput) return;
+  ["manha", "tarde", "noite"].forEach((sufixo) => {
+    fq(`#fusao-graficos-turno-${sufixo}`)?.addEventListener("change", () => {
+      if (mesInput.value) fusaoRenderGraficosMes(mesInput.value).catch((error) => alert(error.message));
+    });
+  });
   if (!mesInput.value) {
     const hoje = new Date();
     mesInput.value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
@@ -317,4 +463,22 @@ async function initializeFusaoGraficos() {
   });
   await fusaoRenderGraficosMes(mesInput.value);
 }
+// Modo escuro (pedido explícito, só nesta página) — escolha lembrada no
+// navegador. O <script> inline logo depois do <body> já aplica o tema
+// salvo antes da página desenhar (evita o "flash" claro→escuro); aqui só
+// liga o botão de alternar.
+(function fusaoLigarTemaToggle() {
+  const botao = document.getElementById("fusao-tema-toggle");
+  if (!botao) return;
+  const atualizarRotulo = () => {
+    botao.textContent = document.body.dataset.tema === "escuro" ? "☀️ Modo claro" : "🌙 Modo escuro";
+  };
+  atualizarRotulo();
+  botao.addEventListener("click", () => {
+    const escuro = document.body.dataset.tema === "escuro";
+    if (escuro) { delete document.body.dataset.tema; } else { document.body.dataset.tema = "escuro"; }
+    try { localStorage.setItem("fusaoGraficosTema", escuro ? "claro" : "escuro"); } catch (error) { /* sem localStorage, só não lembra da próxima vez */ }
+    atualizarRotulo();
+  });
+})();
 window.initializeFusaoGraficos = initializeFusaoGraficos;

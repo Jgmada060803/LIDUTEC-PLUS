@@ -52,12 +52,26 @@
       if (response.error) throw response.error;
       return { count: response.count ?? 0 };
     },
+    // "Corridas recentes" (index.html) precisa da carga discriminada por
+    // tipo de material (pros %) e das entradas/saídas de saldo (transferência
+    // + escória/lingote/ajuste + panela, pra Holding) — tudo numa consulta
+    // só, sem round-trip por corrida.
     corridas: (filters = {}) => {
       let query = client().from("corridas_fusao")
-        .select("id,codigo,forno_id,ciclo_refratario_id,numero_sequencia,data_operacional,turno,status,versao,criado_em,fornos_fusao(codigo,nome),produtos(codigo,nome)")
+        .select("id,codigo,forno_id,ciclo_refratario_id,numero_sequencia,data_operacional,turno,status,versao,criado_em,fim,produto_id," +
+          "sobra_inicial_kg,escoria_kg,lingote_kg,ajuste_kg,energia_kwh,saldo_forno_no_fechamento_kg," +
+          "fornos_fusao(codigo,nome,tipo),produtos(codigo,nome)," +
+          "corridas_fusao_carga_itens(quantidade_realizada_kg,estado_fisico,materiais_fusao(tipo))," +
+          "transferencias_entrada:transferencias_fusao!corrida_destino_id(quantidade_kg)," +
+          "transferencias_saida:transferencias_fusao!corrida_origem_id(quantidade_kg)," +
+          "panelas_holding!holding_corrida_id(peso_kg)")
         .order("criado_em", { ascending: false }).limit(200);
       if (filters.fornoId) query = query.eq("forno_id", filters.fornoId);
       if (filters.status) query = query.eq("status", filters.status);
+      if (filters.turno) query = query.eq("turno", filters.turno);
+      if (filters.produtoId) query = query.eq("produto_id", filters.produtoId);
+      if (filters.dataInicio) query = query.gte("data_operacional", filters.dataInicio);
+      if (filters.dataFim) query = query.lte("data_operacional", filters.dataFim);
       return result(query);
     },
     corridaAbertaDoForno: (fornoId) => result(client().from("corridas_fusao")
@@ -234,6 +248,22 @@
         "carbono_equivalente_vazamento,temp_liquidus_vazamento,temp_solidus_vazamento,temp_recalescencia_eutetica_vazamento,temp_final_vazamento,analise_vazamento_em," +
         "inoculador_vazamento,inoculante_vazamento_g_s,produto_id,produtos(codigo,nome),corridas_fusao!holding_corrida_id(codigo)")
       .eq("status", "VAZADA").order("hora_inicio_vazamento", { ascending: false }).limit(limite)),
+    // Tela de histórico do Vazamento (consulta, com filtro) — turno não é
+    // coluna própria (calculado a partir de hora_retirada, igual ao resto
+    // do módulo), por isso não entra no filtro do servidor: quem chama
+    // filtra o retorno por turno no próprio JS.
+    panelasVazadasHistorico: (filtros = {}) => {
+      let query = client().from("panelas_holding")
+        .select("id,sequencial,sequencial_vazamento,peso_kg,hora_retirada,hora_inicio_vazamento,hora_fim_vazamento,temperatura_vazamento_c,molde_inicial,molde_final,quantidade_moldes," +
+          "carbono_equivalente_vazamento,temp_liquidus_vazamento,temp_solidus_vazamento,temp_recalescencia_eutetica_vazamento,temp_final_vazamento,analise_vazamento_em," +
+          "inoculador_vazamento,inoculante_vazamento_g_s,produto_id,produtos(codigo,nome),corridas_fusao!holding_corrida_id!inner(codigo,fornos_fusao(codigo,nome))")
+        .eq("status", "VAZADA");
+      if (filtros.dataInicio) query = query.gte("hora_inicio_vazamento", filtros.dataInicio);
+      if (filtros.dataFim) query = query.lt("hora_inicio_vazamento", filtros.dataFim);
+      if (filtros.produtoId) query = query.eq("produto_id", filtros.produtoId);
+      if (filtros.corridaBusca) query = query.ilike("corridas_fusao.codigo", `%${filtros.corridaBusca}%`);
+      return result(query.order("hora_inicio_vazamento", { ascending: false }).limit(500));
+    },
     // Edição do histórico de panelas vazadas (pedido explícito) — três
     // RPCs por tipo de campo (ver migration 202609030002).
     atualizarCampoVazamentoPanela: (panelaId, campo, valor) => result(client().rpc("atualizar_campo_vazamento_panela", {
@@ -345,7 +375,7 @@
       .select("peso_kg,fesimg_liga1_kg,fesimg_liga4_kg,hora_retirada")
       .gte("hora_retirada", horaInicioIso).lt("hora_retirada", horaFimIso)),
     panelasVazadasParaGraficosMes: (horaInicioIso, horaFimIso) => result(client().from("panelas_holding")
-      .select("peso_kg,produto_id,hora_inicio_vazamento")
+      .select("peso_kg,produto_id,fesimg_liga1_kg,fesimg_liga4_kg,hora_inicio_vazamento")
       .eq("status", "VAZADA").gte("hora_inicio_vazamento", horaInicioIso).lt("hora_inicio_vazamento", horaFimIso)),
     // Metas dos 5 gráficos diários — indicadores cadastrados em
     // indicadores_metas (área Fusão), configuráveis pela tela de

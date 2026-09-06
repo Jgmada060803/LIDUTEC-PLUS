@@ -423,18 +423,128 @@ function fusaoCorridaStatusBadgeClass(status) {
   if (status === "FECHADA") return "is-done";
   return "is-current";
 }
-async function loadCorridasList() {
-  const rows = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridas({});
-  fq("#corridas-rows").innerHTML = rows.map((item) => `<tr>
-      <td><a href="./corrida.html?id=${item.id}">${fEsc(fusaoCodigoCorridaMascarado(item.codigo))}</a></td>
-      <td>${fEsc(item.fornos_fusao?.nome || "—")}</td>
-      <td>${item.turno}</td>
-      <td>${fusaoProdutoLabel(item.produtos)}</td>
-      <td><span class="fusao-status-step ${fusaoCorridaStatusBadgeClass(item.status)}">${FUSAO_STATUS_NOMES[item.status] || item.status}</span></td>
-      <td>${new Date(item.criado_em).toLocaleString("pt-BR")}</td>
-    </tr>`).join("");
-  fq("#corridas-empty").hidden = rows.length > 0;
+// Calcula os campos derivados (saldo/entrada/saída/%) uma vez só, guardado
+// junto com a linha bruta -- permite ordenar por qualquer coluna sem
+// recalcular a cada clique no cabeçalho.
+function corridaRecenteComputar(item) {
+  const itens = item.corridas_fusao_carga_itens || [];
+  let totalCargaKg = 0, gusaKg = 0, sucataKg = 0, alternativoKg = 0, retornoKg = 0, liquidoKg = 0;
+  for (const it of itens) {
+    const kg = fNumber(it.quantidade_realizada_kg);
+    totalCargaKg += kg;
+    const tipo = it.materiais_fusao?.tipo;
+    if (tipo === "GUSA") gusaKg += kg; else if (tipo === "SUCATA") sucataKg += kg;
+    else if (tipo === "ALTERNATIVO") alternativoKg += kg; else if (tipo === "RETORNO") retornoKg += kg;
+    if (it.estado_fisico === "LIQUIDO") liquidoKg += kg;
+  }
+  const transferenciasEntradaKg = (item.transferencias_entrada || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0);
+  const transferenciasSaidaKg = (item.transferencias_saida || []).reduce((soma, t) => soma + fNumber(t.quantidade_kg), 0);
+  const panelasKg = (item.panelas_holding || []).reduce((soma, p) => soma + fNumber(p.peso_kg), 0);
+  const saldoInicial = fNumber(item.sobra_inicial_kg);
+  const entrada = totalCargaKg + transferenciasEntradaKg;
+  const saida = transferenciasSaidaKg + fNumber(item.escoria_kg) + fNumber(item.lingote_kg) + fNumber(item.ajuste_kg) + panelasKg;
+  const pct = (parte) => totalCargaKg > 0 ? parte / totalCargaKg * 100 : null;
+  return {
+    id: item.id, codigo: item.codigo, forno: item.fornos_fusao?.codigo || "", dataOperacional: item.data_operacional || "",
+    turno: item.turno, produtoCodigo: item.produtos?.codigo || "",
+    materialBase: fusaoLimparFerroBase(fusaoState.tipoMaterialPorProduto?.[item.produto_id]),
+    saldoInicial, entrada, saida, saldoFinal: saldoInicial + entrada - saida,
+    pctRetorno: pct(retornoKg), pctGusa: pct(gusaKg), pctSucata: pct(sucataKg), pctAlternativo: pct(alternativoKg), pctLiquida: pct(liquidoKg),
+    energia: item.energia_kwh, status: item.status, fechamento: item.fim || ""
+  };
+}
+function corridaRecenteRowHtml(c) {
+  const pctTexto = (v) => v != null ? `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "—";
+  const dataHora = (v) => v ? new Date(v).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const dataCurta = (v) => v ? new Date(`${v}T12:00:00`).toLocaleDateString("pt-BR") : "—";
+  return `<tr>
+      <td>${fEsc(c.forno || "—")}</td>
+      <td><a href="./corrida.html?id=${c.id}">${fEsc(fusaoCodigoCorridaMascarado(c.codigo))}</a></td>
+      <td>${dataCurta(c.dataOperacional)}</td>
+      <td>${c.turno}</td>
+      <td>${fEsc(c.produtoCodigo || "—")}</td>
+      <td>${fEsc(c.materialBase)}</td>
+      <td>${fusaoKg(c.saldoInicial)}</td>
+      <td>${fusaoKg(c.entrada)}</td>
+      <td>${fusaoKg(c.saida)}</td>
+      <td>${fusaoKg(c.saldoFinal)}</td>
+      <td>${pctTexto(c.pctRetorno)}</td>
+      <td>${pctTexto(c.pctGusa)}</td>
+      <td>${pctTexto(c.pctSucata)}</td>
+      <td>${pctTexto(c.pctAlternativo)}</td>
+      <td>${pctTexto(c.pctLiquida)}</td>
+      <td>${c.energia != null ? fNumber(c.energia).toLocaleString("pt-BR") : "—"}</td>
+      <td><span class="fusao-status-step ${fusaoCorridaStatusBadgeClass(c.status)}">${FUSAO_STATUS_NOMES[c.status] || c.status}</span></td>
+      <td>${dataHora(c.fechamento)}</td>
+    </tr>`;
+}
+const fusaoCorridasRecentesState = { dados: [], ordenacaoColuna: null, ordenacaoAsc: true };
+function renderCorridasRecentesTabela() {
+  let dados = fusaoCorridasRecentesState.dados;
+  const coluna = fusaoCorridasRecentesState.ordenacaoColuna;
+  if (coluna) {
+    const asc = fusaoCorridasRecentesState.ordenacaoAsc ? 1 : -1;
+    dados = [...dados].sort((a, b) => {
+      const va = a[coluna], vb = b[coluna];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1; if (vb == null) return -1;
+      if (typeof va === "number") return (va - vb) * asc;
+      return String(va).localeCompare(String(vb), "pt-BR") * asc;
+    });
+  }
+  fq("#corridas-rows").innerHTML = dados.map(corridaRecenteRowHtml).join("");
+  fq("#corridas-empty").hidden = dados.length > 0;
+}
+async function loadCorridasList(filtros = {}) {
+  const rows = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.corridas(filtros);
+  fusaoCorridasRecentesState.dados = rows.map(corridaRecenteComputar);
+  renderCorridasRecentesTabela();
   return rows;
+}
+function initializeFusaoCorridasFiltro() {
+  const fornoSelect = fq("#corridas-filtro-forno");
+  if (!fornoSelect || fornoSelect.dataset.bound) return;
+  fornoSelect.dataset.bound = "1";
+  fornoSelect.innerHTML += fusaoState.fornos.map((f) => `<option value="${f.id}">${fEsc(f.codigo)}</option>`).join("");
+
+  const produtoWrapper = fq("#corridas-filtro-produto");
+  produtoWrapper.innerHTML = fusaoProdutoComboboxHtml("", `id="corridas-filtro-produto-input"`);
+  bindProdutoCombobox(produtoWrapper);
+
+  const buscar = () => {
+    const produto = fusaoProdutoDoInput(fq("#corridas-filtro-produto-input"));
+    loadCorridasList({
+      fornoId: fq("#corridas-filtro-forno").value || undefined,
+      turno: fq("#corridas-filtro-turno").value || undefined,
+      produtoId: produto?.id,
+      dataInicio: fq("#corridas-filtro-data-inicio").value || undefined,
+      dataFim: fq("#corridas-filtro-data-fim").value || undefined
+    });
+  };
+  fq("#corridas-filtro-buscar").addEventListener("click", buscar);
+  fq("#corridas-filtro-limpar").addEventListener("click", () => {
+    fq("#corridas-filtro-forno").value = "";
+    fq("#corridas-filtro-turno").value = "";
+    fq("#corridas-filtro-produto-input").value = "";
+    fq("#corridas-filtro-data-inicio").value = "";
+    fq("#corridas-filtro-data-fim").value = "";
+    loadCorridasList();
+  });
+
+  document.querySelectorAll(".fusao-corridas-tabela [data-sort]").forEach((th) => {
+    th.addEventListener("click", () => {
+      const coluna = th.dataset.sort;
+      if (fusaoCorridasRecentesState.ordenacaoColuna === coluna) {
+        fusaoCorridasRecentesState.ordenacaoAsc = !fusaoCorridasRecentesState.ordenacaoAsc;
+      } else {
+        fusaoCorridasRecentesState.ordenacaoColuna = coluna;
+        fusaoCorridasRecentesState.ordenacaoAsc = true;
+      }
+      document.querySelectorAll(".fusao-corridas-tabela [data-sort]").forEach((outro) => outro.classList.remove("is-asc", "is-desc"));
+      th.classList.add(fusaoCorridasRecentesState.ordenacaoAsc ? "is-asc" : "is-desc");
+      renderCorridasRecentesTabela();
+    });
+  });
 }
 function fornoFormHtml(forno, volumeAtualKg) {
   return `<p class="fusao-volume-atual-linha">Volume atual do forno <strong>${fusaoKg(volumeAtualKg)} kg</strong></p>
@@ -1383,6 +1493,7 @@ async function initializeFusaoIndex() {
   // "Corridas recentes" carrega junto com os cards, não depois — não
   // depende deles, então não precisa esperar (era uma viagem a mais em
   // série no carregamento da tela).
+  initializeFusaoCorridasFiltro();
   await Promise.all([
     ...fusaoState.fornos.map((forno) => renderFornoCard(forno).catch((error) => alert(error.message))),
     loadCorridasList()
@@ -2387,7 +2498,7 @@ async function initializeFusaoProduction() {
   const podeVerFusao = permissions.has("producao_fusao.visualizar");
   const podeVerPonte = podeVerFusao || permissions.has("producao_fusao.lancar_ponte");
   const podeVerVazamento = podeVerFusao || permissions.has("producao_fusao.lancar_vazamento");
-  const podeVerPagina = fusaoPage === "ponte" ? podeVerPonte : fusaoPage === "vazamento" ? podeVerVazamento : podeVerFusao;
+  const podeVerPagina = fusaoPage === "ponte" ? podeVerPonte : (fusaoPage === "vazamento" || fusaoPage === "vazamento-historico") ? podeVerVazamento : podeVerFusao;
   if (!podeVerPagina) { location.replace("../dashboard.html"); return; }
   fusaoState.user = user;
   fusaoState.userNome = profile.nome;
@@ -2411,6 +2522,9 @@ async function initializeFusaoProduction() {
   // Mesmo esquema do Holding: a tela do Vazamento vive no próprio arquivo
   // producao-fusao-vazamento.js.
   if (fusaoPage === "vazamento" && window.initializeFusaoVazamento) await window.initializeFusaoVazamento();
+  // Histórico do Vazamento (consulta) vive no próprio arquivo
+  // producao-fusao-vazamento-historico.js.
+  if (fusaoPage === "vazamento-historico" && window.initializeFusaoVazamentoHistorico) await window.initializeFusaoVazamentoHistorico();
   // Dashboard mensal vive no próprio arquivo producao-fusao-graficos.js.
   if (fusaoPage === "graficos" && window.initializeFusaoGraficos) await window.initializeFusaoGraficos();
 

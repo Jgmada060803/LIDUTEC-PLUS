@@ -618,7 +618,7 @@ function vazadaRowHtml(panela) {
     </tr>`;
 }
 async function renderPanelasVazadasRecentes() {
-  const panelas = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasVazadasRecentes(20);
+  const panelas = await window.LIDUTEC_PRODUCAO_FUSAO_DATA.panelasVazadasRecentes(50);
   const container = fq("#vazamento-historico");
   if (!container) return;
   if (!panelas.length) { container.innerHTML = ""; return; }

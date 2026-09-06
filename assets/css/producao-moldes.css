@@ -128,4 +128,27 @@
 @media(max-width:600px){.production-donut-chart{grid-template-columns:1fr}.production-donut{width:190px}}
 @media(max-width:600px){.production-query-filters{grid-template-columns:1fr}.production-query-filters .observation-search{grid-column:auto}.query-heading{align-items:stretch;flex-direction:column}.query-heading .button{width:100%}}
 .shift-production-row input[name="fim"][readonly]{cursor:not-allowed;color:#52616b;background:#eef1f3}
+
+/* Modo escuro do dashboard de indicadores (pedido explícito, só nesta
+   página: data-production-page="charts"). A maioria dos componentes
+   daqui (donut, gauges, gráfico de meta mensal) já usa var(--color-*),
+   então basta redefinir as variáveis; só .topbar/.panel (dashboard.css)
+   e o "furo" branco do donut usam cor fixa, por isso ganham override à
+   parte. */
+body[data-production-page="charts"][data-tema="escuro"]{--color-background:#12161c;--color-surface:#1b212b;--color-text:#e6ebf1;--color-text-muted:#93a1b3;--color-border:#2c3644;--color-primary-light:#1c2b4d;background:var(--color-background);color:var(--color-text)}
+body[data-production-page="charts"][data-tema="escuro"] .topbar{background:var(--color-surface);border-bottom-color:var(--color-border);color:var(--color-text)}
+body[data-production-page="charts"][data-tema="escuro"] .panel,
+body[data-production-page="charts"][data-tema="escuro"] .metric-card{background:var(--color-surface);border-color:var(--color-border);color:var(--color-text)}
+body[data-production-page="charts"][data-tema="escuro"] .production-donut::before{background:var(--color-surface)}
+body[data-production-page="charts"][data-tema="escuro"] .production-bar-track{background:#232b36}
+body[data-production-page="charts"][data-tema="escuro"] .production-donut-panel h3,
+body[data-production-page="charts"][data-tema="escuro"] .monthly-goal-rate-value{color:var(--color-text)}
+body[data-production-page="charts"][data-tema="escuro"] .graficos-month-field input{background:#262f3b;color:var(--color-text);border-color:var(--color-border)}
+/* Letras vermelhas (saldo negativo) viram amarelo fluorescente, e o verde
+   normal (saldo positivo) vira verde fluorescente, no escuro (pedido
+   explícito) — mesmo tratamento já usado no Dashboard Fusão. */
+body[data-production-page="charts"][data-tema="escuro"] .monthly-goal-summary dd.negativo{color:#ffea00}
+body[data-production-page="charts"][data-tema="escuro"] .monthly-goal-summary dd.positivo{color:#39ff14}
+body[data-production-page="charts"][data-tema="escuro"] .user-box strong{color:var(--color-text)}
+body[data-production-page="charts"][data-tema="escuro"] .user-box span{color:var(--color-text-muted)}
 .shift-entry-table tbody{transition:opacity .2s ease}.shift-readonly .shift-entry-table tbody{opacity:.55}.shift-readonly .shift-entry-table :is(input,select,button){cursor:not-allowed}

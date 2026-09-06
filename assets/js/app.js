@@ -233,6 +233,14 @@ function syncSidebarNavigation() {
     <a href="${prefix}redefinir-senha.html" class="nav-link">
       Trocar minha senha
     </a>
+    ${navSection("Ajuda", `
+      <a href="https://claude.ai/code/artifact/b78413c4-e296-4cda-b6fd-ed4c7791944a" class="nav-link" target="_blank" rel="noopener">
+        Treinamento — Engenharia
+      </a>
+      <a href="https://claude.ai/code/artifact/cecb834d-7032-4945-8237-2bdfe7bb9146" class="nav-link" target="_blank" rel="noopener">
+        Treinamento — Moldagem e Vazamento
+      </a>
+    `)}
 
     ${navSection("Engenharia", `
       <a href="${prefix}produtos/lista.html"

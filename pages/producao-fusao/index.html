@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fusão | Metalsider</title><link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8"><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"><link rel="stylesheet" href="../../assets/css/producao-fusao.css?v=4"></head>
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fusão | Metalsider</title><link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg"><link rel="manifest" href="../../manifest.webmanifest"><meta name="theme-color" content="#1f45a8"><link rel="stylesheet" href="../../assets/css/app.css"><link rel="stylesheet" href="../../assets/css/dashboard.css"><link rel="stylesheet" href="../../assets/css/usuarios.css"><link rel="stylesheet" href="../../assets/css/metas-gerenciais.css"><link rel="stylesheet" href="../../assets/css/producao-fusao.css?v=12"></head>
 <body class="app-page" data-production-page="index"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><div class="sidebar-logo">L+</div><div><strong>Metalsider</strong><span>Gestão Industrial</span></div></div><nav class="sidebar-nav"></nav><button id="logout-button" class="logout-button">Sair</button></aside>
 <div class="app-shell"><header class="topbar"><button id="menu-button" class="menu-button">☰</button><div class="topbar-title"><h1>Fusão</h1><p>Planejamento e acompanhamento das corridas</p></div><button type="button" id="fusao-atualizar-pagina" class="topbar-return-shift" title="Busca a versão mais recente da página, ignorando o cache do navegador">⟳ Atualizar</button><a href="../inicio.html" class="topbar-return-shift">Voltar ao menu</a><div class="user-box"><div><strong id="user-name">Carregando...</strong><span id="user-profile">Usuário</span></div><div id="user-avatar" class="user-avatar">U</div></div></header>
 <main class="main-content">
@@ -29,7 +29,21 @@
 
   <section class="panel">
     <div class="panel-header"><h3>Corridas recentes</h3></div>
-    <div class="table-wrapper"><table class="products-table"><thead><tr><th>Código</th><th>Forno</th><th>Turno</th><th>Produto</th><th>Status</th><th>Criada em</th></tr></thead><tbody id="corridas-rows"></tbody></table></div>
+    <div class="fusao-historico-filtros">
+      <label>Forno<select id="corridas-filtro-forno"><option value="">Todos</option></select></label>
+      <label>Data inicial<input type="date" id="corridas-filtro-data-inicio"></label>
+      <label>Data final<input type="date" id="corridas-filtro-data-fim"></label>
+      <label>Turno<select id="corridas-filtro-turno"><option value="">Todos</option><option value="MANHA">Manhã</option><option value="TARDE">Tarde</option><option value="NOITE">Noite</option></select></label>
+      <label>Produto<span id="corridas-filtro-produto"></span></label>
+      <button type="button" id="corridas-filtro-buscar" class="button button-primary">Filtrar</button>
+      <button type="button" id="corridas-filtro-limpar" class="button button-secondary">Limpar</button>
+    </div>
+    <div class="table-wrapper"><table class="products-table fusao-corridas-tabela"><thead><tr>
+      <th data-sort="forno">Forno</th><th data-sort="codigo">Código</th><th data-sort="dataOperacional">Data</th><th data-sort="turno">Turno</th><th data-sort="produtoCodigo">Cód. produto</th><th data-sort="materialBase">Ferro base</th>
+      <th data-sort="saldoInicial">Saldo inicial</th><th data-sort="entrada">Entrada</th><th data-sort="saida">Saída</th><th data-sort="saldoFinal">Saldo final</th>
+      <th data-sort="pctRetorno">% Retorno</th><th data-sort="pctGusa">% Gusa</th><th data-sort="pctSucata">% Sucata</th><th data-sort="pctAlternativo">% Alternativo</th><th data-sort="pctLiquida">% Carga líquida</th>
+      <th data-sort="energia">Consumo de energia</th><th data-sort="status">Status</th><th data-sort="fechamento">Data/hora fechamento</th>
+    </tr></thead><tbody id="corridas-rows"></tbody></table></div>
     <p id="corridas-empty" class="production-muted" hidden>Nenhuma corrida lançada ainda.</p>
   </section>
 </main></div>
