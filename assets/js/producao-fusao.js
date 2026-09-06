@@ -921,8 +921,11 @@ function fusaoResumoCorridaHtml(corrida, todosItens, transferencias, volumeAtual
     + fNumber(corrida.escoria_kg) + fNumber(corrida.lingote_kg) + fNumber(corrida.ajuste_kg) + fNumber(panelasHoldingKg);
   // Corrida fechada não deve mais "andar" na tela conforme o forno segue
   // sendo usado depois — mostra o saldo congelado no instante do fechamento,
-  // não o saldo ao vivo do forno (só a corrida ABERTA mostra o saldo ao vivo).
-  const volume = corrida.status === "ABERTA" ? volumeAtualKg : fNumber(corrida.saldo_forno_no_fechamento_kg);
+  // não o saldo ao vivo do forno. Corrida ABERTA calcula aqui mesmo (inicial
+  // + entrada − saída, os 3 valores já prontos acima) em vez de usar
+  // volumeAtualKg (buscado à parte, só atualizado após ações específicas
+  // como fechar/transferir — ficava desatualizado após só incluir material).
+  const volume = corrida.status === "ABERTA" ? pesoInicial + entrada - saida : fNumber(corrida.saldo_forno_no_fechamento_kg);
   const kg = (valor) => `${fusaoKg(valor)}<span class="fusao-resumo-unidade">Kg</span>`;
   return `<div class="fusao-resumo-corrida" data-peso-inicial="${pesoInicial}" data-saida-kg="${saida}" data-panelas-kg="${fNumber(panelasHoldingKg)}" data-retorno-kg="${fNumber(retornadoKg)}">
       <div class="fusao-resumo-item"><span class="fusao-resumo-label">Peso Inicial</span><strong class="fusao-resumo-valor fusao-resumo-inicial">${kg(pesoInicial)}</strong></div>
