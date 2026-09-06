@@ -261,6 +261,15 @@ function syncSidebarNavigation() {
       <a href="https://claude.ai/code/artifact/cecb834d-7032-4945-8237-2bdfe7bb9146" class="nav-link" target="_blank" rel="noopener">
         Treinamento — Moldagem e Vazamento
       </a>
+      <a href="https://claude.ai/code/artifact/5d5154a0-4ce0-4091-9238-644a83dbc2ed" class="nav-link" target="_blank" rel="noopener">
+        Treinamento — Fusão
+      </a>
+      <a href="https://claude.ai/code/artifact/8b2afaff-f549-40b1-98eb-52b40e02c713" class="nav-link" target="_blank" rel="noopener">
+        Treinamento — Acabamento
+      </a>
+      <a href="https://claude.ai/code/artifact/2788f793-46c3-4835-a76b-ff837fff2204" class="nav-link" target="_blank" rel="noopener">
+        Treinamento — Macharia
+      </a>
     `)}
 
     ${navSection("Engenharia", `
