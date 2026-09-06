@@ -26,20 +26,20 @@ function getLoginPath() {
 
 async function requireAuthenticatedUser() {
   const {
-    data: { user },
+    data: { session },
     error
-  } = await window.supabaseClient.auth.getUser();
+  } = await window.supabaseClient.auth.getSession();
 
   if (error) {
     console.error("Erro ao verificar usuário autenticado:", error);
   }
 
-  if (!user) {
+  if (!session?.user) {
     window.location.replace(getLoginPath());
     return null;
   }
 
-  return user;
+  return session.user;
 }
 
 async function getCurrentUserProfile(userId) {
