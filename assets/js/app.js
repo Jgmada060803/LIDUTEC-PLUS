@@ -202,9 +202,14 @@ function syncSidebarNavigation() {
   }
 
   const pathname = window.location.pathname.replace(/\\/g, "/");
-  const isDashboard = pathname.endsWith("/pages/dashboard.html");
-  const isHome = pathname.endsWith("/pages/inicio.html");
-  const isProcessDashboard = pathname.endsWith("/pages/dashboard-processo.html");
+  // O Cloudflare Pages redireciona endereços terminados em ".html" pra
+  // versão sem extensão por padrão — sem aceitar as duas formas aqui, essas
+  // 3 páginas (as únicas direto dentro de pages/, sem subpasta) eram
+  // detectadas como se estivessem uma pasta mais fundo do que realmente
+  // estão, quebrando todo link do menu lateral montado a partir delas.
+  const isDashboard = pathname.endsWith("/pages/dashboard.html") || pathname.endsWith("/pages/dashboard");
+  const isHome = pathname.endsWith("/pages/inicio.html") || pathname.endsWith("/pages/inicio");
+  const isProcessDashboard = pathname.endsWith("/pages/dashboard-processo.html") || pathname.endsWith("/pages/dashboard-processo");
   const prefix = isDashboard || isHome || isProcessDashboard ? "./" : "../";
   const isActive = (section, page = "") =>
     pathname.includes(`/pages/${section}/`) &&
